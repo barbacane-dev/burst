@@ -10,30 +10,25 @@ Scaffold the project, prove the architecture, get a message on screen.
 
 ### Backend
 
-- [ ] Workspace setup — Cargo workspace with `burst`, `burst-core`, `burst-server` crates (ADR-008)
-- [ ] Configuration loading — TOML config + env var overrides (ADR-009)
-- [ ] Database setup — sqlx connection pool, migration runner on startup (ADR-009)
-- [ ] User model — `users` table, CRUD endpoints, JIT provisioning from `X-Auth-Consumer` (ADR-006, ADR-007)
-- [ ] Local auth — `POST /auth/login`, JWT issuing, refresh tokens (ADR-006)
-- [ ] Health endpoints — `/health/live`, `/health/ready` on admin port 3001 (ADR-009)
+- [x] Workspace setup — Cargo workspace with `burst`, `burst-core`, `burst-server` crates (ADR-008)
+- [x] Configuration loading — TOML config + env var overrides (ADR-009)
+- [x] Database setup — sqlx connection pool, migration runner on startup (ADR-009)
+- [x] User model — `users` table, CRUD endpoints, JIT provisioning from `X-Auth-Consumer` (ADR-006, ADR-007)
+- [x] Local auth — `POST /auth/login`, JWT issuing, refresh tokens (ADR-006)
+- [x] Health endpoints — `/health/live`, `/health/ready` on admin port 3001 (ADR-009)
 
 ### Frontend
 
-- [ ] Vite/React/Tailwind scaffold — project structure per ADR-013
-- [ ] Login page — local auth flow
-- [ ] App shell — sidebar, channel header, main content area
+- [x] Vite/React/Tailwind scaffold — project structure per ADR-013
+- [x] Login page — local auth flow
+- [x] App shell — sidebar, channel header, main content area
 
 ### Infrastructure
 
-- [ ] Initial database migrations (ADR-007)
-- [ ] Docker Compose for local development (Burst + PostgreSQL + Barbacane)
-- [ ] CI pipeline — fmt, clippy, unit tests, OpenAPI lint (ADR-012)
-- [ ] OpenAPI spec — initial `specs/burst-api.yaml` with auth and user endpoints (ADR-005)
-- [ ] Barbacane spec — gateway configuration with jwt-auth plugin (ADR-006)
-
-### Tooling
-
-- [ ] Evaluate [OpenSpec](https://openspec.dev) for implementation planning — spec-driven change proposals with persistent context across sessions and team members. Trial on a few M1 tasks to assess fit alongside ADRs.
+- [x] Initial database migrations (ADR-007)
+- [x] Docker Compose for local development (Burst + PostgreSQL + Barbacane)
+- [x] CI pipeline — fmt, clippy, unit tests, OpenAPI lint (ADR-012)
+- [x] OpenAPI spec — `specs/burst-api.yaml` with auth and user endpoints + Barbacane gateway config (ADR-005, ADR-006)
 
 ---
 
@@ -206,6 +201,7 @@ Not committed — revisit when demand or opportunity arises.
 | i18n | English only in v1, add when community demand exists | ADR-013 |
 | Shared UI component library | Extract `@barbacane/ui` when duplication justifies it | ADR-013 |
 | Licensing ADR | Write before repo goes public | NOTES |
+| OpenSpec evaluation | Evaluate for spec-driven implementation planning; deferred — revisit when workflow pain justifies it | — |
 
 ---
 

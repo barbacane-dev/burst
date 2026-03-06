@@ -1,0 +1,12 @@
+[server]
+listen = "0.0.0.0:3000"
+admin_listen = "0.0.0.0:3001"
+
+[database]
+url = "postgres://burst:burst@localhost:5432/burst"
+max_connections = 20
+
+[auth]
+jwt_secret = "change-me-in-production"
+jwt_expiry = "15m"
+refresh_expiry = "7d"

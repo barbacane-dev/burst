@@ -1,0 +1,10 @@
+/target
+burst.toml
+.env
+*.swp
+*.swo
+.DS_Store
+
+# Frontend
+ui/node_modules/
+ui/dist/

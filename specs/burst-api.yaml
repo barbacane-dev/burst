@@ -1,0 +1,577 @@
+openapi: 3.2.0
+info:
+  title: Burst API
+  version: 0.1.0
+  description: >-
+    Burst team messaging API. This spec is the single source of truth for both
+    the API contract and the Barbacane gateway configuration (ADR-005, ADR-006).
+  contact:
+    name: Barbacane
+    url: https://github.com/barbacane-dev/burst
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+
+servers:
+  - url: https://localhost:8080
+    description: Barbacane gateway (local dev)
+
+# ── Barbacane gateway configuration ──
+
+x-barbacane-upstream:
+  burst:
+    url: http://localhost:3000
+    healthCheck:
+      path: /health/ready
+      interval: 10s
+
+x-barbacane-plugins:
+  jwt-auth:
+    secret: "${BURST_AUTH_JWT_SECRET}"
+    claimsToHeaders:
+      - claim: sub
+        header: X-Auth-Consumer
+      - claim: role
+        header: X-Auth-Consumer-Groups
+    stripAuthorizationHeader: true
+
+# ── Tags ──
+
+tags:
+  - name: Auth
+    description: Authentication endpoints for local login and token refresh
+  - name: Users
+    description: User profile management
+
+# ── Paths ──
+
+paths:
+  /auth/login:
+    post:
+      operationId: login
+      summary: Log in with email and password
+      description: Authenticates a local user and returns JWT access and refresh tokens.
+      tags:
+        - Auth
+      security: []
+      x-barbacane-plugins: {}
+      x-barbacane-upstream: burst
+      requestBody:
+        description: User credentials
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: "alice@example.com"
+              password: "hunter2"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+              example:
+                accessToken: "eyJhbGciOiJIUzI1NiJ9..."
+                refreshToken: "dGhpcyBpcyBhIHJlZnJlc2g..."
+                tokenType: "Bearer"
+                expiresIn: 900
+        "400":
+          description: Malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "urn:burst:error:bad-request"
+                title: "Bad Request"
+                status: 400
+                detail: "Missing required field: email"
+        "401":
+          description: Invalid credentials
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "urn:burst:error:unauthorized"
+                title: "Unauthorized"
+                status: 401
+                detail: "Missing or invalid authentication"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "urn:burst:error:rate-limited"
+                title: "Too Many Requests"
+                status: 429
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+              example:
+                type: "urn:burst:error:internal-error"
+                title: "Internal Server Error"
+                status: 500
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Refresh an access token
+      description: Exchanges a valid refresh token for a new access/refresh token pair (rotation).
+      tags:
+        - Auth
+      security: []
+      x-barbacane-plugins: {}
+      x-barbacane-upstream: burst
+      requestBody:
+        description: Refresh token to exchange
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+            example:
+              refreshToken: "dGhpcyBpcyBhIHJlZnJlc2g..."
+      responses:
+        "200":
+          description: Token refreshed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+              example:
+                accessToken: "eyJhbGciOiJIUzI1NiJ9..."
+                refreshToken: "bmV3IHJlZnJlc2ggdG9rZW4..."
+                tokenType: "Bearer"
+                expiresIn: 900
+        "400":
+          description: Malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /users:
+    get:
+      operationId: listUsers
+      summary: List users
+      description: Returns a paginated list of users ordered by creation time.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-upstream: burst
+      parameters:
+        - name: cursor
+          in: query
+          description: Pagination cursor (opaque token from previous response)
+          schema:
+            type: string
+            format: uuid
+            maxLength: 36
+            example: "0193a5e0-7c1a-7000-8000-000000000001"
+        - name: limit
+          in: query
+          description: Number of results per page
+          schema:
+            type: integer
+            format: int32
+            default: 50
+            minimum: 1
+            maximum: 200
+            example: 50
+      responses:
+        "200":
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+        "400":
+          description: Invalid query parameters
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /users/me:
+    get:
+      operationId: getMe
+      summary: Get current user
+      description: Returns the profile of the currently authenticated user.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-upstream: burst
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+                username: "alice"
+                displayName: "Alice Martin"
+                email: "alice@example.com"
+                role: "member"
+                status: "online"
+                isBot: false
+                createdAt: "2026-03-06T10:00:00Z"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      summary: Get a user by ID
+      description: Returns the public profile of a specific user.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-upstream: burst
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User ID (prefixed with usr_ or raw UUID)
+          schema:
+            type: string
+            pattern: "^(usr_)?[0-9a-f-]{36}$"
+            maxLength: 40
+            example: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid user ID format
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: User not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+# ── Components ──
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        JWT access token issued by Burst local auth or an external OIDC provider.
+        Validated by Barbacane jwt-auth plugin. This scheme supports RFC8725.
+
+  schemas:
+    LoginRequest:
+      type: object
+      description: Credentials for local password authentication.
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "alice@example.com"
+        password:
+          type: string
+          format: password
+          maxLength: 128
+          example: "hunter2"
+
+    RefreshRequest:
+      type: object
+      description: Refresh token to exchange for a new token pair.
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          format: byte
+          maxLength: 512
+          description: Opaque refresh token from a previous login or refresh response.
+          example: "dGhpcyBpcyBhIHJlZnJlc2g..."
+
+    TokenResponse:
+      type: object
+      description: Access and refresh token pair returned on successful authentication.
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+          format: byte
+          maxLength: 2048
+          description: JWT access token.
+          example: "eyJhbGciOiJIUzI1NiJ9..."
+        refreshToken:
+          type: string
+          format: byte
+          maxLength: 512
+          description: Opaque refresh token for obtaining new access tokens.
+          example: "dGhpcyBpcyBhIHJlZnJlc2g..."
+        tokenType:
+          type: string
+          enum:
+            - Bearer
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 86400
+          description: Access token TTL in seconds.
+          example: 900
+
+    User:
+      type: object
+      description: User profile visible to other authenticated users.
+      required:
+        - id
+        - username
+        - displayName
+        - role
+        - status
+        - isBot
+        - createdAt
+      properties:
+        id:
+          type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
+          maxLength: 40
+          description: Prefixed user ID.
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+        username:
+          type: string
+          pattern: "^[a-zA-Z0-9._-]+$"
+          maxLength: 64
+          example: "alice"
+        displayName:
+          type: string
+          pattern: "^.+$"
+          maxLength: 128
+          example: "Alice Martin"
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "alice@example.com"
+        avatarUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+        role:
+          type: string
+          enum:
+            - admin
+            - moderator
+            - member
+            - guest
+          example: "member"
+        status:
+          type: string
+          enum:
+            - online
+            - away
+            - offline
+            - dnd
+          example: "online"
+        statusText:
+          type: string
+          pattern: "^.*$"
+          maxLength: 256
+          example: "In a meeting"
+        isBot:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          example: "2026-03-06T10:00:00Z"
+
+    UserList:
+      type: object
+      description: Paginated list of users with cursor for next page.
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/User"
+          example: []
+        cursor:
+          type: string
+          maxLength: 40
+          pattern: "^usr_[0-9a-f-]{36}$"
+          description: Cursor for next page, absent if no more results.
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000002"
+
+    ProblemDetails:
+      type: object
+      description: RFC 9457 problem details for HTTP APIs.
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          maxLength: 128
+          description: "Error type URN (e.g., urn:burst:error:not-found)."
+          example: "urn:burst:error:not-found"
+        title:
+          type: string
+          pattern: "^.+$"
+          maxLength: 128
+          description: Short human-readable summary of the problem type.
+          example: "Not Found"
+        status:
+          type: integer
+          format: int32
+          minimum: 100
+          maximum: 599
+          description: HTTP status code.
+          example: 404
+        detail:
+          type: string
+          pattern: "^.+$"
+          maxLength: 1024
+          description: Human-readable explanation specific to this occurrence.
+          example: "User not found"
+        instance:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: URI identifying the specific occurrence.
+        errors:
+          type: array
+          maxItems: 100
+          description: Validation errors when type is urn:burst:error:validation.
+          items:
+            $ref: "#/components/schemas/ValidationError"
+
+    ValidationError:
+      type: object
+      description: Individual field validation error within a validation problem.
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          pattern: "^[a-z][a-z0-9_.-]*$"
+          maxLength: 64
+          description: Machine-readable validation error code.
+          example: "required"
+        message:
+          type: string
+          pattern: "^.+$"
+          maxLength: 512
+          description: Human-readable validation error message.
+          example: "Field 'email' is required"
+        location:
+          type: string
+          pattern: "^[a-zA-Z0-9._\\[\\]]+$"
+          maxLength: 256
+          description: JSONPath or dot-notation location of the invalid field.
+          example: "body.email"

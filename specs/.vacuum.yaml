@@ -1,0 +1,90 @@
+# Burst OpenAPI Ruleset (ADR-005)
+#
+# Extends Vacuum's recommended OAS rules and OWASP rules,
+# with Burst-specific conventions layered on top.
+
+extends:
+  - - "vacuum:oas"
+    - "recommended"
+  - - "vacuum:owasp"
+    - "all"
+
+rules:
+
+  # ── ADR-005: Path conventions ──
+
+  # Paths must use kebab-case (no uppercase or underscores in literal path segments)
+  # Allows camelCase inside {param} placeholders per ADR-005 naming conventions
+  burst-paths-kebab-case:
+    description: "Path segments must use kebab-case (ADR-005)"
+    severity: error
+    given: $.paths
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/[a-z0-9-]+[A-Z_]|/[A-Z_]"
+
+  # No trailing slashes
+  burst-path-no-trailing-slash:
+    description: "Paths must not have trailing slashes (ADR-005)"
+    severity: error
+    given: $.paths
+    then:
+      function: pattern
+      functionOptions:
+        notMatch: "/$"
+
+  # ── ADR-005: Naming conventions ──
+
+  # Schema component names must be UpperCamelCase
+  burst-schema-names-pascal-case:
+    description: "Schema names must be UpperCamelCase (ADR-005)"
+    severity: error
+    given: $.components.schemas
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[A-Z][a-zA-Z0-9]*$"
+
+  # Request/response body field names must be camelCase
+  burst-properties-camel-case:
+    description: "Schema property names must be camelCase (ADR-005)"
+    severity: error
+    given: $.components.schemas[*].properties
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+
+  # ── ADR-005: Spec format ──
+
+  # Must use OpenAPI 3.2+ (ADR-005 requires 3.2.x)
+  burst-openapi-version:
+    description: "Must use OpenAPI 3.2.x (ADR-005)"
+    severity: error
+    given: $
+    then:
+      field: openapi
+      function: pattern
+      functionOptions:
+        match: "^3\\.2\\."
+
+  # Tags must be defined in global tags array
+  burst-global-tags:
+    description: "Tags must be defined in global tags array (ADR-005)"
+    severity: error
+    given: $
+    then:
+      field: tags
+      function: truthy
+
+  # ── OWASP rule adjustments ──
+  # Rate-limit headers are handled by Barbacane gateway, not Burst itself
+  owasp-rate-limit: warn
+  owasp-rate-limit-retry-after: warn
+
+  # Auth endpoints are intentionally public (no security)
+  owasp-protection-global-unsafe: warn
+
+  # Examples are nice-to-have, not blocking (warn by default from built-in)
+  oas3-missing-example: warn
