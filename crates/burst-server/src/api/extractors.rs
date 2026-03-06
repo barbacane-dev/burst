@@ -2,24 +2,50 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::error::ApiError;
 
-/// Extracts the authenticated user ID from Barbacane's `X-Auth-Consumer` header.
+/// Extracts the authenticated user ID.
+///
+/// Tries `X-Auth-Consumer` header first (set by Barbacane gateway after JWT validation).
+/// Falls back to validating the `Authorization: Bearer <token>` JWT directly,
+/// which is needed for local development without the gateway.
 pub struct AuthUser {
     pub user_id: Uuid,
 }
 
-impl<S: Send + Sync> FromRequestParts<S> for AuthUser {
+impl FromRequestParts<AppState> for AuthUser {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let header = parts
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        // Try Barbacane header first
+        if let Some(header) = parts
             .headers
             .get("x-auth-consumer")
             .and_then(|v| v.to_str().ok())
+        {
+            let user_id = Uuid::parse_str(header).map_err(|_| ApiError::Unauthorized)?;
+            return Ok(AuthUser { user_id });
+        }
+
+        // Fall back to JWT validation (local dev without gateway)
+        let auth_header = parts
+            .headers
+            .get("authorization")
+            .and_then(|v| v.to_str().ok())
             .ok_or(ApiError::Unauthorized)?;
 
-        let user_id = Uuid::parse_str(header).map_err(|_| ApiError::Unauthorized)?;
+        let token = auth_header
+            .strip_prefix("Bearer ")
+            .ok_or(ApiError::Unauthorized)?;
+
+        let claims = crate::auth::validate_access_token(&state.config, token)
+            .map_err(|_| ApiError::Unauthorized)?;
+
+        let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized)?;
 
         Ok(AuthUser { user_id })
     }
