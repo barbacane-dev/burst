@@ -110,8 +110,10 @@ jobs:
     if: needs.changes.outputs.specs == 'true'
     steps:
       - uses: actions/checkout@v4
-      - uses: pb33f/vacuum-action@v2
-        with:
-          openapi_path: specs/burst-api.yaml
-          ruleset: specs/.vacuum.yaml
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Lint OpenAPI spec with vacuum
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE":/work:ro \
+            dshanley/vacuum:latest lint \
+            --ruleset /work/specs/.vacuum.yaml \
+            --fail-severity error \
+            /work/specs/burst-api.yaml
