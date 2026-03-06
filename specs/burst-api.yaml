@@ -18,22 +18,16 @@ servers:
 
 # ── Barbacane gateway configuration ──
 
-x-barbacane-upstream:
-  burst:
-    url: http://localhost:3000
-    healthCheck:
-      path: /health/ready
-      interval: 10s
-
-x-barbacane-plugins:
-  jwt-auth:
-    secret: "${BURST_AUTH_JWT_SECRET}"
-    claimsToHeaders:
-      - claim: sub
-        header: X-Auth-Consumer
-      - claim: role
-        header: X-Auth-Consumer-Groups
-    stripAuthorizationHeader: true
+x-barbacane-middlewares:
+  - name: jwt-auth
+    config:
+      secret: "env://BURST_AUTH_JWT_SECRET"
+      claims_to_headers:
+        - claim: sub
+          header: X-Auth-Consumer
+        - claim: role
+          header: X-Auth-Consumer-Groups
+      strip_authorization_header: true
 
 # ── Tags ──
 
@@ -42,6 +36,10 @@ tags:
     description: Authentication endpoints for local login and token refresh
   - name: Users
     description: User profile management
+  - name: Channels
+    description: Channel management and membership
+  - name: Messages
+    description: Messaging within channels
 
 # ── Paths ──
 
@@ -54,8 +52,11 @@ paths:
       tags:
         - Auth
       security: []
-      x-barbacane-plugins: {}
-      x-barbacane-upstream: burst
+      x-barbacane-middlewares: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
       requestBody:
         description: User credentials
         required: true
@@ -129,8 +130,11 @@ paths:
       tags:
         - Auth
       security: []
-      x-barbacane-plugins: {}
-      x-barbacane-upstream: burst
+      x-barbacane-middlewares: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
       requestBody:
         description: Refresh token to exchange
         required: true
@@ -186,7 +190,10 @@ paths:
         - Users
       security:
         - BearerAuth: []
-      x-barbacane-upstream: burst
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
       parameters:
         - name: cursor
           in: query
@@ -247,7 +254,10 @@ paths:
         - Users
       security:
         - BearerAuth: []
-      x-barbacane-upstream: burst
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
       responses:
         "200":
           description: Current user profile
@@ -292,7 +302,10 @@ paths:
         - Users
       security:
         - BearerAuth: []
-      x-barbacane-upstream: burst
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
       parameters:
         - name: userId
           in: path
@@ -341,6 +354,650 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  /channels:
+    get:
+      operationId: listChannels
+      summary: List channels for current user
+      description: Returns channels the authenticated user is a member of, ordered by name.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      responses:
+        "200":
+          description: Channel list
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 1000
+                items:
+                  $ref: "#/components/schemas/Channel"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    post:
+      operationId: createChannel
+      summary: Create a channel
+      description: Creates a new public or private channel. The creator is automatically added as owner.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      requestBody:
+        description: Channel to create
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateChannelRequest"
+            example:
+              name: "engineering"
+              slug: "engineering"
+              kind: "public"
+              topic: "Engineering discussions"
+      responses:
+        "201":
+          description: Channel created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+        "400":
+          description: Malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "409":
+          description: Channel slug already exists
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}:
+    get:
+      operationId: getChannel
+      summary: Get a channel
+      description: Returns a channel by ID. Private channels require membership.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "200":
+          description: Channel details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+        "400":
+          description: Invalid channel ID format
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Channel not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    patch:
+      operationId: updateChannel
+      summary: Update a channel
+      description: Updates channel name, topic, or description. Requires membership.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      requestBody:
+        description: Fields to update
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChannelRequest"
+      responses:
+        "200":
+          description: Channel updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+        "400":
+          description: Malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Channel not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/members:
+    get:
+      operationId: listChannelMembers
+      summary: List channel members
+      description: Returns members of a channel. Requires membership.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "200":
+          description: Channel member list
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 10000
+                items:
+                  $ref: "#/components/schemas/ChannelMember"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    post:
+      operationId: joinChannel
+      summary: Join a channel
+      description: Adds the current user to a public channel.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "204":
+          description: Joined successfully
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Cannot join non-public channel
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Channel not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/members/me:
+    delete:
+      operationId: leaveChannel
+      summary: Leave a channel
+      description: Removes the current user from the channel.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "204":
+          description: Left successfully
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/messages:
+    get:
+      operationId: listMessages
+      summary: List messages in a channel
+      description: Returns messages in a channel ordered by newest first (cursor-based pagination with UUIDv7).
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - name: cursor
+          in: query
+          description: Pagination cursor (message ID; returns messages older than this)
+          schema:
+            type: string
+            format: uuid
+            maxLength: 36
+        - name: limit
+          in: query
+          description: Number of results per page
+          schema:
+            type: integer
+            format: int32
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Paginated message list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageList"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    post:
+      operationId: sendMessage
+      summary: Send a message
+      description: Sends a new message to a channel. Requires membership.
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      requestBody:
+        description: Message to send
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+            example:
+              content: "Hello, world!"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/messages/{messageId}:
+    get:
+      operationId: getMessage
+      summary: Get a message
+      description: Returns a specific message by ID. Requires channel membership.
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+      responses:
+        "200":
+          description: Message details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Message not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    patch:
+      operationId: editMessage
+      summary: Edit a message
+      description: Edits a message's content. Only the author can edit their own messages.
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+      requestBody:
+        description: Updated message content
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditMessageRequest"
+      responses:
+        "200":
+          description: Message edited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Message not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    delete:
+      operationId: deleteMessage
+      summary: Delete a message
+      description: Soft-deletes a message (content cleared, row preserved). Only the author can delete.
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+      responses:
+        "204":
+          description: Message deleted
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Message not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
 # ── Components ──
 
 components:
@@ -352,6 +1009,28 @@ components:
       description: >-
         JWT access token issued by Burst local auth or an external OIDC provider.
         Validated by Barbacane jwt-auth plugin. This scheme supports RFC8725.
+
+  parameters:
+    ChannelId:
+      name: channelId
+      in: path
+      required: true
+      description: Channel ID (prefixed with ch_ or raw UUID)
+      schema:
+        type: string
+        pattern: "^(ch_)?[0-9a-f-]{36}$"
+        maxLength: 39
+        example: "ch_0193a5e0-7c1a-7000-8000-000000000010"
+    MessageId:
+      name: messageId
+      in: path
+      required: true
+      description: Message ID (prefixed with msg_ or raw UUID)
+      schema:
+        type: string
+        pattern: "^(msg_)?[0-9a-f-]{36}$"
+        maxLength: 40
+        example: "msg_0193a5e0-7c1a-7000-8000-000000000100"
 
   schemas:
     LoginRequest:
@@ -575,3 +1254,243 @@ components:
           maxLength: 256
           description: JSONPath or dot-notation location of the invalid field.
           example: "body.email"
+
+    Channel:
+      type: object
+      description: A messaging channel (public, private, DM, or group DM).
+      required:
+        - id
+        - kind
+        - createdBy
+        - isArchived
+        - isReadonly
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          pattern: "^ch_[0-9a-f-]{36}$"
+          maxLength: 39
+          description: Prefixed channel ID.
+          example: "ch_0193a5e0-7c1a-7000-8000-000000000010"
+        kind:
+          type: string
+          enum:
+            - public
+            - private
+            - dm
+            - group_dm
+          example: "public"
+        name:
+          type: string
+          pattern: "^.+$"
+          maxLength: 128
+          example: "engineering"
+        slug:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          maxLength: 128
+          description: URL-friendly channel identifier.
+          example: "engineering"
+        topic:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 512
+          example: "Engineering discussions"
+        description:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 2048
+          example: "Main channel for the engineering team"
+        createdBy:
+          type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
+          maxLength: 40
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+        isArchived:
+          type: boolean
+          example: false
+        isReadonly:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          example: "2026-03-06T10:00:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          example: "2026-03-06T10:00:00Z"
+
+    CreateChannelRequest:
+      type: object
+      description: Request body for creating a new channel.
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          pattern: "^.+$"
+          maxLength: 128
+          example: "engineering"
+        slug:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          maxLength: 128
+          example: "engineering"
+        kind:
+          type: string
+          enum:
+            - public
+            - private
+          default: public
+          example: "public"
+        topic:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 512
+        description:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 2048
+
+    UpdateChannelRequest:
+      type: object
+      description: Request body for updating a channel.
+      properties:
+        name:
+          type: string
+          pattern: "^.+$"
+          maxLength: 128
+        topic:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 512
+        description:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 2048
+
+    ChannelMember:
+      type: object
+      description: A user's membership in a channel.
+      required:
+        - userId
+        - role
+        - joinedAt
+      properties:
+        userId:
+          type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
+          maxLength: 40
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+        role:
+          type: string
+          enum:
+            - owner
+            - moderator
+            - member
+          example: "member"
+        joinedAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          example: "2026-03-06T10:00:00Z"
+
+    Message:
+      type: object
+      description: A message in a channel.
+      required:
+        - id
+        - channelId
+        - userId
+        - content
+        - createdAt
+      properties:
+        id:
+          type: string
+          pattern: "^msg_[0-9a-f-]{36}$"
+          maxLength: 40
+          description: Prefixed message ID.
+          example: "msg_0193a5e0-7c1a-7000-8000-000000000100"
+        channelId:
+          type: string
+          pattern: "^ch_[0-9a-f-]{36}$"
+          maxLength: 39
+          example: "ch_0193a5e0-7c1a-7000-8000-000000000010"
+        userId:
+          type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
+          maxLength: 40
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+        threadId:
+          type: string
+          pattern: "^msg_[0-9a-f-]{36}$"
+          maxLength: 40
+          description: Thread root message ID. Null for top-level messages.
+        content:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 4000
+          description: Message text content. Empty string if soft-deleted.
+          example: "Hello, world!"
+        editedAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          description: Set when message has been edited.
+        deletedAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          description: Set when message has been soft-deleted.
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          example: "2026-03-06T10:05:00Z"
+
+    MessageList:
+      type: object
+      description: Paginated list of messages with cursor for next page.
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/Message"
+        cursor:
+          type: string
+          maxLength: 40
+          pattern: "^msg_[0-9a-f-]{36}$"
+          description: Cursor for next page (oldest message ID), absent if no more results.
+
+    SendMessageRequest:
+      type: object
+      description: Request body for sending a new message.
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          pattern: "^.+$"
+          maxLength: 4000
+          description: Message text content.
+          example: "Hello, world!"
+
+    EditMessageRequest:
+      type: object
+      description: Request body for editing a message.
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          pattern: "^.+$"
+          maxLength: 4000
+          description: Updated message text content.
+          example: "Hello, world! (edited)"

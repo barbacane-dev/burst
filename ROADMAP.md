@@ -38,19 +38,19 @@ Core messaging: create channels, send and receive messages via REST.
 
 ### Backend
 
-- [ ] Channel model — `channels`, `channel_members` tables, CRUD endpoints (ADR-007)
-- [ ] Message model — `messages` table, send/list/edit/delete endpoints (ADR-007)
-- [ ] Cursor-based pagination — UUIDv7 cursors on message listing (ADR-005, ADR-007)
-- [ ] Channel membership — join, leave, invite, member list
-- [ ] Soft deletes — message deletion preserves timeline (ADR-007)
-- [ ] ProblemDetails errors — `urn:burst:error:*` error types (ADR-005)
+- [x] Channel model — `channels`, `channel_members` tables, CRUD endpoints (ADR-007)
+- [x] Message model — `messages` table, send/list/edit/delete endpoints (ADR-007)
+- [x] Cursor-based pagination — UUIDv7 cursors on message listing (ADR-005, ADR-007)
+- [x] Channel membership — join, leave, invite, member list
+- [x] Soft deletes — message deletion preserves timeline (ADR-007)
+- [x] ProblemDetails errors — `urn:burst:error:*` error types (ADR-005)
 
 ### Frontend
 
-- [ ] Channel sidebar — channel list, create channel dialog
-- [ ] Message list — display messages with author, timestamp
-- [ ] Message composer — text input, send on Enter
-- [ ] Channel switching — load messages on channel select
+- [x] Channel sidebar — channel list, create channel dialog
+- [x] Message list — display messages with author, timestamp
+- [x] Message composer — text input, send on Enter
+- [x] Channel switching — load messages on channel select
 
 ---
 

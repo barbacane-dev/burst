@@ -17,6 +17,7 @@ pub fn app_router(state: AppState) -> Router {
     Router::new()
         .merge(api::auth::router())
         .merge(api::users::router())
+        .merge(api::channels::router())
         .with_state(state)
 }
 

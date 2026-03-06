@@ -8,6 +8,14 @@ pub fn format_user_id(id: Uuid) -> String {
     format!("usr_{id}")
 }
 
+pub fn format_channel_id(id: Uuid) -> String {
+    format!("ch_{id}")
+}
+
+pub fn format_message_id(id: Uuid) -> String {
+    format!("msg_{id}")
+}
+
 pub fn parse_prefixed_id(s: &str, prefix: &str) -> Option<Uuid> {
     s.strip_prefix(prefix)
         .and_then(|id| Uuid::parse_str(id).ok())

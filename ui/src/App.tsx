@@ -2,7 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./lib/auth/context";
 import { LoginPage } from "./pages/login";
-import { MainLayout } from "./components/layout/main-layout";
+import { MainLayout, WelcomeView } from "./components/layout/main-layout";
+import { ChannelPage } from "./pages/channel";
 import { Spinner } from "./components/ui/spinner";
 import type { ReactNode } from "react";
 
@@ -51,13 +52,16 @@ function AppRoutes() {
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
       <Route
-        path="/*"
+        path="/"
         element={
           <RequireAuth>
             <MainLayout />
           </RequireAuth>
         }
-      />
+      >
+        <Route index element={<WelcomeView />} />
+        <Route path="channels/:channelId" element={<ChannelPage />} />
+      </Route>
     </Routes>
   );
 }
