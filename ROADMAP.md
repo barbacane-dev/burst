@@ -1,6 +1,24 @@
 # Roadmap
 
-Prioritized roadmap for Burst development.
+Prioritised development roadmap for Burst.
+
+## What ships as v1.0?
+
+v1.0 is the public release. It covers Milestones 1–7: a fully functional, production-deployable messaging tool with real-time delivery, threads, DMs, search, file sharing, and basic administration. Milestones 8+ extend the integration surface and introduce enhanced search.
+
+**v1.0 is not a feature-complete product.** It is the smallest version that proves the core hypothesis: a focused, fully open-source messaging tool with no feature gating beats the alternatives for teams that need reliability and operational simplicity over breadth.
+
+**v1.0 success looks like:** at least three external teams self-hosting Burst as their primary internal messaging tool within 6 months of public release, with no blocking issues caused by missing core features.
+
+**Known gaps at v1.0:**
+- No LDAP auth. Teams with LDAP-only directories must use an OIDC bridge (e.g., Keycloak in front of LDAP) or wait for the Barbacane `ldap-auth` plugin (see Future Considerations). The "LDAP not enterprise-gated" differentiator (ADR-002) is real — it means LDAP will ship as a free feature — but it is not in v1.
+- No mobile push notifications. Browser notifications cover the primary use case. Native push is deferred.
+- No link unfurling. Links are rendered as plain clickable text in v1.
+- Webhooks and bot accounts ship in M8 (post-v1). Teams needing integrations can use the REST API directly.
+
+**Pre-release gates (must complete before tagging v1.0):**
+- Licensing ADR completed and committed.
+- Repo made public.
 
 ---
 
@@ -123,9 +141,9 @@ Find messages and share files.
 
 ---
 
-## Milestone 6 — Notifications, Pins, Admin
+## Milestone 6 — Polish, Admin & UX Completeness
 
-Polish the experience, add administrative controls.
+Notifications, pins, administration, and the UI features needed before v1.0 is usable end-to-end.
 
 ### Backend
 
@@ -134,21 +152,25 @@ Polish the experience, add administrative controls.
 - [ ] Channel archival — archive/unarchive, read-only mode (ADR-007)
 - [ ] Admin endpoints — user management, channel management, instance settings
 - [ ] Audit log — append-only log of admin actions (ADR-007)
-- [ ] Webhooks — incoming/outgoing webhook CRUD, message posting (ADR-007)
 
 ### Frontend
 
+- [ ] Markdown rendering — bold, italic, code blocks with shiki, emoji shortcodes (ADR-013)
 - [ ] Browser notifications — Notification API for mentions and DMs when tab unfocused
 - [ ] Notification preferences — per-channel settings in UI
 - [ ] Pinned messages — pin/unpin action, pinned messages panel
-- [ ] Admin panel — user list, channel management, webhook configuration
+- [ ] Admin panel — user list, channel management
 - [ ] Settings page — profile, notification preferences, theme toggle
+- [ ] Accessibility — keyboard navigation, ARIA roles, screen reader support (ADR-013)
+- [ ] Dark mode (ADR-013)
+
+> **Note:** Markdown rendering is placed here, not M7, because messages without formatting look visually incomplete. M5 delivers the ability to send and search messages; M6 makes them look right.
 
 ---
 
 ## Milestone 7 — Production Readiness
 
-Observability, S3 storage, multi-node, hardening.
+Observability, S3 storage, multi-node hardening. **Completing this milestone = v1.0 candidate.**
 
 ### Backend
 
@@ -163,22 +185,36 @@ Observability, S3 storage, multi-node, hardening.
 ### Infrastructure
 
 - [ ] Docker image — multi-arch, minimal base (ADR-009)
-- [ ] GitHub Actions release workflow — build binaries, publish Docker image
+- [ ] GitHub Actions release workflow — build binaries, publish Docker image on tag
 - [ ] Barbacane spec for production — S3 dispatcher routes, OIDC auth, ACL rules (ADR-006, ADR-011)
-
-### Frontend
-
-- [ ] Markdown rendering — bold, italic, code blocks with shiki, emoji shortcodes (ADR-013)
-- [ ] Accessibility — keyboard navigation, ARIA roles, screen reader support (ADR-013)
-- [ ] Dark mode (ADR-013)
+- [ ] Licensing ADR — write and commit before tagging v1.0, before making repo public
 
 ---
 
-## Milestone 8 — Typesense & OIDC
+## Milestone 8 — Integration Surface
 
-Enhanced search and enterprise SSO.
+Webhooks, bot accounts, and enhanced search. **Post-v1.0.**
 
+Webhooks and bots multiply the value of a stable core — they are not the thing being validated in v1. Shipping the REST API first (M1–M2) gives integrators a path forward while the webhooks layer is built properly.
+
+### Backend
+
+- [ ] Incoming webhooks — receive messages via URL, `webhooks` table (ADR-007)
+- [ ] Outgoing webhooks — post events to external URLs, HMAC signing (ADR-007)
+- [ ] Bot user accounts — dedicated bot role, credential management via Barbacane (ADR-006)
 - [ ] Typesense integration — async message sync, search via Typesense backend (ADR-003)
+
+### Frontend
+
+- [ ] Webhook management — incoming/outgoing webhook configuration in admin panel
+- [ ] Bot management — bot user creation and token display
+
+---
+
+## Milestone 9 — OIDC & SSO
+
+Production-grade SSO documentation and JIT provisioning refinement.
+
 - [ ] Barbacane OIDC configuration — document full OIDC setup with oidc-auth plugin (ADR-006)
 - [ ] JIT provisioning refinement — claim mapping, group sync, profile re-sync on login (ADR-006)
 
@@ -190,9 +226,11 @@ Not committed — revisit when demand or opportunity arises.
 
 | Item | Context | ADR |
 |------|---------|-----|
+| Barbacane ldap-auth plugin | **Blocks the "LDAP not enterprise-gated" differentiator.** Required for teams with LDAP-only directories. Already in Barbacane roadmap P2. High priority to pull forward — Burst's LDAP requirement is a strong argument. | ADR-006 |
+| Mobile push notifications | Browser notifications cover v1. Native push (APNs, FCM) requires per-platform cert management, service workers, and a notification relay service. Add when mobile usage data justifies the engineering cost. | ADR-002 |
+| Link unfurling | In-scope in ADR-002 but deferred from v1. Requires an async fetch pipeline, timeout handling, and content sanitisation to do safely. Add in a post-v1 polish milestone. | ADR-002 |
 | Tauri desktop app | Lightweight alternative to Electron | ADR-003 |
 | RobustMQ broker | Rust-native alternative to PG LISTEN/NOTIFY when production-ready | ADR-004 |
-| Barbacane ldap-auth plugin | Needed for LDAP-only deployments, already in Barbacane roadmap P2 | ADR-006 |
 | Barbacane websocket dispatcher | Could simplify WS proxying topology | NOTES |
 | E2E encryption | Boundary consideration from ADR-002 | ADR-002 |
 | Voice messages | Boundary consideration from ADR-002 | ADR-002 |
@@ -200,7 +238,6 @@ Not committed — revisit when demand or opportunity arises.
 | Federation / protocol bridges | Boundary consideration from ADR-002 | ADR-002 |
 | i18n | English only in v1, add when community demand exists | ADR-013 |
 | Shared UI component library | Extract `@barbacane/ui` when duplication justifies it | ADR-013 |
-| Licensing ADR | Write before repo goes public | NOTES |
 | OpenSpec evaluation | Evaluate for spec-driven implementation planning; deferred — revisit when workflow pain justifies it | — |
 
 ---
