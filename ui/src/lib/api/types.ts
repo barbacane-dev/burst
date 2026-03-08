@@ -32,8 +32,15 @@ export interface Channel {
   createdBy: string;
   isArchived: boolean;
   isReadonly: boolean;
+  unreadCount: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ReactionCount {
+  emoji: string;
+  count: number;
+  userIds: string[];
 }
 
 export interface Message {
@@ -44,5 +51,7 @@ export interface Message {
   content: string;
   editedAt?: string;
   deletedAt?: string;
+  replyCount: number;
+  reactions: ReactionCount[];
   createdAt: string;
 }

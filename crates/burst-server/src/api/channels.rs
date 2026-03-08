@@ -1,5 +1,5 @@
 use axum::extract::{Path, Query, State};
-use axum::routing::get;
+use axum::routing::{delete, get, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -14,6 +14,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/channels", get(list_channels).post(create_channel))
         .route("/channels/browse", get(browse_channels))
+        .route("/dms", axum::routing::post(create_or_get_dm))
         .route(
             "/channels/{channel_id}",
             get(get_channel).patch(update_channel),
@@ -22,9 +23,10 @@ pub fn router() -> Router<AppState> {
             "/channels/{channel_id}/members",
             get(list_members).post(join_channel),
         )
+        .route("/channels/{channel_id}/members/me", delete(leave_channel))
         .route(
-            "/channels/{channel_id}/members/me",
-            axum::routing::delete(leave_channel),
+            "/channels/{channel_id}/members/me/last-read",
+            axum::routing::patch(mark_read),
         )
         .route(
             "/channels/{channel_id}/messages",
@@ -33,6 +35,14 @@ pub fn router() -> Router<AppState> {
         .route(
             "/channels/{channel_id}/messages/{message_id}",
             get(get_message).patch(edit_message).delete(delete_message),
+        )
+        .route(
+            "/channels/{channel_id}/messages/{message_id}/replies",
+            get(list_thread_replies),
+        )
+        .route(
+            "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
+            put(add_reaction).delete(remove_reaction),
         )
 }
 
@@ -50,6 +60,7 @@ pub struct ChannelResponse {
     pub created_by: String,
     pub is_archived: bool,
     pub is_readonly: bool,
+    pub unread_count: i64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -60,6 +71,23 @@ pub struct ChannelMemberResponse {
     pub user_id: String,
     pub role: String,
     pub joined_at: String,
+}
+
+fn channel_with_unread_to_response(row: &db::channels::ChannelWithUnreadRow) -> ChannelResponse {
+    ChannelResponse {
+        id: burst_core::id::format_channel_id(row.id),
+        kind: row.kind.clone(),
+        name: row.name.clone(),
+        slug: row.slug.clone(),
+        topic: row.topic.clone(),
+        description: row.description.clone(),
+        created_by: burst_core::id::format_user_id(row.created_by),
+        is_archived: row.is_archived,
+        is_readonly: row.is_readonly,
+        unread_count: row.unread_count,
+        created_at: row.created_at.to_rfc3339(),
+        updated_at: row.updated_at.to_rfc3339(),
+    }
 }
 
 fn channel_to_response(row: &db::channels::ChannelRow) -> ChannelResponse {
@@ -73,12 +101,21 @@ fn channel_to_response(row: &db::channels::ChannelRow) -> ChannelResponse {
         created_by: burst_core::id::format_user_id(row.created_by),
         is_archived: row.is_archived,
         is_readonly: row.is_readonly,
+        unread_count: 0,
         created_at: row.created_at.to_rfc3339(),
         updated_at: row.updated_at.to_rfc3339(),
     }
 }
 
 // ── Message types ──
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReactionResponse {
+    pub emoji: String,
+    pub count: i64,
+    pub user_ids: Vec<String>,
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,10 +130,16 @@ pub struct MessageResponse {
     pub edited_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deleted_at: Option<String>,
+    pub reply_count: i64,
+    pub reactions: Vec<ReactionResponse>,
     pub created_at: String,
 }
 
-fn message_to_response(row: &db::messages::MessageRow) -> MessageResponse {
+fn build_message_response(
+    row: &db::messages::MessageRow,
+    reply_count: i64,
+    reactions: Vec<ReactionResponse>,
+) -> MessageResponse {
     MessageResponse {
         id: burst_core::id::format_message_id(row.id),
         channel_id: burst_core::id::format_channel_id(row.channel_id),
@@ -105,8 +148,34 @@ fn message_to_response(row: &db::messages::MessageRow) -> MessageResponse {
         content: row.content.clone(),
         edited_at: row.edited_at.map(|t| t.to_rfc3339()),
         deleted_at: row.deleted_at.map(|t| t.to_rfc3339()),
+        reply_count,
+        reactions,
         created_at: row.created_at.to_rfc3339(),
     }
+}
+
+/// Aggregates reaction rows into per-emoji summaries.
+fn aggregate_reactions(
+    rows: &[db::reactions::ReactionRow],
+    message_id: Uuid,
+) -> Vec<ReactionResponse> {
+    use std::collections::HashMap;
+    let mut map: HashMap<&str, (i64, Vec<String>)> = HashMap::new();
+    for r in rows.iter().filter(|r| r.message_id == message_id) {
+        let entry = map.entry(r.emoji.as_str()).or_default();
+        entry.0 += 1;
+        entry.1.push(burst_core::id::format_user_id(r.user_id));
+    }
+    let mut out: Vec<ReactionResponse> = map
+        .into_iter()
+        .map(|(emoji, (count, user_ids))| ReactionResponse {
+            emoji: emoji.to_string(),
+            count,
+            user_ids,
+        })
+        .collect();
+    out.sort_by(|a, b| a.emoji.cmp(&b.emoji));
+    out
 }
 
 // ── Channel handlers ──
@@ -135,7 +204,6 @@ async fn create_channel(
 
     let slug = body.slug.unwrap_or_else(|| slugify(&body.name));
 
-    // Check slug uniqueness
     if db::channels::find_by_slug(&state.db, &slug)
         .await?
         .is_some()
@@ -158,7 +226,6 @@ async fn create_channel(
     )
     .await?;
 
-    // Add creator as owner
     db::channels::add_member(&state.db, id, auth.user_id, "owner").await?;
 
     Ok((
@@ -180,7 +247,7 @@ async fn list_channels(
     let items: Vec<_> = channels
         .iter()
         .take(limit as usize)
-        .map(channel_to_response)
+        .map(channel_with_unread_to_response)
         .collect();
     let cursor = if has_more {
         items.last().map(|c| c.id.clone())
@@ -226,6 +293,12 @@ fn parse_message_id(message_id: &str) -> Result<Uuid, ApiError> {
         .ok_or_else(|| ApiError::BadRequest("invalid message ID".into()))
 }
 
+fn parse_user_id(user_id: &str) -> Result<Uuid, ApiError> {
+    burst_core::id::parse_prefixed_id(user_id, "usr_")
+        .or_else(|| Uuid::parse_str(user_id).ok())
+        .ok_or_else(|| ApiError::BadRequest("invalid user ID".into()))
+}
+
 async fn get_channel(
     auth: AuthUser,
     State(state): State<AppState>,
@@ -237,7 +310,6 @@ async fn get_channel(
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
 
-    // Private channels require membership
     if channel.kind == "private" && !db::channels::is_member(&state.db, id, auth.user_id).await? {
         return Err(ApiError::NotFound("Channel".into()));
     }
@@ -334,12 +406,57 @@ async fn list_members(
     Ok(Json(items))
 }
 
+async fn mark_read(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(channel_id): Path<String>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let id = parse_channel_id(&channel_id)?;
+    db::channels::update_last_read(&state.db, id, auth.user_id).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+// ── DM handler ──
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateDmRequest {
+    pub user_id: String,
+}
+
+async fn create_or_get_dm(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Json(body): Json<CreateDmRequest>,
+) -> Result<(axum::http::StatusCode, Json<ChannelResponse>), ApiError> {
+    let target_id = parse_user_id(&body.user_id)?;
+
+    if target_id == auth.user_id {
+        return Err(ApiError::BadRequest("cannot DM yourself".into()));
+    }
+
+    // Verify target user exists
+    db::users::find_by_id(&state.db, target_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User".into()))?;
+
+    let new_id = burst_core::id::new_id();
+    let channel =
+        db::channels::find_or_create_dm(&state.db, auth.user_id, target_id, new_id).await?;
+
+    Ok((
+        axum::http::StatusCode::OK,
+        Json(channel_to_response(&channel)),
+    ))
+}
+
 // ── Message handlers ──
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SendMessageRequest {
     pub content: String,
+    pub thread_id: Option<String>,
 }
 
 async fn send_message(
@@ -361,8 +478,26 @@ async fn send_message(
         ));
     }
 
+    // Resolve optional thread_id and verify it belongs to this channel
+    let thread_id = if let Some(ref tid_str) = body.thread_id {
+        let tid = parse_message_id(tid_str)?;
+        let parent = db::messages::find_by_id(&state.db, tid)
+            .await?
+            .ok_or_else(|| ApiError::NotFound("Thread message".into()))?;
+        if parent.channel_id != ch_id {
+            return Err(ApiError::BadRequest(
+                "thread message belongs to a different channel".into(),
+            ));
+        }
+        // Replies always point to the root (flat threading)
+        Some(parent.thread_id.unwrap_or(parent.id))
+    } else {
+        None
+    };
+
     let id = burst_core::id::new_id();
-    let message = db::messages::create(&state.db, id, ch_id, auth.user_id, content).await?;
+    let message =
+        db::messages::create(&state.db, id, ch_id, auth.user_id, thread_id, content).await?;
 
     let ev = crate::ws::ServerEvent::MessageCreated {
         event_id: burst_core::id::new_id().to_string(),
@@ -382,7 +517,7 @@ async fn send_message(
 
     Ok((
         axum::http::StatusCode::CREATED,
-        Json(message_to_response(&message)),
+        Json(build_message_response(&message, 0, vec![])),
     ))
 }
 
@@ -403,11 +538,25 @@ async fn list_messages(
         db::messages::list_in_channel(&state.db, ch_id, params.cursor, limit + 1).await?;
 
     let has_more = messages.len() as i64 > limit;
+    let messages: Vec<_> = messages.into_iter().take(limit as usize).collect();
+
+    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+    let reply_count_map: std::collections::HashMap<Uuid, i64> =
+        db::messages::reply_counts(&state.db, &message_ids)
+            .await?
+            .into_iter()
+            .collect();
+    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
+
     let items: Vec<_> = messages
         .iter()
-        .take(limit as usize)
-        .map(message_to_response)
+        .map(|m| {
+            let rc = *reply_count_map.get(&m.id).unwrap_or(&0);
+            let reactions = aggregate_reactions(&reaction_rows, m.id);
+            build_message_response(m, rc, reactions)
+        })
         .collect();
+
     let cursor = if has_more {
         items.last().map(|m| m.id.clone())
     } else {
@@ -437,7 +586,57 @@ async fn get_message(
         return Err(ApiError::NotFound("Message".into()));
     }
 
-    Ok(Json(message_to_response(&message)))
+    let message_ids = [message.id];
+    let reply_count_map: std::collections::HashMap<Uuid, i64> =
+        db::messages::reply_counts(&state.db, &message_ids)
+            .await?
+            .into_iter()
+            .collect();
+    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
+    let rc = *reply_count_map.get(&message.id).unwrap_or(&0);
+    let reactions = aggregate_reactions(&reaction_rows, message.id);
+
+    Ok(Json(build_message_response(&message, rc, reactions)))
+}
+
+async fn list_thread_replies(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((channel_id, message_id)): Path<(String, String)>,
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<MessageResponse>>, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
+        return Err(ApiError::Forbidden);
+    }
+
+    let thread_id = parse_message_id(&message_id)?;
+    let limit = params.clamped_limit();
+    let messages =
+        db::messages::list_in_thread(&state.db, thread_id, params.cursor, limit + 1).await?;
+
+    let has_more = messages.len() as i64 > limit;
+    let messages: Vec<_> = messages.into_iter().take(limit as usize).collect();
+
+    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
+    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
+
+    let items: Vec<_> = messages
+        .iter()
+        .map(|m| {
+            let reactions = aggregate_reactions(&reaction_rows, m.id);
+            build_message_response(m, 0, reactions)
+        })
+        .collect();
+
+    let cursor = if has_more {
+        items.last().map(|m| m.id.clone())
+    } else {
+        None
+    };
+
+    Ok(Json(PaginatedResponse { items, cursor }))
 }
 
 #[derive(Debug, Deserialize)]
@@ -490,7 +689,7 @@ async fn edit_message(
     };
     crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
 
-    Ok(Json(message_to_response(&message)))
+    Ok(Json(build_message_response(&message, 0, vec![])))
 }
 
 async fn delete_message(
@@ -515,6 +714,71 @@ async fn delete_message(
         message_id: burst_core::id::format_message_id(deleted_msg.id),
     };
     crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+// ── Reaction handlers ──
+
+async fn add_reaction(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((channel_id, message_id, emoji)): Path<(String, String, String)>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
+        return Err(ApiError::Forbidden);
+    }
+
+    let msg_id = parse_message_id(&message_id)?;
+
+    // Verify message exists in this channel
+    let message = db::messages::find_by_id(&state.db, msg_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Message".into()))?;
+    if message.channel_id != ch_id {
+        return Err(ApiError::NotFound("Message".into()));
+    }
+
+    let is_new = db::reactions::add(&state.db, msg_id, auth.user_id, &emoji).await?;
+    if is_new {
+        let ev = crate::ws::ServerEvent::ReactionAdded {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: burst_core::id::format_channel_id(ch_id),
+            message_id: burst_core::id::format_message_id(msg_id),
+            emoji,
+            user_id: burst_core::id::format_user_id(auth.user_id),
+        };
+        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    }
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+async fn remove_reaction(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((channel_id, message_id, emoji)): Path<(String, String, String)>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
+        return Err(ApiError::Forbidden);
+    }
+
+    let msg_id = parse_message_id(&message_id)?;
+    let removed = db::reactions::remove(&state.db, msg_id, auth.user_id, &emoji).await?;
+    if removed {
+        let ev = crate::ws::ServerEvent::ReactionRemoved {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: burst_core::id::format_channel_id(ch_id),
+            message_id: burst_core::id::format_message_id(msg_id),
+            emoji,
+            user_id: burst_core::id::format_user_id(auth.user_id),
+        };
+        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    }
 
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

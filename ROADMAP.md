@@ -102,20 +102,20 @@ Complete the core messaging experience.
 
 ### Backend
 
-- [ ] Threaded replies — `thread_id` on messages, thread listing endpoint (ADR-007)
-- [ ] Reactions — add/remove reactions, emoji + custom emoji support (ADR-007)
-- [ ] Custom emoji — `custom_emojis` table, upload endpoint, admin-only (ADR-007)
-- [ ] Direct messages — DM channel creation, participant lookup (ADR-007)
-- [ ] Group DMs — multi-participant DM channels (ADR-007)
-- [ ] Mentions — `@username` parsing, mention notification events
+- [x] Threaded replies — `thread_id` on messages, thread listing endpoint (ADR-007)
+- [x] Reactions — add/remove reactions per message (ADR-007)
+- [ ] Custom emoji — `custom_emojis` table, upload endpoint, admin-only (ADR-007) — deferred to M6 Admin
+- [x] Direct messages — DM channel creation via `POST /dms`, find-or-create (ADR-007)
+- [ ] Group DMs — multi-participant DM channels (ADR-007) — deferred to M6
+- [ ] Mentions — `@username` parsing, mention notification events — deferred to M6
 
 ### Frontend
 
-- [ ] Thread panel — side panel with replies, reusing message components
-- [ ] Reaction picker — emoji selector, reaction display on messages
-- [ ] DM list — separate section in sidebar
-- [ ] Mention autocomplete — `@` trigger in composer
-- [ ] Unread counts — per-channel unread badge in sidebar
+- [x] Thread panel — side panel with replies, reusing message components
+- [x] Reaction picker — emoji hover menu, reaction pills on messages
+- [x] DM list — separate section in sidebar with New DM dialog
+- [ ] Mention autocomplete — `@` trigger in composer — deferred to M6
+- [x] Unread counts — per-channel badge, cleared on visit
 
 ---
 

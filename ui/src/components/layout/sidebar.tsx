@@ -1,25 +1,34 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Hash, LogOut, MessageSquare, Plus, X } from "lucide-react";
+import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../lib/auth/context";
-import { listChannels, createChannel } from "../../lib/api/channels";
+import { listChannels, createChannel, createDm } from "../../lib/api/channels";
+import { listUsers } from "../../lib/api/users";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import type { Channel, PaginatedResponse } from "../../lib/api/types";
+import type { Channel, PaginatedResponse, User } from "../../lib/api/types";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { channelId } = useParams();
   const [showCreate, setShowCreate] = useState(false);
+  const [showDm, setShowDm] = useState(false);
 
   const { data } = useQuery<PaginatedResponse<Channel>>({
     queryKey: ["channels"],
     queryFn: listChannels,
   });
-  const channels = data?.items ?? [];
+
+  const publicChannels = data?.items.filter((ch) => ch.kind === "public" || ch.kind === "private") ?? [];
+  const dmChannels = data?.items.filter((ch) => ch.kind === "dm" || ch.kind === "group_dm") ?? [];
+
+  function dmLabel(ch: Channel): string {
+    // DM channels have no name — show the ID as a placeholder until M6 adds display names
+    return ch.name ?? ch.id.replace("ch_", "").slice(0, 8);
+  }
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
@@ -31,6 +40,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3" role="navigation">
+        {/* ── Channels ─────────────────────────────────────────── */}
         <div className="mb-2 flex items-center justify-between px-2">
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             Channels
@@ -44,25 +54,52 @@ export function Sidebar() {
           </button>
         </div>
 
-        {channels.length === 0 && (
+        {publicChannels.length === 0 && (
           <p className="px-2 text-sm italic text-gray-400 dark:text-gray-500">
             No channels yet
           </p>
         )}
 
-        {channels.map((ch) => (
-          <button
+        {publicChannels.map((ch) => (
+          <ChannelNavItem
             key={ch.id}
+            channel={ch}
+            isActive={channelId === ch.id}
             onClick={() => navigate(`/channels/${ch.id}`)}
-            className={`flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors ${
-              channelId === ch.id
-                ? "bg-indigo-100 text-indigo-900 dark:bg-indigo-900/30 dark:text-indigo-200"
-                : "text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
-            }`}
+            icon={<Hash className="mr-2 h-4 w-4 shrink-0 text-gray-400" />}
+            label={ch.name ?? ch.slug ?? "unnamed"}
+          />
+        ))}
+
+        {/* ── Direct Messages ──────────────────────────────────── */}
+        <div className="mb-2 mt-4 flex items-center justify-between px-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+            Direct Messages
+          </h2>
+          <button
+            onClick={() => setShowDm(true)}
+            className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+            title="New direct message"
           >
-            <Hash className="mr-2 h-4 w-4 shrink-0 text-gray-400" />
-            <span className="truncate">{ch.name ?? ch.slug ?? "unnamed"}</span>
+            <Plus className="h-4 w-4" />
           </button>
+        </div>
+
+        {dmChannels.length === 0 && (
+          <p className="px-2 text-sm italic text-gray-400 dark:text-gray-500">
+            No messages yet
+          </p>
+        )}
+
+        {dmChannels.map((ch) => (
+          <ChannelNavItem
+            key={ch.id}
+            channel={ch}
+            isActive={channelId === ch.id}
+            onClick={() => navigate(`/channels/${ch.id}`)}
+            icon={<MessageCircle className="mr-2 h-4 w-4 shrink-0 text-gray-400" />}
+            label={dmLabel(ch)}
+          />
         ))}
       </nav>
 
@@ -96,7 +133,48 @@ export function Sidebar() {
       {showCreate && (
         <CreateChannelDialog onClose={() => setShowCreate(false)} />
       )}
+
+      {showDm && (
+        <NewDmDialog onClose={() => setShowDm(false)} currentUserId={user?.id ?? ""} />
+      )}
     </aside>
+  );
+}
+
+function ChannelNavItem({
+  channel,
+  isActive,
+  onClick,
+  icon,
+  label,
+}: {
+  channel: Channel;
+  isActive: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  const hasUnread = channel.unreadCount > 0;
+
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center rounded-md px-2 py-1.5 text-sm transition-colors ${
+        isActive
+          ? "bg-indigo-100 text-indigo-900 dark:bg-indigo-900/30 dark:text-indigo-200"
+          : "text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
+      }`}
+    >
+      {icon}
+      <span className={`truncate flex-1 text-left ${hasUnread && !isActive ? "font-semibold" : ""}`}>
+        {label}
+      </span>
+      {hasUnread && !isActive && (
+        <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white">
+          {channel.unreadCount > 99 ? "99+" : channel.unreadCount}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -167,6 +245,85 @@ function CreateChannelDialog({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function NewDmDialog({
+  onClose,
+  currentUserId,
+}: {
+  onClose: () => void;
+  currentUserId: string;
+}) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+
+  const { data: usersData, isLoading } = useQuery<PaginatedResponse<User>>({
+    queryKey: ["users"],
+    queryFn: () => listUsers(),
+  });
+
+  const users = (usersData?.items ?? []).filter((u) => u.id !== currentUserId);
+
+  const mutation = useMutation({
+    mutationFn: (userId: string) => createDm(userId),
+    onSuccess: (channel) => {
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      navigate(`/channels/${channel.id}`);
+      onClose();
+    },
+    onError: (err: Error) => {
+      setError(err.message);
+    },
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            New Direct Message
+          </h3>
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            {error}
+          </div>
+        )}
+
+        {isLoading ? (
+          <p className="text-sm text-gray-400">Loading users…</p>
+        ) : users.length === 0 ? (
+          <p className="text-sm text-gray-400">No other users found.</p>
+        ) : (
+          <ul className="max-h-64 overflow-y-auto space-y-1">
+            {users.map((u) => (
+              <li key={u.id}>
+                <button
+                  onClick={() => { setError(""); mutation.mutate(u.id); }}
+                  disabled={mutation.isPending}
+                  className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
+                >
+                  <Avatar name={u.displayName} src={u.avatarUrl} size="sm" />
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">{u.displayName}</p>
+                    <p className="text-xs text-gray-500">@{u.username}</p>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

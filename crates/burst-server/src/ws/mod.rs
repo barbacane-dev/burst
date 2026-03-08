@@ -50,6 +50,22 @@ pub enum ServerEvent {
         user_id: String,
         status: String,
     },
+    #[serde(rename = "reaction.added", rename_all = "camelCase")]
+    ReactionAdded {
+        event_id: String,
+        channel_id: String,
+        message_id: String,
+        emoji: String,
+        user_id: String,
+    },
+    #[serde(rename = "reaction.removed", rename_all = "camelCase")]
+    ReactionRemoved {
+        event_id: String,
+        channel_id: String,
+        message_id: String,
+        emoji: String,
+        user_id: String,
+    },
 }
 
 impl ServerEvent {
@@ -61,6 +77,8 @@ impl ServerEvent {
             ServerEvent::TypingStart { event_id, .. } => event_id,
             ServerEvent::TypingStop { event_id, .. } => event_id,
             ServerEvent::PresenceUpdate { event_id, .. } => event_id,
+            ServerEvent::ReactionAdded { event_id, .. } => event_id,
+            ServerEvent::ReactionRemoved { event_id, .. } => event_id,
         }
     }
 
@@ -72,6 +90,8 @@ impl ServerEvent {
             ServerEvent::TypingStart { channel_id, .. } => Some(channel_id),
             ServerEvent::TypingStop { channel_id, .. } => Some(channel_id),
             ServerEvent::PresenceUpdate { .. } => None,
+            ServerEvent::ReactionAdded { channel_id, .. } => Some(channel_id),
+            ServerEvent::ReactionRemoved { channel_id, .. } => Some(channel_id),
         }
     }
 }

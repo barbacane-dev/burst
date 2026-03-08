@@ -17,6 +17,23 @@ pub struct ChannelRow {
     pub updated_at: DateTime<Utc>,
 }
 
+/// Like `ChannelRow` but also carries the unread message count for the requesting user.
+#[derive(Debug, FromRow)]
+pub struct ChannelWithUnreadRow {
+    pub id: Uuid,
+    pub kind: String,
+    pub name: Option<String>,
+    pub slug: Option<String>,
+    pub topic: Option<String>,
+    pub description: Option<String>,
+    pub created_by: Uuid,
+    pub is_archived: bool,
+    pub is_readonly: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub unread_count: i64,
+}
+
 #[derive(Debug, FromRow)]
 pub struct ChannelMemberRow {
     pub channel_id: Uuid,
@@ -81,12 +98,19 @@ pub async fn list_for_user(
     user_id: Uuid,
     cursor: Option<Uuid>,
     limit: i64,
-) -> Result<Vec<ChannelRow>, sqlx::Error> {
+) -> Result<Vec<ChannelWithUnreadRow>, sqlx::Error> {
     match cursor {
         Some(cursor_id) => {
-            sqlx::query_as::<_, ChannelRow>(
+            sqlx::query_as::<_, ChannelWithUnreadRow>(
                 "SELECT c.id, c.kind, c.name, c.slug, c.topic, c.description, c.created_by, \
-                 c.is_archived, c.is_readonly, c.created_at, c.updated_at \
+                 c.is_archived, c.is_readonly, c.created_at, c.updated_at, \
+                 COALESCE((\
+                   SELECT COUNT(*) FROM messages m \
+                   WHERE m.channel_id = c.id \
+                   AND m.thread_id IS NULL \
+                   AND m.deleted_at IS NULL \
+                   AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01'::timestamptz) \
+                 ), 0) AS unread_count \
                  FROM channels c \
                  INNER JOIN channel_members cm ON cm.channel_id = c.id \
                  WHERE cm.user_id = $1 AND c.id > $2 \
@@ -99,9 +123,16 @@ pub async fn list_for_user(
             .await
         }
         None => {
-            sqlx::query_as::<_, ChannelRow>(
+            sqlx::query_as::<_, ChannelWithUnreadRow>(
                 "SELECT c.id, c.kind, c.name, c.slug, c.topic, c.description, c.created_by, \
-                 c.is_archived, c.is_readonly, c.created_at, c.updated_at \
+                 c.is_archived, c.is_readonly, c.created_at, c.updated_at, \
+                 COALESCE((\
+                   SELECT COUNT(*) FROM messages m \
+                   WHERE m.channel_id = c.id \
+                   AND m.thread_id IS NULL \
+                   AND m.deleted_at IS NULL \
+                   AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01'::timestamptz) \
+                 ), 0) AS unread_count \
                  FROM channels c \
                  INNER JOIN channel_members cm ON cm.channel_id = c.id \
                  WHERE cm.user_id = $1 \
@@ -261,4 +292,72 @@ pub async fn channel_ids_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uu
             .fetch_all(pool)
             .await?;
     Ok(rows.into_iter().map(|r| r.0).collect())
+}
+
+/// Finds an existing DM channel between two users, or creates one.
+pub async fn find_or_create_dm(
+    pool: &PgPool,
+    user_a: Uuid,
+    user_b: Uuid,
+    new_id: Uuid,
+) -> Result<ChannelRow, sqlx::Error> {
+    // Look for an existing dm channel where both users are members
+    let existing = sqlx::query_as::<_, ChannelRow>(
+        "SELECT c.id, c.kind, c.name, c.slug, c.topic, c.description, c.created_by, \
+         c.is_archived, c.is_readonly, c.created_at, c.updated_at \
+         FROM channels c \
+         INNER JOIN channel_members cm1 ON cm1.channel_id = c.id AND cm1.user_id = $1 \
+         INNER JOIN channel_members cm2 ON cm2.channel_id = c.id AND cm2.user_id = $2 \
+         WHERE c.kind = 'dm' \
+         LIMIT 1",
+    )
+    .bind(user_a)
+    .bind(user_b)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(ch) = existing {
+        return Ok(ch);
+    }
+
+    let ch = sqlx::query_as::<_, ChannelRow>(
+        "INSERT INTO channels (id, kind, created_by) \
+         VALUES ($1, 'dm', $2) \
+         RETURNING id, kind, name, slug, topic, description, created_by, \
+         is_archived, is_readonly, created_at, updated_at",
+    )
+    .bind(new_id)
+    .bind(user_a)
+    .fetch_one(pool)
+    .await?;
+
+    for user_id in [user_a, user_b] {
+        sqlx::query(
+            "INSERT INTO channel_members (channel_id, user_id, role) \
+             VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+        )
+        .bind(ch.id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
+    }
+
+    Ok(ch)
+}
+
+/// Updates the last-read timestamp for a user in a channel.
+pub async fn update_last_read(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE channel_members SET last_read_at = NOW() \
+         WHERE channel_id = $1 AND user_id = $2",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    Ok(())
 }

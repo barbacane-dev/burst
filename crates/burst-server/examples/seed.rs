@@ -57,10 +57,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sqlx::query_scalar("SELECT id FROM users WHERE email = 'alice@example.com'")
             .fetch_one(&pool)
             .await?;
-    let bob_id: Uuid =
-        sqlx::query_scalar("SELECT id FROM users WHERE email = 'bob@example.com'")
-            .fetch_one(&pool)
-            .await?;
+    let bob_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE email = 'bob@example.com'")
+        .fetch_one(&pool)
+        .await?;
 
     // ── Channel ────────────────────────────────────────────────────────────────
     sqlx::query(
@@ -73,10 +72,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .execute(&pool)
     .await?;
 
-    let channel_id: Uuid =
-        sqlx::query_scalar("SELECT id FROM channels WHERE slug = 'general'")
-            .fetch_one(&pool)
-            .await?;
+    let channel_id: Uuid = sqlx::query_scalar("SELECT id FROM channels WHERE slug = 'general'")
+        .fetch_one(&pool)
+        .await?;
 
     // ── Members ────────────────────────────────────────────────────────────────
     for (user_id, role) in [(alice_id, "owner"), (bob_id, "member")] {
