@@ -364,6 +364,22 @@ async fn send_message(
     let id = burst_core::id::new_id();
     let message = db::messages::create(&state.db, id, ch_id, auth.user_id, content).await?;
 
+    let ev = crate::ws::ServerEvent::MessageCreated {
+        event_id: burst_core::id::new_id().to_string(),
+        channel_id: burst_core::id::format_channel_id(ch_id),
+        message: crate::ws::MessagePayload {
+            id: burst_core::id::format_message_id(message.id),
+            channel_id: burst_core::id::format_channel_id(message.channel_id),
+            user_id: burst_core::id::format_user_id(message.user_id),
+            thread_id: message.thread_id.map(burst_core::id::format_message_id),
+            content: message.content.clone(),
+            edited_at: message.edited_at.map(|t| t.to_rfc3339()),
+            deleted_at: message.deleted_at.map(|t| t.to_rfc3339()),
+            created_at: message.created_at.to_rfc3339(),
+        },
+    };
+    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+
     Ok((
         axum::http::StatusCode::CREATED,
         Json(message_to_response(&message)),
@@ -458,6 +474,22 @@ async fn edit_message(
         return Err(ApiError::NotFound("Message".into()));
     }
 
+    let ev = crate::ws::ServerEvent::MessageUpdated {
+        event_id: burst_core::id::new_id().to_string(),
+        channel_id: burst_core::id::format_channel_id(ch_id),
+        message: crate::ws::MessagePayload {
+            id: burst_core::id::format_message_id(message.id),
+            channel_id: burst_core::id::format_channel_id(message.channel_id),
+            user_id: burst_core::id::format_user_id(message.user_id),
+            thread_id: message.thread_id.map(burst_core::id::format_message_id),
+            content: message.content.clone(),
+            edited_at: message.edited_at.map(|t| t.to_rfc3339()),
+            deleted_at: message.deleted_at.map(|t| t.to_rfc3339()),
+            created_at: message.created_at.to_rfc3339(),
+        },
+    };
+    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+
     Ok(Json(message_to_response(&message)))
 }
 
@@ -473,9 +505,16 @@ async fn delete_message(
     }
 
     let msg_id = parse_message_id(&message_id)?;
-    db::messages::soft_delete(&state.db, msg_id, auth.user_id)
+    let deleted_msg = db::messages::soft_delete(&state.db, msg_id, auth.user_id)
         .await?
         .ok_or_else(|| ApiError::NotFound("Message".into()))?;
+
+    let ev = crate::ws::ServerEvent::MessageDeleted {
+        event_id: burst_core::id::new_id().to_string(),
+        channel_id: burst_core::id::format_channel_id(ch_id),
+        message_id: burst_core::id::format_message_id(deleted_msg.id),
+    };
+    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
 
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

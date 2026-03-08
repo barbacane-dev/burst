@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth/context";
 import { Avatar } from "../components/ui/avatar";
 import { Spinner } from "../components/ui/spinner";
 import type { Channel, Message, PaginatedResponse } from "../lib/api/types";
+import { useWsEvent, useTypingIndicator } from "../lib/ws/hooks";
 
 export function ChannelPage() {
   const { channelId } = useParams<{ channelId: string }>();
@@ -43,8 +44,56 @@ export function ChannelPage() {
     bottomRef.current?.scrollIntoView({ behavior: "instant" });
   }, [sorted.length]);
 
-  // Collect unique user IDs for display — for now just use IDs
-  // In a full implementation we'd batch-fetch user profiles
+  // ── Live message delivery via WebSocket ──────────────────────────────────
+
+  useWsEvent<{ type: string; channelId: string; message: Message }>(
+    "message.created",
+    (ev) => {
+      if (ev.channelId !== channelId) return;
+      queryClient.setQueryData<PaginatedResponse<Message>>(
+        ["messages", channelId],
+        (old) => {
+          if (!old) return { items: [ev.message], cursor: undefined };
+          // Deduplicate by ID (in case of optimistic send)
+          const exists = old.items.some((m) => m.id === ev.message.id);
+          if (exists) {
+            return { ...old, items: old.items.map((m) => m.id === ev.message.id ? ev.message : m) };
+          }
+          return { ...old, items: [ev.message, ...old.items] };
+        },
+      );
+    },
+  );
+
+  useWsEvent<{ type: string; channelId: string; message: Message }>(
+    "message.updated",
+    (ev) => {
+      if (ev.channelId !== channelId) return;
+      queryClient.setQueryData<PaginatedResponse<Message>>(
+        ["messages", channelId],
+        (old) => old
+          ? { ...old, items: old.items.map((m) => m.id === ev.message.id ? ev.message : m) }
+          : old,
+      );
+    },
+  );
+
+  useWsEvent<{ type: string; channelId: string; messageId: string }>(
+    "message.deleted",
+    (ev) => {
+      if (ev.channelId !== channelId) return;
+      queryClient.setQueryData<PaginatedResponse<Message>>(
+        ["messages", channelId],
+        (old) => old
+          ? { ...old, items: old.items.map((m) => m.id === ev.messageId ? { ...m, deletedAt: new Date().toISOString(), content: "" } : m) }
+          : old,
+      );
+    },
+  );
+
+  // ── Typing indicator ──────────────────────────────────────────────────────
+
+  const { typingUsers, sendTypingStart, sendTypingStop } = useTypingIndicator(channelId ?? "");
 
   return (
     <div className="flex flex-1 flex-col">
@@ -82,7 +131,20 @@ export function ChannelPage() {
         )}
       </div>
 
-      {channelId && <MessageComposer channelId={channelId} />}
+      {typingUsers.size > 0 && (
+        <div className="px-4 py-1 text-xs text-gray-400 dark:text-gray-500">
+          {[...typingUsers].map((id) => id.replace("usr_", "").slice(0, 8)).join(", ")}{" "}
+          {typingUsers.size === 1 ? "is" : "are"} typing...
+        </div>
+      )}
+
+      {channelId && (
+        <MessageComposer
+          channelId={channelId}
+          onTypingStart={sendTypingStart}
+          onTypingStop={sendTypingStop}
+        />
+      )}
     </div>
   );
 }
@@ -113,16 +175,56 @@ function MessageBubble({ message, isOwn }: { message: Message; isOwn: boolean })
   );
 }
 
-function MessageComposer({ channelId }: { channelId: string }) {
+function MessageComposer({
+  channelId,
+  onTypingStart,
+  onTypingStop,
+}: {
+  channelId: string;
+  onTypingStart: () => void;
+  onTypingStop: () => void;
+}) {
   const [content, setContent] = useState("");
   const queryClient = useQueryClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { user } = useAuth();
 
   const mutation = useMutation({
     mutationFn: (text: string) => sendMessage(channelId, text),
-    onSuccess: () => {
+    onMutate: (text) => {
+      const tempId = `optimistic_${Date.now()}`;
+      const optimistic: Message = {
+        id: tempId,
+        channelId: channelId,
+        userId: user?.id ?? "",
+        content: text,
+        createdAt: new Date().toISOString(),
+      };
+      queryClient.setQueryData<PaginatedResponse<Message>>(
+        ["messages", channelId],
+        (old) => old ? { ...old, items: [optimistic, ...old.items] } : { items: [optimistic], cursor: undefined },
+      );
+      return { tempId };
+    },
+    onSuccess: (message, _text, context) => {
       setContent("");
-      queryClient.invalidateQueries({ queryKey: ["messages", channelId] });
+      onTypingStop();
+      // Replace optimistic message with real one
+      queryClient.setQueryData<PaginatedResponse<Message>>(
+        ["messages", channelId],
+        (old) => old
+          ? { ...old, items: old.items.map((m) => m.id === context?.tempId ? message : m) }
+          : old,
+      );
+    },
+    onError: (_err, _text, context) => {
+      // Remove optimistic message on error
+      queryClient.setQueryData<PaginatedResponse<Message>>(
+        ["messages", channelId],
+        (old) => old
+          ? { ...old, items: old.items.filter((m) => m.id !== context?.tempId) }
+          : old,
+      );
     },
   });
 
@@ -140,6 +242,15 @@ function MessageComposer({ channelId }: { channelId: string }) {
     }
   }
 
+  function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    setContent(e.target.value);
+    if (e.target.value.trim()) {
+      onTypingStart();
+    } else {
+      onTypingStop();
+    }
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
@@ -149,7 +260,7 @@ function MessageComposer({ channelId }: { channelId: string }) {
         <textarea
           ref={textareaRef}
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           rows={1}

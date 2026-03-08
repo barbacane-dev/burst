@@ -8,6 +8,7 @@ import {
 } from "react";
 import { apiFetch, setAccessToken, silentRefresh } from "../api/client";
 import type { TokenResponse, User } from "../api/types";
+import { wsClient } from "../ws/client";
 
 interface AuthState {
   user: User | null;
@@ -37,9 +38,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     silentRefresh()
       .then((ok) => {
-        if (ok) return fetchMe();
+        if (ok) {
+          wsClient.connect();
+          return fetchMe();
+        }
       })
       .finally(() => setIsLoading(false));
+
+    const stopHeartbeat = wsClient.startHeartbeat();
+    return () => {
+      stopHeartbeat();
+    };
   }, [fetchMe]);
 
   const login = useCallback(
@@ -49,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
       setAccessToken(data.accessToken);
+      wsClient.connect();
       await fetchMe();
     },
     [fetchMe],
@@ -58,6 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await apiFetch("/auth/logout", { method: "POST" });
     } finally {
+      wsClient.disconnect();
+      wsClient.reset();
       setAccessToken(null);
       setUser(null);
     }

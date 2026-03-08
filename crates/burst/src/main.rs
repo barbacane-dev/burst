@@ -44,10 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("../../migrations").run(&pool).await?;
     tracing::info!("migrations applied");
 
-    let state = AppState {
-        db: pool,
-        config: config.app_config(),
-    };
+    let state = AppState::new(pool, config.app_config());
 
     // Main server
     let app = app_router(state.clone());

@@ -253,3 +253,12 @@ pub async fn list_members(
     .fetch_all(pool)
     .await
 }
+
+pub async fn channel_ids_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<Uuid>, sqlx::Error> {
+    let rows =
+        sqlx::query_as::<_, (Uuid,)>("SELECT channel_id FROM channel_members WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(pool)
+            .await?;
+    Ok(rows.into_iter().map(|r| r.0).collect())
+}
