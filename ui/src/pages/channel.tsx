@@ -191,40 +191,11 @@ function MessageComposer({
 
   const mutation = useMutation({
     mutationFn: (text: string) => sendMessage(channelId, text),
-    onMutate: (text) => {
-      const tempId = `optimistic_${Date.now()}`;
-      const optimistic: Message = {
-        id: tempId,
-        channelId: channelId,
-        userId: user?.id ?? "",
-        content: text,
-        createdAt: new Date().toISOString(),
-      };
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) => old ? { ...old, items: [optimistic, ...old.items] } : { items: [optimistic], cursor: undefined },
-      );
-      return { tempId };
-    },
-    onSuccess: (message, _text, context) => {
+    onSuccess: () => {
       setContent("");
       onTypingStop();
-      // Replace optimistic message with real one
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) => old
-          ? { ...old, items: old.items.map((m) => m.id === context?.tempId ? message : m) }
-          : old,
-      );
-    },
-    onError: (_err, _text, context) => {
-      // Remove optimistic message on error
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) => old
-          ? { ...old, items: old.items.filter((m) => m.id !== context?.tempId) }
-          : old,
-      );
+      // Message delivery is handled by the WS event (message.created).
+      // No cache update here — avoids duplicates from the optimistic + WS race.
     },
   });
 
