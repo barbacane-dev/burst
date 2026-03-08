@@ -78,21 +78,21 @@ WebSocket connection, live message delivery, presence, typing indicators.
 
 ### Backend
 
-- [ ] WebSocket upgrade — Axum route, auth via first frame (ADR-004)
-- [ ] In-process broker — tokio broadcast channels for event fan-out (ADR-004)
-- [ ] Persist-first flow — insert message → broadcast to subscribers (ADR-004)
-- [ ] Event envelope — typed events with UUIDv7 IDs (ADR-004)
-- [ ] Presence tracking — online/away/offline with 30s grace period (ADR-004)
-- [ ] Typing indicators — `typing.start`/`typing.stop` events (ADR-004)
-- [ ] Gap-fill on reconnect — send missed events since last event ID (ADR-004)
+- [x] WebSocket upgrade — Axum route, auth via first frame (ADR-004)
+- [x] In-process broker — tokio broadcast channels for event fan-out (ADR-004)
+- [x] Persist-first flow — insert message → broadcast to subscribers (ADR-004)
+- [x] Event envelope — typed events with UUIDv7 IDs (ADR-004)
+- [x] Presence tracking — online/away/offline with 30s grace period (ADR-004)
+- [x] Typing indicators — `typing.start`/`typing.stop` events (ADR-004)
+- [x] Gap-fill on reconnect — send missed events since last event ID (ADR-004)
 
 ### Frontend
 
-- [ ] WebSocket client — connection, reconnection with exponential backoff (ADR-013)
-- [ ] Live message delivery — new messages appear without refresh
-- [ ] Typing indicator — "Nicolas is typing..." below message list
-- [ ] Presence indicators — online dot on user avatars
-- [ ] Optimistic message sending — instant display with pending state
+- [x] WebSocket client — connection, reconnection with exponential backoff (ADR-013)
+- [x] Live message delivery — new messages appear without refresh
+- [x] Typing indicator — "Nicolas is typing..." below message list
+- [x] Presence indicators — online dot on user avatars
+- [x] Optimistic message sending — WS delivery used instead (avoids race duplicates)
 
 ---
 
