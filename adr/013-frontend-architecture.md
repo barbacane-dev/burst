@@ -50,6 +50,11 @@ ui/
 │   │   │   ├── messages.ts         # Normalised message store
 │   │   │   └── channels.ts         # Channel state
 │   │   ├── auth/                   # Auth context, token management
+│   │   │   # Token storage strategy: access token in memory only (module-level variable),
+│   │   │   # refresh token in httpOnly cookie (not readable by JS). On page load, the app
+│   │   │   # calls POST /auth/refresh (cookie sent automatically) to obtain a fresh access
+│   │   │   # token before connecting. The WebSocket first frame uses the in-memory token.
+│   │   │   # localStorage is never used for tokens — XSS cannot exfiltrate what JS cannot read.
 │   │   └── utils.ts                # cn(), relativeTime(), formatFileSize()
 │   └── pages/                      # Route-level components
 │       ├── login.tsx
@@ -112,6 +117,8 @@ REST API (TanStack Query)          WebSocket
 - **REST** is for initial data loading and user-initiated actions (send message, create channel, upload file, search).
 - **WebSocket** is for all real-time updates. When a WebSocket event arrives, it updates the client-side store directly. TanStack Query caches are invalidated or updated optimistically.
 
+**Seam between TanStack Query and the store:** TanStack Query is the fetch transport; the normalised store is the render source of truth. On successful fetch, query `onSuccess` handlers write into the store — they do not maintain a parallel cache for rendered messages. As a result, message queries use `staleTime: Infinity`: background refetches are disabled because the WebSocket is the live update channel. This eliminates the dual-source-of-truth problem where a background refetch could overwrite store state that is ahead of the server response.
+
 ### WebSocket client
 
 The WebSocket client (`lib/ws/client.ts`) handles:
@@ -121,15 +128,24 @@ The WebSocket client (`lib/ws/client.ts`) handles:
 - **Gap-fill.** On reconnect, the client sends its last received event ID. The server sends missed events before resuming the live stream. This is transparent to UI components.
 - **Heartbeat.** Periodic ping/pong (30s interval) to detect dead connections early.
 
-```typescript
-// Simplified API — hooks subscribe to event types
-const ws = useWebSocket()
+**Implementation constraint: the client is a singleton, not a hook return.** `lib/ws/client.ts` exports a class instance created once on login and exposed via React context. Hooks receive the stable context reference — they do not create or own the connection. This prevents two common bugs: (1) re-creating the connection on re-render, and (2) stale closure capture when handlers close over state.
 
-useEffect(() => {
-  return ws.on('message.created', (event) => {
-    messageStore.add(event.payload)
-  })
-}, [ws])
+Event handlers use a stable-ref pattern to avoid re-subscribing on every render:
+
+```typescript
+// hooks/use-ws-event.ts
+export function useWsEvent<T extends BurstEventType>(
+  type: T,
+  handler: (e: BurstEventMap[T]) => void
+) {
+  const ws = useWsClient()           // stable context ref — never changes identity
+  const handlerRef = useRef(handler)
+  useLayoutEffect(() => { handlerRef.current = handler }) // keep ref fresh without re-subscribing
+
+  useEffect(() => {
+    return ws.on(type, (e) => handlerRef.current(e))
+  }, [ws, type])                     // handler intentionally excluded — ref handles freshness
+}
 ```
 
 ### Client-side store
@@ -153,11 +169,12 @@ WebSocket events trigger targeted cache invalidation (`queryClient.invalidateQue
 
 ### Virtualised message list
 
-The message list uses virtualised rendering (e.g., `@tanstack/react-virtual` or `react-virtuoso`) to handle channels with thousands of messages:
+The message list uses **`react-virtuoso`** for virtualised rendering. `@tanstack/react-virtual` was considered but rejected: it is a headless primitive that requires building scroll management from scratch. For a chat-style list, the hard parts — scroll-to-bottom on new messages, prepend-on-scroll-up without losing position, variable-height item measurement — are solved problems in `react-virtuoso` (`followOutput`, `firstItemIndex` for prepend, automatic height measurement). The bespoke scroll logic saved is not worth writing.
 
 - Only visible messages (plus a buffer) are rendered in the DOM.
-- Scroll position is preserved when new messages arrive (scroll-to-bottom if already at bottom, show "new messages" indicator if scrolled up).
-- Variable-height messages (text, images, embeds) are measured and cached.
+- `followOutput="smooth"` handles scroll-to-bottom when the user is at the bottom; new messages arriving while scrolled up show a "new messages" indicator instead of jumping.
+- Older messages are prepended via `firstItemIndex` adjustment — `react-virtuoso` handles position stability during prepend without scroll jump.
+- Variable-height messages (text, images, embeds) are measured and cached by the library.
 
 ### Component design
 
@@ -206,13 +223,23 @@ Messages support a subset of Markdown:
 - Emoji shortcodes (`:thumbsup:` → 👍, custom emoji from `custom_emojis` table)
 - Block quotes
 
-Markdown is rendered client-side. The server stores raw Markdown text. Sanitisation (XSS prevention) happens during rendering using a strict allowlist of HTML elements and attributes.
+Markdown is rendered client-side. The server stores raw Markdown text.
+
+**Rendering pipeline (order is security-sensitive):**
+
+```
+raw markdown → remark-parse → remark-rehype → @shikijs/rehype → rehype-sanitize → html string → dangerouslySetInnerHTML
+```
+
+Sanitisation via `rehype-sanitize` runs **after** `@shikijs/rehype`, not before. Reversing the order either strips shiki's `<span>` output (breaking highlighting) or leaves unsanitised content in the DOM. The `rehype-sanitize` schema must explicitly allow `span`, `pre`, and `code` elements with the class attributes shiki emits.
+
+Raw HTML passthrough in the Markdown parser must be disabled (`allowDangerousHtml: false` on `remark-rehype`). Users cannot inject HTML via message content.
 
 ### Accessibility
 
 - Keyboard navigation: arrow keys to move between messages, Enter to reply, Escape to close panels.
 - ARIA roles: `role="log"` for message list, `role="textbox"` for composer, `role="navigation"` for sidebar.
-- Screen reader support: message announcements via `aria-live` region for new messages.
+- Screen reader support: new message announcements via an `aria-live="polite"` region. **Do not place `aria-live` directly on the message list.** In an active channel, every incoming message would trigger a screen reader announcement, which is disruptive. The live region is a separate off-screen element; announcements are debounced and scoped to mentions and DMs unless the user has focus in the channel.
 - Focus management: focus moves to composer after channel switch, returns to message list after sending.
 
 ### Notifications
