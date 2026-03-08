@@ -16,6 +16,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       specs: ${{ steps.filter.outputs.specs }}
+      api: ${{ steps.filter.outputs.api }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -31,6 +32,8 @@ jobs:
             specs:
               - 'specs/**'
               - '.github/workflows/ci.yaml'
+            api:
+              - 'crates/burst-server/src/api/**'
 
   fmt:
     runs-on: ubuntu-latest
@@ -104,10 +107,21 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           ignore: RUSTSEC-2023-0071
 
-  openapi-lint:
+  # Spec must be updated whenever API routes change — hard stop if it drifts.
+  spec-sync:
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.specs == 'true'
+    if: needs.changes.outputs.api == 'true' && needs.changes.outputs.specs != 'true'
+    steps:
+      - name: Spec not updated
+        run: |
+          echo "::error::API handler files changed but specs/burst-api.yaml was not updated."
+          echo "::error::Update the OpenAPI spec before merging (spec-first development, ADR-005)."
+          exit 1
+
+  openapi-lint:
+    runs-on: ubuntu-latest
+    # Always lint — not just when specs/ changes. Catches spec regressions introduced by any commit.
     steps:
       - uses: actions/checkout@v4
       - name: Lint OpenAPI spec with vacuum

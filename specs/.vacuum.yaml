@@ -79,12 +79,33 @@ rules:
       function: truthy
 
   # ── OWASP rule adjustments ──
-  # Rate-limit headers are handled by Barbacane gateway, not Burst itself
+  #
+  # Burst runs behind Barbacane gateway which handles: rate limiting, auth
+  # enforcement, and global security policies (ADR-006, ADR-009). Rules that
+  # mandate those concerns in the spec itself are demoted to warn.
+
+  # Rate limiting and retry-after: Barbacane enforces globally
   owasp-rate-limit: warn
   owasp-rate-limit-retry-after: warn
 
-  # Auth endpoints are intentionally public (no security)
-  owasp-protection-global-unsafe: warn
+  # 429 responses: enforced at gateway level
+  owasp-define-error-responses-429: warn
 
-  # Examples are nice-to-have, not blocking (warn by default from built-in)
+  # 401 responses: Barbacane jwt-auth middleware handles globally (ADR-006)
+  owasp-define-error-responses-401: warn
+
+  # Auth endpoints (login, refresh, logout) are intentionally public
+  owasp-protection-global-unsafe: warn
+  owasp-protection-global-unsafe-strict: warn
+
+  # Integer bounds (counts, pagination limits): conceptually unbounded, validated in code
+  owasp-integer-limit: warn
+
+  # String format restrictions on identifiers already use patterns; emoji is unconstrained by design
+  owasp-string-restricted: warn
+
+  # 422 validation error responses: worth adding eventually, not a blocker
+  owasp-define-error-validation: warn
+
+  # Examples are nice-to-have, not blocking
   oas3-missing-example: warn

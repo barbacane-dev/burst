@@ -40,6 +40,8 @@ tags:
     description: Channel management and membership
   - name: Messages
     description: Messaging within channels
+  - name: Reactions
+    description: Emoji reactions on messages
 
 # ── Paths ──
 
@@ -76,7 +78,6 @@ paths:
                 $ref: "#/components/schemas/TokenResponse"
               example:
                 accessToken: "eyJhbGciOiJIUzI1NiJ9..."
-                refreshToken: "dGhpcyBpcyBhIHJlZnJlc2g..."
                 tokenType: "Bearer"
                 expiresIn: 900
         "400":
@@ -126,7 +127,10 @@ paths:
     post:
       operationId: refreshToken
       summary: Refresh an access token
-      description: Exchanges a valid refresh token for a new access/refresh token pair (rotation).
+      description: >-
+        Exchanges a valid refresh token for a new access token. The refresh token
+        is read from the `refresh_token` httpOnly cookie set at login; no request
+        body is required.
       tags:
         - Auth
       security: []
@@ -135,15 +139,6 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
-      requestBody:
-        description: Refresh token to exchange
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/RefreshRequest"
-            example:
-              refreshToken: "dGhpcyBpcyBhIHJlZnJlc2g..."
       responses:
         "200":
           description: Token refreshed successfully
@@ -153,7 +148,6 @@ paths:
                 $ref: "#/components/schemas/TokenResponse"
               example:
                 accessToken: "eyJhbGciOiJIUzI1NiJ9..."
-                refreshToken: "bmV3IHJlZnJlc2ggdG9rZW4..."
                 tokenType: "Bearer"
                 expiresIn: 900
         "400":
@@ -174,6 +168,29 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Log out and revoke refresh token
+      description: Revokes the current refresh token cookie and ends the session.
+      tags:
+        - Auth
+      security: []
+      x-barbacane-middlewares: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      responses:
+        "204":
+          description: Logged out successfully
         "500":
           description: Internal server error
           content:
@@ -457,6 +474,73 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  /channels/browse:
+    get:
+      operationId: browseChannels
+      summary: Browse public channels
+      description: Returns a paginated list of public channels. No membership required.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - name: cursor
+          in: query
+          description: Pagination cursor (opaque token from previous response)
+          schema:
+            type: string
+            maxLength: 40
+        - name: limit
+          in: query
+          description: Number of results per page
+          schema:
+            type: integer
+            format: int32
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Paginated public channel list
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    maxItems: 200
+                    items:
+                      $ref: "#/components/schemas/Channel"
+                  cursor:
+                    type: string
+                    maxLength: 40
+                    description: Cursor for next page, absent if no more results.
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
   /channels/{channelId}:
     get:
       operationId: getChannel
@@ -557,6 +641,64 @@ paths:
                 $ref: "#/components/schemas/ProblemDetails"
         "404":
           description: Channel not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /dms:
+    post:
+      operationId: createOrGetDm
+      summary: Create or retrieve a direct message channel
+      description: Returns an existing DM channel with the given user, or creates one if it does not exist.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      requestBody:
+        description: Target user for the DM
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDmRequest"
+      responses:
+        "200":
+          description: DM channel (existing or newly created)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+        "400":
+          description: Malformed request
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Target user not found
           content:
             application/problem+json:
               schema:
@@ -691,6 +833,55 @@ paths:
           description: Left successfully
         "401":
           description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/members/me/last-read:
+    patch:
+      operationId: markChannelRead
+      summary: Mark the channel as read
+      description: Updates the caller's last-read timestamp for this channel, resetting the unread count.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "204":
+          description: Last-read timestamp updated
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Channel not found
           content:
             application/problem+json:
               schema:
@@ -998,6 +1189,189 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  /channels/{channelId}/messages/{messageId}/replies:
+    get:
+      operationId: listThreadReplies
+      summary: List replies in a message thread
+      description: Returns replies to a thread root message, ordered by oldest first.
+      tags:
+        - Messages
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+        - name: cursor
+          in: query
+          description: Pagination cursor (message ID)
+          schema:
+            type: string
+            maxLength: 40
+        - name: limit
+          in: query
+          description: Number of results per page
+          schema:
+            type: integer
+            format: int32
+            default: 50
+            minimum: 1
+            maximum: 200
+      responses:
+        "200":
+          description: Paginated thread reply list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageList"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Message not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/messages/{messageId}/reactions/{emoji}:
+    put:
+      operationId: addReaction
+      summary: Add a reaction to a message (idempotent)
+      description: Adds an emoji reaction from the current user. Has no effect if already reacted.
+      tags:
+        - Reactions
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+        - name: emoji
+          in: path
+          required: true
+          description: Emoji character or shortcode
+          schema:
+            type: string
+            maxLength: 64
+            example: "👍"
+      responses:
+        "204":
+          description: Reaction added
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Message not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    delete:
+      operationId: removeReaction
+      summary: Remove a reaction from a message
+      description: Removes the current user's emoji reaction from a message.
+      tags:
+        - Reactions
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://localhost:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+        - name: emoji
+          in: path
+          required: true
+          description: Emoji character or shortcode
+          schema:
+            type: string
+            maxLength: 64
+            example: "👍"
+      responses:
+        "204":
+          description: Reaction removed
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Not a channel member
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Message or reaction not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
 # ── Components ──
 
 components:
@@ -1051,25 +1425,13 @@ components:
           maxLength: 128
           example: "hunter2"
 
-    RefreshRequest:
-      type: object
-      description: Refresh token to exchange for a new token pair.
-      required:
-        - refreshToken
-      properties:
-        refreshToken:
-          type: string
-          format: byte
-          maxLength: 512
-          description: Opaque refresh token from a previous login or refresh response.
-          example: "dGhpcyBpcyBhIHJlZnJlc2g..."
-
     TokenResponse:
       type: object
-      description: Access and refresh token pair returned on successful authentication.
+      description: >-
+        Access token returned on successful authentication. The refresh token is
+        delivered as an httpOnly cookie and is not included in this response body.
       required:
         - accessToken
-        - refreshToken
         - tokenType
         - expiresIn
       properties:
@@ -1079,12 +1441,6 @@ components:
           maxLength: 2048
           description: JWT access token.
           example: "eyJhbGciOiJIUzI1NiJ9..."
-        refreshToken:
-          type: string
-          format: byte
-          maxLength: 512
-          description: Opaque refresh token for obtaining new access tokens.
-          example: "dGhpcyBpcyBhIHJlZnJlc2g..."
         tokenType:
           type: string
           enum:
@@ -1266,6 +1622,7 @@ components:
         - isReadonly
         - createdAt
         - updatedAt
+        - unreadCount
       properties:
         id:
           type: string
@@ -1323,6 +1680,12 @@ components:
           format: date-time
           maxLength: 30
           example: "2026-03-06T10:00:00Z"
+        unreadCount:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Number of unread messages for the current user in this channel.
+          example: 3
 
     CreateChannelRequest:
       type: object
@@ -1407,6 +1770,8 @@ components:
         - channelId
         - userId
         - content
+        - replyCount
+        - reactions
         - createdAt
       properties:
         id:
@@ -1446,6 +1811,18 @@ components:
           format: date-time
           maxLength: 30
           description: Set when message has been soft-deleted.
+        replyCount:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Number of replies in this message's thread.
+          example: 0
+        reactions:
+          type: array
+          maxItems: 100
+          description: Aggregated emoji reactions on this message.
+          items:
+            $ref: "#/components/schemas/ReactionCount"
         createdAt:
           type: string
           format: date-time
@@ -1481,6 +1858,12 @@ components:
           maxLength: 4000
           description: Message text content.
           example: "Hello, world!"
+        threadId:
+          type: string
+          pattern: "^(msg_)?[0-9a-f-]{36}$"
+          maxLength: 40
+          description: ID of the thread root message. Omit to post a top-level message.
+          example: "msg_0193a5e0-7c1a-7000-8000-000000000100"
 
     EditMessageRequest:
       type: object
@@ -1494,3 +1877,46 @@ components:
           maxLength: 4000
           description: Updated message text content.
           example: "Hello, world! (edited)"
+
+    ReactionCount:
+      type: object
+      description: Aggregated reaction count for a single emoji on a message.
+      required:
+        - emoji
+        - count
+        - userIds
+      properties:
+        emoji:
+          type: string
+          maxLength: 64
+          description: Emoji character or shortcode.
+          example: "👍"
+        count:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Total number of users who reacted with this emoji.
+          example: 3
+        userIds:
+          type: array
+          maxItems: 1000
+          description: IDs of users who reacted with this emoji.
+          items:
+            type: string
+            pattern: "^usr_[0-9a-f-]{36}$"
+            maxLength: 40
+          example:
+            - "usr_0193a5e0-7c1a-7000-8000-000000000001"
+
+    CreateDmRequest:
+      type: object
+      description: Request body for creating or retrieving a DM channel.
+      required:
+        - userId
+      properties:
+        userId:
+          type: string
+          pattern: "^(usr_)?[0-9a-f-]{36}$"
+          maxLength: 40
+          description: ID of the user to open a DM with.
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000002"
