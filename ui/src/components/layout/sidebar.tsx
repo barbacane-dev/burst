@@ -7,7 +7,7 @@ import { listChannels, createChannel } from "../../lib/api/channels";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import type { Channel } from "../../lib/api/types";
+import type { Channel, PaginatedResponse } from "../../lib/api/types";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
@@ -15,10 +15,11 @@ export function Sidebar() {
   const { channelId } = useParams();
   const [showCreate, setShowCreate] = useState(false);
 
-  const { data: channels = [] } = useQuery<Channel[]>({
+  const { data } = useQuery<PaginatedResponse<Channel>>({
     queryKey: ["channels"],
     queryFn: listChannels,
   });
+  const channels = data?.items ?? [];
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">

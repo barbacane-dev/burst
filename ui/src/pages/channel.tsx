@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, type FormEvent, type KeyboardEvent } from 
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Hash, Send } from "lucide-react";
-import { listMessages, sendMessage } from "../lib/api/channels";
+import { getChannel, listMessages, sendMessage } from "../lib/api/channels";
 import { useAuth } from "../lib/auth/context";
 import { Avatar } from "../components/ui/avatar";
 import { Spinner } from "../components/ui/spinner";
@@ -13,13 +13,25 @@ export function ChannelPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const channels = queryClient.getQueryData<Channel[]>(["channels"]);
-  const channel = channels?.find((ch) => ch.id === channelId);
+  // Try to find the channel in the sidebar's list cache first; if missing
+  // (direct navigation / page reload), fetch it individually.
+  const cachedChannels = queryClient.getQueryData<PaginatedResponse<Channel>>(["channels"]);
+  const cachedChannel = cachedChannels?.items.find((ch) => ch.id === channelId);
+
+  const { data: fetchedChannel } = useQuery<Channel>({
+    queryKey: ["channel", channelId],
+    queryFn: () => getChannel(channelId!),
+    enabled: !!channelId && !cachedChannel,
+    staleTime: 30_000,
+  });
+
+  const channel = cachedChannel ?? fetchedChannel;
 
   const { data, isLoading } = useQuery<PaginatedResponse<Message>>({
     queryKey: ["messages", channelId],
     queryFn: () => listMessages(channelId!),
     enabled: !!channelId,
+    staleTime: Infinity,
   });
 
   const messages = data?.items ?? [];

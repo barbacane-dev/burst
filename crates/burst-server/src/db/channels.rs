@@ -76,18 +76,43 @@ pub async fn find_by_slug(pool: &PgPool, slug: &str) -> Result<Option<ChannelRow
     .await
 }
 
-pub async fn list_for_user(pool: &PgPool, user_id: Uuid) -> Result<Vec<ChannelRow>, sqlx::Error> {
-    sqlx::query_as::<_, ChannelRow>(
-        "SELECT c.id, c.kind, c.name, c.slug, c.topic, c.description, c.created_by, \
-         c.is_archived, c.is_readonly, c.created_at, c.updated_at \
-         FROM channels c \
-         INNER JOIN channel_members cm ON cm.channel_id = c.id \
-         WHERE cm.user_id = $1 \
-         ORDER BY c.name",
-    )
-    .bind(user_id)
-    .fetch_all(pool)
-    .await
+pub async fn list_for_user(
+    pool: &PgPool,
+    user_id: Uuid,
+    cursor: Option<Uuid>,
+    limit: i64,
+) -> Result<Vec<ChannelRow>, sqlx::Error> {
+    match cursor {
+        Some(cursor_id) => {
+            sqlx::query_as::<_, ChannelRow>(
+                "SELECT c.id, c.kind, c.name, c.slug, c.topic, c.description, c.created_by, \
+                 c.is_archived, c.is_readonly, c.created_at, c.updated_at \
+                 FROM channels c \
+                 INNER JOIN channel_members cm ON cm.channel_id = c.id \
+                 WHERE cm.user_id = $1 AND c.id > $2 \
+                 ORDER BY c.id LIMIT $3",
+            )
+            .bind(user_id)
+            .bind(cursor_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
+        None => {
+            sqlx::query_as::<_, ChannelRow>(
+                "SELECT c.id, c.kind, c.name, c.slug, c.topic, c.description, c.created_by, \
+                 c.is_archived, c.is_readonly, c.created_at, c.updated_at \
+                 FROM channels c \
+                 INNER JOIN channel_members cm ON cm.channel_id = c.id \
+                 WHERE cm.user_id = $1 \
+                 ORDER BY c.id LIMIT $2",
+            )
+            .bind(user_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
+    }
 }
 
 pub async fn list_public(
@@ -157,7 +182,9 @@ pub async fn add_member(
     user_id: Uuid,
     role: &str,
 ) -> Result<ChannelMemberRow, sqlx::Error> {
-    sqlx::query_as::<_, ChannelMemberRow>(
+    // ON CONFLICT DO NOTHING returns no rows if the member already exists,
+    // so use fetch_optional and fall back to a SELECT for the existing row.
+    let row = sqlx::query_as::<_, ChannelMemberRow>(
         "INSERT INTO channel_members (channel_id, user_id, role) \
          VALUES ($1, $2, $3) \
          ON CONFLICT (channel_id, user_id) DO NOTHING \
@@ -166,6 +193,19 @@ pub async fn add_member(
     .bind(channel_id)
     .bind(user_id)
     .bind(role)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(row) = row {
+        return Ok(row);
+    }
+
+    sqlx::query_as::<_, ChannelMemberRow>(
+        "SELECT channel_id, user_id, role, notify, joined_at \
+         FROM channel_members WHERE channel_id = $1 AND user_id = $2",
+    )
+    .bind(channel_id)
+    .bind(user_id)
     .fetch_one(pool)
     .await
 }

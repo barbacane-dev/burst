@@ -1,4 +1,6 @@
 use axum::extract::State;
+use axum::http::header::{COOKIE, SET_COOKIE};
+use axum::http::{HeaderMap, HeaderValue};
 use axum::routing::post;
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -15,6 +17,33 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
+        .route("/auth/logout", post(logout))
+}
+
+const REFRESH_TOKEN_COOKIE: &str = "refresh_token";
+
+fn set_refresh_cookie(token: &str, max_age: i64, secure: bool) -> HeaderValue {
+    let secure_flag = if secure { "; Secure" } else { "" };
+    HeaderValue::from_str(&format!(
+        "{REFRESH_TOKEN_COOKIE}={token}; HttpOnly; SameSite=Strict; Path=/auth; Max-Age={max_age}{secure_flag}"
+    ))
+    .expect("cookie value is always valid ASCII")
+}
+
+fn clear_refresh_cookie(secure: bool) -> HeaderValue {
+    let secure_flag = if secure { "; Secure" } else { "" };
+    HeaderValue::from_str(&format!(
+        "{REFRESH_TOKEN_COOKIE}=; HttpOnly; SameSite=Strict; Path=/auth; Max-Age=0{secure_flag}"
+    ))
+    .expect("cookie value is always valid ASCII")
+}
+
+fn extract_refresh_cookie(headers: &HeaderMap) -> Option<String> {
+    let cookie_header = headers.get(COOKIE)?.to_str().ok()?;
+    cookie_header.split(';').map(str::trim).find_map(|part| {
+        part.strip_prefix(&format!("{REFRESH_TOKEN_COOKIE}="))
+            .map(str::to_owned)
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -28,7 +57,6 @@ pub struct LoginRequest {
 #[serde(rename_all = "camelCase")]
 pub struct TokenResponse {
     pub access_token: String,
-    pub refresh_token: String,
     pub token_type: String,
     pub expires_in: i64,
 }
@@ -36,7 +64,7 @@ pub struct TokenResponse {
 async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
-) -> Result<Json<TokenResponse>, ApiError> {
+) -> Result<(HeaderMap, Json<TokenResponse>), ApiError> {
     let user = db::users::find_by_email(&state.db, &body.email)
         .await?
         .ok_or(ApiError::Unauthorized)?;
@@ -68,25 +96,32 @@ async fn login(
     )
     .await?;
 
-    Ok(Json(TokenResponse {
-        access_token,
-        refresh_token: raw_refresh,
-        token_type: "Bearer".into(),
-        expires_in: state.config.jwt_expiry_seconds,
-    }))
-}
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        SET_COOKIE,
+        set_refresh_cookie(
+            &raw_refresh,
+            state.config.refresh_expiry_seconds,
+            state.config.cookie_secure,
+        ),
+    );
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RefreshRequest {
-    pub refresh_token: String,
+    Ok((
+        headers,
+        Json(TokenResponse {
+            access_token,
+            token_type: "Bearer".into(),
+            expires_in: state.config.jwt_expiry_seconds,
+        }),
+    ))
 }
 
 async fn refresh(
     State(state): State<AppState>,
-    Json(body): Json<RefreshRequest>,
-) -> Result<Json<TokenResponse>, ApiError> {
-    let token_hash = hash_refresh_token(&body.refresh_token);
+    headers: HeaderMap,
+) -> Result<(HeaderMap, Json<TokenResponse>), ApiError> {
+    let raw_token = extract_refresh_cookie(&headers).ok_or(ApiError::Unauthorized)?;
+    let token_hash = hash_refresh_token(&raw_token);
 
     let token_row = db::refresh_tokens::find_valid(&state.db, &token_hash)
         .await?
@@ -117,12 +152,41 @@ async fn refresh(
     )
     .await?;
 
-    Ok(Json(TokenResponse {
-        access_token,
-        refresh_token: raw_refresh,
-        token_type: "Bearer".into(),
-        expires_in: state.config.jwt_expiry_seconds,
-    }))
+    let mut resp_headers = HeaderMap::new();
+    resp_headers.insert(
+        SET_COOKIE,
+        set_refresh_cookie(
+            &raw_refresh,
+            state.config.refresh_expiry_seconds,
+            state.config.cookie_secure,
+        ),
+    );
+
+    Ok((
+        resp_headers,
+        Json(TokenResponse {
+            access_token,
+            token_type: "Bearer".into(),
+            expires_in: state.config.jwt_expiry_seconds,
+        }),
+    ))
+}
+
+async fn logout(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> (HeaderMap, axum::http::StatusCode) {
+    // Best-effort revoke — never returns an error to the client
+    if let Some(raw_token) = extract_refresh_cookie(&headers) {
+        let token_hash = hash_refresh_token(&raw_token);
+        if let Ok(Some(row)) = db::refresh_tokens::find_valid(&state.db, &token_hash).await {
+            let _ = db::refresh_tokens::delete(&state.db, row.id).await;
+        }
+    }
+
+    let mut resp_headers = HeaderMap::new();
+    resp_headers.insert(SET_COOKIE, clear_refresh_cookie(state.config.cookie_secure));
+    (resp_headers, axum::http::StatusCode::NO_CONTENT)
 }
 
 /// JIT provisioning: create or update a user from Barbacane headers.

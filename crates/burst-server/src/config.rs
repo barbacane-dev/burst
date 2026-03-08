@@ -16,6 +16,16 @@ pub struct ServerConfig {
     pub listen: String,
     #[serde(default = "default_admin_listen")]
     pub admin_listen: String,
+    /// Trust X-Auth-Consumer / X-Auth-Consumer-Groups headers set by the
+    /// Barbacane gateway. Must be false unless Burst is deployed behind
+    /// Barbacane — with it true, any client that reaches the port can
+    /// impersonate any user by forging that header.
+    #[serde(default)]
+    pub trust_auth_headers: bool,
+    /// Mark refresh-token cookies as Secure (HTTPS only). Disable only for
+    /// local development over plain HTTP.
+    #[serde(default = "default_cookie_secure")]
+    pub cookie_secure: bool,
 }
 
 impl Default for ServerConfig {
@@ -23,8 +33,14 @@ impl Default for ServerConfig {
         Self {
             listen: default_listen(),
             admin_listen: default_admin_listen(),
+            trust_auth_headers: false,
+            cookie_secure: default_cookie_secure(),
         }
     }
+}
+
+fn default_cookie_secure() -> bool {
+    true
 }
 
 fn default_listen() -> String {
@@ -80,6 +96,8 @@ pub struct AppConfig {
     pub jwt_secret: String,
     pub jwt_expiry_seconds: i64,
     pub refresh_expiry_seconds: i64,
+    pub trust_auth_headers: bool,
+    pub cookie_secure: bool,
 }
 
 impl Config {
@@ -129,6 +147,8 @@ impl Config {
             jwt_expiry_seconds: parse_duration(&self.auth.jwt_expiry).unwrap_or(900),
             refresh_expiry_seconds: parse_duration(&self.auth.refresh_expiry)
                 .unwrap_or(7 * 24 * 3600),
+            trust_auth_headers: self.server.trust_auth_headers,
+            cookie_secure: self.server.cookie_secure,
         }
     }
 }
@@ -156,6 +176,13 @@ fn apply_env(config: &mut Config) {
     }
     if let Ok(v) = std::env::var("BURST_AUTH_REFRESH_EXPIRY") {
         config.auth.refresh_expiry = v;
+    }
+    if let Ok(v) = std::env::var("BURST_SERVER_TRUST_AUTH_HEADERS") {
+        config.server.trust_auth_headers =
+            matches!(v.to_lowercase().as_str(), "true" | "1" | "yes");
+    }
+    if let Ok(v) = std::env::var("BURST_SERVER_COOKIE_SECURE") {
+        config.server.cookie_secure = !matches!(v.to_lowercase().as_str(), "false" | "0" | "no");
     }
 }
 

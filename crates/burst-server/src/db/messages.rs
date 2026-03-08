@@ -14,9 +14,6 @@ pub struct MessageRow {
     pub created_at: DateTime<Utc>,
 }
 
-const MESSAGE_COLUMNS: &str = "id, channel_id, user_id, thread_id, content, \
-    edited_at, deleted_at, created_at";
-
 pub async fn create(
     pool: &PgPool,
     id: Uuid,
@@ -24,11 +21,12 @@ pub async fn create(
     user_id: Uuid,
     content: &str,
 ) -> Result<MessageRow, sqlx::Error> {
-    sqlx::query_as::<_, MessageRow>(&format!(
+    sqlx::query_as::<_, MessageRow>(
         "INSERT INTO messages (id, channel_id, user_id, content) \
          VALUES ($1, $2, $3, $4) \
-         RETURNING {MESSAGE_COLUMNS}"
-    ))
+         RETURNING id, channel_id, user_id, thread_id, content, \
+         edited_at, deleted_at, created_at",
+    )
     .bind(id)
     .bind(channel_id)
     .bind(user_id)
@@ -38,9 +36,11 @@ pub async fn create(
 }
 
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<MessageRow>, sqlx::Error> {
-    sqlx::query_as::<_, MessageRow>(&format!(
-        "SELECT {MESSAGE_COLUMNS} FROM messages WHERE id = $1"
-    ))
+    sqlx::query_as::<_, MessageRow>(
+        "SELECT id, channel_id, user_id, thread_id, content, \
+         edited_at, deleted_at, created_at \
+         FROM messages WHERE id = $1",
+    )
     .bind(id)
     .fetch_optional(pool)
     .await
@@ -54,11 +54,13 @@ pub async fn list_in_channel(
 ) -> Result<Vec<MessageRow>, sqlx::Error> {
     match cursor {
         Some(cursor_id) => {
-            sqlx::query_as::<_, MessageRow>(&format!(
-                "SELECT {MESSAGE_COLUMNS} FROM messages \
+            sqlx::query_as::<_, MessageRow>(
+                "SELECT id, channel_id, user_id, thread_id, content, \
+                 edited_at, deleted_at, created_at \
+                 FROM messages \
                  WHERE channel_id = $1 AND id < $2 \
-                 ORDER BY id DESC LIMIT $3"
-            ))
+                 ORDER BY id DESC LIMIT $3",
+            )
             .bind(channel_id)
             .bind(cursor_id)
             .bind(limit)
@@ -66,11 +68,13 @@ pub async fn list_in_channel(
             .await
         }
         None => {
-            sqlx::query_as::<_, MessageRow>(&format!(
-                "SELECT {MESSAGE_COLUMNS} FROM messages \
+            sqlx::query_as::<_, MessageRow>(
+                "SELECT id, channel_id, user_id, thread_id, content, \
+                 edited_at, deleted_at, created_at \
+                 FROM messages \
                  WHERE channel_id = $1 \
-                 ORDER BY id DESC LIMIT $2"
-            ))
+                 ORDER BY id DESC LIMIT $2",
+            )
             .bind(channel_id)
             .bind(limit)
             .fetch_all(pool)
@@ -85,11 +89,12 @@ pub async fn update_content(
     user_id: Uuid,
     content: &str,
 ) -> Result<Option<MessageRow>, sqlx::Error> {
-    sqlx::query_as::<_, MessageRow>(&format!(
+    sqlx::query_as::<_, MessageRow>(
         "UPDATE messages SET content = $3, edited_at = now() \
          WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL \
-         RETURNING {MESSAGE_COLUMNS}"
-    ))
+         RETURNING id, channel_id, user_id, thread_id, content, \
+         edited_at, deleted_at, created_at",
+    )
     .bind(id)
     .bind(user_id)
     .bind(content)
@@ -102,11 +107,12 @@ pub async fn soft_delete(
     id: Uuid,
     user_id: Uuid,
 ) -> Result<Option<MessageRow>, sqlx::Error> {
-    sqlx::query_as::<_, MessageRow>(&format!(
+    sqlx::query_as::<_, MessageRow>(
         "UPDATE messages SET content = '', deleted_at = now() \
          WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL \
-         RETURNING {MESSAGE_COLUMNS}"
-    ))
+         RETURNING id, channel_id, user_id, thread_id, content, \
+         edited_at, deleted_at, created_at",
+    )
     .bind(id)
     .bind(user_id)
     .fetch_optional(pool)

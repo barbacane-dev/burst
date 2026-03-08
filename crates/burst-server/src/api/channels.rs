@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::api::PaginatedResponse;
 use crate::api::extractors::{AuthUser, PaginationParams};
 use crate::db;
 use crate::error::ApiError;
@@ -12,6 +13,7 @@ use crate::error::ApiError;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/channels", get(list_channels).post(create_channel))
+        .route("/channels/browse", get(browse_channels))
         .route(
             "/channels/{channel_id}",
             get(get_channel).patch(update_channel),
@@ -58,14 +60,6 @@ pub struct ChannelMemberResponse {
     pub user_id: String,
     pub role: String,
     pub joined_at: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PaginatedResponse<T> {
-    pub items: Vec<T>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cursor: Option<String>,
 }
 
 fn channel_to_response(row: &db::channels::ChannelRow) -> ChannelResponse {
@@ -176,10 +170,48 @@ async fn create_channel(
 async fn list_channels(
     auth: AuthUser,
     State(state): State<AppState>,
-) -> Result<Json<Vec<ChannelResponse>>, ApiError> {
-    let channels = db::channels::list_for_user(&state.db, auth.user_id).await?;
-    let items = channels.iter().map(channel_to_response).collect();
-    Ok(Json(items))
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<ChannelResponse>>, ApiError> {
+    let limit = params.clamped_limit();
+    let channels =
+        db::channels::list_for_user(&state.db, auth.user_id, params.cursor, limit + 1).await?;
+
+    let has_more = channels.len() as i64 > limit;
+    let items: Vec<_> = channels
+        .iter()
+        .take(limit as usize)
+        .map(channel_to_response)
+        .collect();
+    let cursor = if has_more {
+        items.last().map(|c| c.id.clone())
+    } else {
+        None
+    };
+
+    Ok(Json(PaginatedResponse { items, cursor }))
+}
+
+async fn browse_channels(
+    _auth: AuthUser,
+    State(state): State<AppState>,
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<PaginatedResponse<ChannelResponse>>, ApiError> {
+    let limit = params.clamped_limit();
+    let channels = db::channels::list_public(&state.db, params.cursor, limit + 1).await?;
+
+    let has_more = channels.len() as i64 > limit;
+    let items: Vec<_> = channels
+        .iter()
+        .take(limit as usize)
+        .map(channel_to_response)
+        .collect();
+    let cursor = if has_more {
+        items.last().map(|c| c.id.clone())
+    } else {
+        None
+    };
+
+    Ok(Json(PaginatedResponse { items, cursor }))
 }
 
 fn parse_channel_id(channel_id: &str) -> Result<Uuid, ApiError> {
@@ -453,6 +485,8 @@ fn slugify(name: &str) -> String {
         .chars()
         .map(|c| if c.is_alphanumeric() { c } else { '-' })
         .collect::<String>()
-        .trim_matches('-')
-        .to_string()
+        .split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
 }

@@ -1,8 +1,12 @@
 import { apiFetch } from "./client";
 import type { Channel, Message, PaginatedResponse } from "./types";
 
-export async function listChannels(): Promise<Channel[]> {
-  return apiFetch<Channel[]>("/channels");
+export async function listChannels(): Promise<PaginatedResponse<Channel>> {
+  return apiFetch<PaginatedResponse<Channel>>("/channels");
+}
+
+export async function getChannel(channelId: string): Promise<Channel> {
+  return apiFetch<Channel>(`/channels/${channelId}`);
 }
 
 export async function createChannel(body: {

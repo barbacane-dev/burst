@@ -46,6 +46,11 @@ pub enum ApiError {
 
 impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
+        if let sqlx::Error::Database(ref db_err) = err
+            && db_err.code().as_deref() == Some("23505")
+        {
+            return ApiError::Conflict("resource already exists".into());
+        }
         ApiError::Internal(err.to_string())
     }
 }

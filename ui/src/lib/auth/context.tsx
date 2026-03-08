@@ -6,14 +6,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiFetch } from "../api/client";
+import { apiFetch, setAccessToken, silentRefresh } from "../api/client";
 import type { TokenResponse, User } from "../api/types";
 
 interface AuthState {
   user: User | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -27,19 +27,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const me = await apiFetch<User>("/users/me");
       setUser(me);
     } catch {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
+      setAccessToken(null);
       setUser(null);
     }
   }, []);
 
+  // On mount: try to restore the session via the httpOnly refresh cookie.
+  // No localStorage — the cookie is sent automatically by the browser.
   useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      fetchMe().finally(() => setIsLoading(false));
-    } else {
-      setIsLoading(false);
-    }
+    silentRefresh()
+      .then((ok) => {
+        if (ok) return fetchMe();
+      })
+      .finally(() => setIsLoading(false));
   }, [fetchMe]);
 
   const login = useCallback(
@@ -48,19 +48,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-
-      localStorage.setItem("access_token", data.accessToken);
-      localStorage.setItem("refresh_token", data.refreshToken);
-
+      setAccessToken(data.accessToken);
       await fetchMe();
     },
     [fetchMe],
   );
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
-    setUser(null);
+  const logout = useCallback(async () => {
+    try {
+      await apiFetch("/auth/logout", { method: "POST" });
+    } finally {
+      setAccessToken(null);
+      setUser(null);
+    }
   }, []);
 
   return (

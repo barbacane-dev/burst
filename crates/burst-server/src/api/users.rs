@@ -5,6 +5,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::api::PaginatedResponse;
 use crate::api::extractors::{AuthUser, PaginationParams};
 use crate::db;
 use crate::error::ApiError;
@@ -29,14 +30,6 @@ pub struct UserResponse {
     pub status_text: Option<String>,
     pub is_bot: bool,
     pub created_at: String,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PaginatedResponse<T> {
-    pub items: Vec<T>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cursor: Option<String>,
 }
 
 fn user_to_response(row: &db::users::UserRow) -> UserResponse {

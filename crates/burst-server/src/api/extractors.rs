@@ -21,11 +21,13 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        // Try Barbacane header first
-        if let Some(header) = parts
-            .headers
-            .get("x-auth-consumer")
-            .and_then(|v| v.to_str().ok())
+        // Trust Barbacane header only when explicitly enabled in config.
+        // Without this guard, any client that reaches the port can forge X-Auth-Consumer.
+        if state.config.trust_auth_headers
+            && let Some(header) = parts
+                .headers
+                .get("x-auth-consumer")
+                .and_then(|v| v.to_str().ok())
         {
             let user_id = Uuid::parse_str(header).map_err(|_| ApiError::Unauthorized)?;
             return Ok(AuthUser { user_id });

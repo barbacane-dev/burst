@@ -3,3 +3,13 @@ pub mod channels;
 pub mod extractors;
 pub mod health;
 pub mod users;
+
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaginatedResponse<T> {
+    pub items: Vec<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+}
