@@ -269,23 +269,25 @@ export function ChannelPage() {
 // ── Reaction helpers ──────────────────────────────────────────────────────────
 
 function addReactionLocally(msg: Message, emoji: string, userId: string): Message {
-  const existing = msg.reactions.find((r) => r.emoji === emoji);
+  const reactions = msg.reactions ?? [];
+  const existing = reactions.find((r) => r.emoji === emoji);
   if (existing) {
     if (existing.userIds.includes(userId)) return msg;
     return {
       ...msg,
-      reactions: msg.reactions.map((r) =>
+      reactions: reactions.map((r) =>
         r.emoji === emoji ? { ...r, count: r.count + 1, userIds: [...r.userIds, userId] } : r,
       ),
     };
   }
-  return { ...msg, reactions: [...msg.reactions, { emoji, count: 1, userIds: [userId] }] };
+  return { ...msg, reactions: [...reactions, { emoji, count: 1, userIds: [userId] }] };
 }
 
 function removeReactionLocally(msg: Message, emoji: string, userId: string): Message {
+  const reactions = msg.reactions ?? [];
   return {
     ...msg,
-    reactions: msg.reactions
+    reactions: reactions
       .map((r) =>
         r.emoji === emoji
           ? { ...r, count: r.count - 1, userIds: r.userIds.filter((id) => id !== userId) }
@@ -322,7 +324,7 @@ function MessageBubble({
   });
 
   function toggleReaction(emoji: string) {
-    const existing = message.reactions.find((r) => r.emoji === emoji);
+    const existing = (message.reactions ?? []).find((r) => r.emoji === emoji);
     const hasReacted = existing?.userIds.includes(currentUserId) ?? false;
     // Optimistic update
     queryClient.setQueryData<PaginatedResponse<Message>>(
@@ -376,9 +378,9 @@ function MessageBubble({
         </p>
 
         {/* Reactions */}
-        {message.reactions.length > 0 && (
+        {(message.reactions?.length ?? 0) > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
-            {message.reactions.map((r) => (
+            {(message.reactions ?? []).map((r) => (
               <ReactionPill
                 key={r.emoji}
                 reaction={r}
