@@ -13,7 +13,6 @@ use crate::error::ApiError;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/channels", get(list_channels).post(create_channel))
-        .route("/channels/browse", get(browse_channels))
         .route("/dms", axum::routing::post(create_or_get_dm))
         .route(
             "/channels/{channel_id}",
@@ -234,51 +233,53 @@ async fn create_channel(
     ))
 }
 
+// ?joined=true  → channels the caller is a member of (sidebar)
+// ?joined=false  → all public channels (discovery/browse); default
+#[derive(Deserialize)]
+struct ListChannelsParams {
+    #[serde(flatten)]
+    pagination: PaginationParams,
+    joined: Option<bool>,
+}
+
 async fn list_channels(
     auth: AuthUser,
     State(state): State<AppState>,
-    Query(params): Query<PaginationParams>,
+    Query(params): Query<ListChannelsParams>,
 ) -> Result<Json<PaginatedResponse<ChannelResponse>>, ApiError> {
-    let limit = params.clamped_limit();
-    let channels =
-        db::channels::list_for_user(&state.db, auth.user_id, params.cursor, limit + 1).await?;
+    let limit = params.pagination.clamped_limit();
+    let cursor = params.pagination.cursor;
 
-    let has_more = channels.len() as i64 > limit;
-    let items: Vec<_> = channels
-        .iter()
-        .take(limit as usize)
-        .map(channel_with_unread_to_response)
-        .collect();
-    let cursor = if has_more {
-        items.last().map(|c| c.id.clone())
+    if params.joined.unwrap_or(false) {
+        let channels =
+            db::channels::list_for_user(&state.db, auth.user_id, cursor, limit + 1).await?;
+        let has_more = channels.len() as i64 > limit;
+        let items: Vec<_> = channels
+            .iter()
+            .take(limit as usize)
+            .map(channel_with_unread_to_response)
+            .collect();
+        let cursor = if has_more {
+            items.last().map(|c| c.id.clone())
+        } else {
+            None
+        };
+        Ok(Json(PaginatedResponse { items, cursor }))
     } else {
-        None
-    };
-
-    Ok(Json(PaginatedResponse { items, cursor }))
-}
-
-async fn browse_channels(
-    _auth: AuthUser,
-    State(state): State<AppState>,
-    Query(params): Query<PaginationParams>,
-) -> Result<Json<PaginatedResponse<ChannelResponse>>, ApiError> {
-    let limit = params.clamped_limit();
-    let channels = db::channels::list_public(&state.db, params.cursor, limit + 1).await?;
-
-    let has_more = channels.len() as i64 > limit;
-    let items: Vec<_> = channels
-        .iter()
-        .take(limit as usize)
-        .map(channel_to_response)
-        .collect();
-    let cursor = if has_more {
-        items.last().map(|c| c.id.clone())
-    } else {
-        None
-    };
-
-    Ok(Json(PaginatedResponse { items, cursor }))
+        let channels = db::channels::list_public(&state.db, cursor, limit + 1).await?;
+        let has_more = channels.len() as i64 > limit;
+        let items: Vec<_> = channels
+            .iter()
+            .take(limit as usize)
+            .map(channel_to_response)
+            .collect();
+        let cursor = if has_more {
+            items.last().map(|c| c.id.clone())
+        } else {
+            None
+        };
+        Ok(Json(PaginatedResponse { items, cursor }))
+    }
 }
 
 fn parse_channel_id(channel_id: &str) -> Result<Uuid, ApiError> {
@@ -443,6 +444,18 @@ async fn create_or_get_dm(
     let new_id = burst_core::id::new_id();
     let channel =
         db::channels::find_or_create_dm(&state.db, auth.user_id, target_id, new_id).await?;
+
+    // Notify both users' open WS connections so they update their channel membership
+    // set and can receive real-time events on this channel immediately.
+    let ch_id_str = burst_core::id::format_channel_id(channel.id);
+    for uid in [auth.user_id, target_id] {
+        let ev = crate::ws::ServerEvent::ChannelJoined {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: ch_id_str.clone(),
+            user_id: burst_core::id::format_user_id(uid),
+        };
+        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    }
 
     Ok((
         axum::http::StatusCode::OK,

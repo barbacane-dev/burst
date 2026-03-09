@@ -1,7 +1,11 @@
 import { apiFetch } from "./client";
-import type { Channel, Message, PaginatedResponse } from "./types";
+import type { Channel, ChannelMember, Message, PaginatedResponse } from "./types";
 
 export async function listChannels(): Promise<PaginatedResponse<Channel>> {
+  return apiFetch<PaginatedResponse<Channel>>("/channels?joined=true");
+}
+
+export async function browseChannels(): Promise<PaginatedResponse<Channel>> {
   return apiFetch<PaginatedResponse<Channel>>("/channels");
 }
 
@@ -27,6 +31,10 @@ export async function createDm(userId: string): Promise<Channel> {
     method: "POST",
     body: JSON.stringify({ userId }),
   });
+}
+
+export async function listMembers(channelId: string): Promise<ChannelMember[]> {
+  return apiFetch<ChannelMember[]>(`/channels/${channelId}/members`);
 }
 
 export async function joinChannel(channelId: string): Promise<void> {

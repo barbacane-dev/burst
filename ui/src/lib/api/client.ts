@@ -38,7 +38,7 @@ export async function silentRefresh(): Promise<boolean> {
   _isRefreshing = true;
   _refreshPromise = (async () => {
     try {
-      const response = await fetch("/auth/refresh", {
+      const response = await fetch("/api/auth/refresh", {
         method: "POST",
         credentials: "include", // sends the httpOnly refresh_token cookie
       });
@@ -73,14 +73,15 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${_accessToken}`;
   }
 
-  let response = await fetch(path, { ...options, headers, credentials: "include" });
+  const url = `/api${path}`;
+  let response = await fetch(url, { ...options, headers, credentials: "include" });
 
   // On 401, attempt a silent refresh and retry once
   if (response.status === 401 && _accessToken) {
     const refreshed = await silentRefresh();
     if (refreshed && _accessToken) {
       headers["Authorization"] = `Bearer ${_accessToken}`;
-      response = await fetch(path, { ...options, headers, credentials: "include" });
+      response = await fetch(url, { ...options, headers, credentials: "include" });
     }
   }
 

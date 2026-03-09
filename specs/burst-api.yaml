@@ -374,8 +374,14 @@ paths:
   /channels:
     get:
       operationId: listChannels
-      summary: List channels for current user
-      description: Returns channels the authenticated user is a member of, ordered by name.
+      summary: List channels
+      description: >-
+        Returns a paginated list of channels.
+
+        - `?joined=true` — channels the authenticated user is a member of,
+          with per-channel `unreadCount`. Use this for the sidebar.
+        - `?joined=false` (default) — all public channels, for discovery.
+          `unreadCount` is always `0` in this mode.
       tags:
         - Channels
       security:
@@ -384,16 +390,47 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+      parameters:
+        - name: joined
+          in: query
+          description: When true, restrict results to channels the caller has joined.
+          schema:
+            type: boolean
+            default: false
+        - name: cursor
+          in: query
+          description: Pagination cursor (opaque token from previous response)
+          schema:
+            type: string
+            maxLength: 40
+        - name: limit
+          in: query
+          description: Number of results per page
+          schema:
+            type: integer
+            format: int32
+            default: 50
+            minimum: 1
+            maximum: 200
       responses:
         "200":
-          description: Channel list
+          description: Paginated channel list
           content:
             application/json:
               schema:
-                type: array
-                maxItems: 1000
-                items:
-                  $ref: "#/components/schemas/Channel"
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    maxItems: 200
+                    items:
+                      $ref: "#/components/schemas/Channel"
+                  cursor:
+                    type: string
+                    maxLength: 40
+                    description: Cursor for next page, absent if no more results.
         "401":
           description: Missing or invalid authentication
           content:
@@ -457,73 +494,6 @@ paths:
                 $ref: "#/components/schemas/ProblemDetails"
         "409":
           description: Channel slug already exists
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-
-  /channels/browse:
-    get:
-      operationId: browseChannels
-      summary: Browse public channels
-      description: Returns a paginated list of public channels. No membership required.
-      tags:
-        - Channels
-      security:
-        - BearerAuth: []
-      x-barbacane-dispatch:
-        name: http-upstream
-        config:
-          url: "http://localhost:3000"
-      parameters:
-        - name: cursor
-          in: query
-          description: Pagination cursor (opaque token from previous response)
-          schema:
-            type: string
-            maxLength: 40
-        - name: limit
-          in: query
-          description: Number of results per page
-          schema:
-            type: integer
-            format: int32
-            default: 50
-            minimum: 1
-            maximum: 200
-      responses:
-        "200":
-          description: Paginated public channel list
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - items
-                properties:
-                  items:
-                    type: array
-                    maxItems: 200
-                    items:
-                      $ref: "#/components/schemas/Channel"
-                  cursor:
-                    type: string
-                    maxLength: 40
-                    description: Cursor for next page, absent if no more results.
-        "401":
-          description: Missing or invalid authentication
           content:
             application/problem+json:
               schema:

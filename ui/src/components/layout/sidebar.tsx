@@ -1,33 +1,66 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle, Search } from "lucide-react";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useWsEvent } from "../../lib/ws/hooks";
 import { useAuth } from "../../lib/auth/context";
-import { listChannels, createChannel, createDm } from "../../lib/api/channels";
+import { listChannels, listMembers, createChannel, createDm, browseChannels, joinChannel } from "../../lib/api/channels";
 import { listUsers } from "../../lib/api/users";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
-import type { Channel, PaginatedResponse, User } from "../../lib/api/types";
+import type { Channel, ChannelMember, PaginatedResponse, User } from "../../lib/api/types";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { channelId } = useParams();
   const [showCreate, setShowCreate] = useState(false);
+  const [showBrowse, setShowBrowse] = useState(false);
   const [showDm, setShowDm] = useState(false);
+
+  const queryClient = useQueryClient();
 
   const { data } = useQuery<PaginatedResponse<Channel>>({
     queryKey: ["channels"],
     queryFn: listChannels,
   });
 
+  // Refresh the channel list when a new DM is created and this user is added.
+  useWsEvent("channel.joined", () => {
+    queryClient.invalidateQueries({ queryKey: ["channels"] });
+  });
+
   const publicChannels = data?.items.filter((ch) => ch.kind === "public" || ch.kind === "private") ?? [];
   const dmChannels = data?.items.filter((ch) => ch.kind === "dm" || ch.kind === "group_dm") ?? [];
 
+  const { data: usersData } = useQuery<PaginatedResponse<User>>({
+    queryKey: ["users"],
+    queryFn: () => listUsers(),
+    staleTime: 60_000,
+  });
+  const usersById = new Map(usersData?.items.map((u) => [u.id, u.displayName]) ?? []);
+
+  const dmMembersQueries = useQueries({
+    queries: dmChannels.map((ch) => ({
+      queryKey: ["members", ch.id] as const,
+      queryFn: () => listMembers(ch.id),
+      staleTime: 60_000,
+    })),
+  });
+
+  const dmLabels = new Map<string, string>(
+    dmChannels.flatMap((ch, i) => {
+      const members: ChannelMember[] = dmMembersQueries[i]?.data ?? [];
+      const partner = members.find((m) => m.userId !== user?.id);
+      if (!partner) return [];
+      const name = usersById.get(partner.userId) ?? partner.userId.replace("usr_", "").slice(0, 8);
+      return [[ch.id, name]];
+    }),
+  );
+
   function dmLabel(ch: Channel): string {
-    // DM channels have no name — show the ID as a placeholder until M6 adds display names
-    return ch.name ?? ch.id.replace("ch_", "").slice(0, 8);
+    return ch.name ?? dmLabels.get(ch.id) ?? "Direct Message";
   }
 
   return (
@@ -45,13 +78,22 @@ export function Sidebar() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             Channels
           </h2>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-            title="Create channel"
-          >
-            <Plus className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => setShowBrowse(true)}
+              className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+              title="Browse channels"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+              title="Create channel"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {publicChannels.length === 0 && (
@@ -132,6 +174,10 @@ export function Sidebar() {
 
       {showCreate && (
         <CreateChannelDialog onClose={() => setShowCreate(false)} />
+      )}
+
+      {showBrowse && (
+        <BrowseChannelsDialog onClose={() => setShowBrowse(false)} />
       )}
 
       {showDm && (
@@ -245,6 +291,89 @@ function CreateChannelDialog({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function BrowseChannelsDialog({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+
+  const { data, isLoading } = useQuery<PaginatedResponse<Channel>>({
+    queryKey: ["channels-browse"],
+    queryFn: browseChannels,
+  });
+
+  const joinedIds = new Set(
+    (queryClient.getQueryData<PaginatedResponse<Channel>>(["channels"])?.items ?? []).map(
+      (ch) => ch.id,
+    ),
+  );
+
+  const mutation = useMutation({
+    mutationFn: (channelId: string) => joinChannel(channelId),
+    onSuccess: (_void, channelId) => {
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
+      navigate(`/channels/${channelId}`);
+      onClose();
+    },
+  });
+
+  const channels = data?.items ?? [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Browse Channels
+          </h3>
+          <button
+            onClick={onClose}
+            className="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {isLoading ? (
+          <p className="text-sm text-gray-400">Loading…</p>
+        ) : channels.length === 0 ? (
+          <p className="text-sm text-gray-400">No public channels found.</p>
+        ) : (
+          <ul className="max-h-64 overflow-y-auto space-y-1">
+            {channels.map((ch) => {
+              const joined = joinedIds.has(ch.id);
+              return (
+                <li key={ch.id} className="flex items-center justify-between gap-2 rounded-md px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Hash className="h-4 w-4 shrink-0 text-gray-400" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {ch.name ?? ch.slug ?? "unnamed"}
+                      </p>
+                      {ch.topic && (
+                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">{ch.topic}</p>
+                      )}
+                    </div>
+                  </div>
+                  {joined ? (
+                    <span className="shrink-0 text-xs text-gray-400">Joined</span>
+                  ) : (
+                    <button
+                      onClick={() => mutation.mutate(ch.id)}
+                      disabled={mutation.isPending}
+                      className="shrink-0 rounded-md bg-indigo-600 px-2 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+                    >
+                      Join
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
     </div>
   );

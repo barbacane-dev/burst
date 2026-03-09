@@ -109,6 +109,7 @@ pub async fn list_for_user(
                    WHERE m.channel_id = c.id \
                    AND m.thread_id IS NULL \
                    AND m.deleted_at IS NULL \
+                   AND m.user_id != $1 \
                    AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01'::timestamptz) \
                  ), 0) AS unread_count \
                  FROM channels c \
@@ -131,6 +132,7 @@ pub async fn list_for_user(
                    WHERE m.channel_id = c.id \
                    AND m.thread_id IS NULL \
                    AND m.deleted_at IS NULL \
+                   AND m.user_id != $1 \
                    AND m.created_at > COALESCE(cm.last_read_at, '1970-01-01'::timestamptz) \
                  ), 0) AS unread_count \
                  FROM channels c \
