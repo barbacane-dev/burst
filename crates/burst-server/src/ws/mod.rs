@@ -72,12 +72,6 @@ pub enum ServerEvent {
         emoji: String,
         user_id: String,
     },
-    #[serde(rename = "channel.joined", rename_all = "camelCase")]
-    ChannelJoined {
-        event_id: String,
-        channel_id: String,
-        user_id: String,
-    },
 }
 
 impl ServerEvent {
