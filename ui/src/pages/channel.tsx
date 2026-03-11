@@ -8,9 +8,10 @@ import {
 } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Hash, Send, MessageSquare, X, Smile } from "lucide-react";
+import { Hash, Send, MessageSquare, X, Smile, MessageCircle } from "lucide-react";
 import {
   getChannel,
+  listMembers,
   listMessages,
   listThreadReplies,
   sendMessage,
@@ -18,10 +19,11 @@ import {
   removeReaction,
   markChannelRead,
 } from "../lib/api/channels";
+import { listUsers } from "../lib/api/users";
 import { useAuth } from "../lib/auth/context";
 import { Avatar } from "../components/ui/avatar";
 import { Spinner } from "../components/ui/spinner";
-import type { Channel, Message, PaginatedResponse, ReactionCount } from "../lib/api/types";
+import type { Channel, ChannelMember, Message, PaginatedResponse, ReactionCount, User } from "../lib/api/types";
 import { useWsEvent, useTypingIndicator } from "../lib/ws/hooks";
 
 const EMOJI_PICKER = ["👍", "👎", "❤️", "😂", "😮", "😢", "🎉", "🚀", "👀", "🔥"];
@@ -43,6 +45,37 @@ export function ChannelPage() {
   });
 
   const channel = cachedChannel ?? fetchedChannel;
+  const isDm = channel?.kind === "dm" || channel?.kind === "group_dm";
+
+  // ── User display-name lookup ───────────────────────────────────────────────
+
+  const { data: usersData } = useQuery<PaginatedResponse<User>>({
+    queryKey: ["users"],
+    queryFn: () => listUsers(),
+    staleTime: 60_000,
+  });
+  const usersById = new Map(usersData?.items.map((u) => [u.id, u.displayName]) ?? []);
+
+  // ── DM title: resolve the other participant's display name ─────────────────
+
+  const { data: members } = useQuery<ChannelMember[]>({
+    queryKey: ["members", channelId],
+    queryFn: () => listMembers(channelId!),
+    enabled: !!channelId && isDm,
+    staleTime: 60_000,
+  });
+
+  function channelTitle(): string {
+    if (!channel) return "Loading...";
+    if (isDm) {
+      const partner = members?.find((m) => m.userId !== user?.id);
+      if (partner) return usersById.get(partner.userId) ?? partner.userId.replace("usr_", "").slice(0, 8);
+      return "Direct Message";
+    }
+    return channel.name ?? "#unnamed";
+  }
+
+  // ── Messages ───────────────────────────────────────────────────────────────
 
   const { data, isLoading } = useQuery<PaginatedResponse<Message>>({
     queryKey: ["messages", channelId],
@@ -76,7 +109,8 @@ export function ChannelPage() {
       queryClient.setQueryData<PaginatedResponse<Message>>(
         ["messages", channelId],
         (old) => {
-          if (!old) return { items: [ev.message], cursor: undefined };
+          const hydrated: Message = { reactions: [], replyCount: 0, ...ev.message };
+          if (!old) return { items: [hydrated], cursor: undefined };
           if (ev.message.threadId) {
             // Increment reply count on the parent in the main view
             return {
@@ -88,9 +122,9 @@ export function ChannelPage() {
           }
           const exists = old.items.some((m) => m.id === ev.message.id);
           if (exists) {
-            return { ...old, items: old.items.map((m) => m.id === ev.message.id ? ev.message : m) };
+            return { ...old, items: old.items.map((m) => m.id === ev.message.id ? hydrated : m) };
           }
-          return { ...old, items: [ev.message, ...old.items] };
+          return { ...old, items: [hydrated, ...old.items] };
         },
       );
       // Also append to open thread cache
@@ -98,9 +132,10 @@ export function ChannelPage() {
         queryClient.setQueryData<PaginatedResponse<Message>>(
           ["thread", threadMessageId],
           (old) => {
-            if (!old) return { items: [ev.message], cursor: undefined };
+            const hydratedReply: Message = { reactions: [], replyCount: 0, ...ev.message };
+            if (!old) return { items: [hydratedReply], cursor: undefined };
             if (old.items.some((m) => m.id === ev.message.id)) return old;
-            return { ...old, items: [...old.items, ev.message] };
+            return { ...old, items: [...old.items, hydratedReply] };
           },
         );
       }
@@ -148,18 +183,19 @@ export function ChannelPage() {
     "reaction.added",
     (ev) => {
       if (ev.channelId !== channelId) return;
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) =>
-          old
-            ? {
-                ...old,
-                items: old.items.map((m) =>
-                  m.id === ev.messageId ? addReactionLocally(m, ev.emoji, ev.userId) : m,
-                ),
-              }
-            : old,
-      );
+      const updater = (old: PaginatedResponse<Message> | undefined) =>
+        old
+          ? {
+              ...old,
+              items: old.items.map((m) =>
+                m.id === ev.messageId ? addReactionLocally(m, ev.emoji, ev.userId) : m,
+              ),
+            }
+          : old;
+      queryClient.setQueryData<PaginatedResponse<Message>>(["messages", channelId], updater);
+      if (threadMessageId) {
+        queryClient.setQueryData<PaginatedResponse<Message>>(["thread", threadMessageId], updater);
+      }
     },
   );
 
@@ -167,18 +203,19 @@ export function ChannelPage() {
     "reaction.removed",
     (ev) => {
       if (ev.channelId !== channelId) return;
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) =>
-          old
-            ? {
-                ...old,
-                items: old.items.map((m) =>
-                  m.id === ev.messageId ? removeReactionLocally(m, ev.emoji, ev.userId) : m,
-                ),
-              }
-            : old,
-      );
+      const updater = (old: PaginatedResponse<Message> | undefined) =>
+        old
+          ? {
+              ...old,
+              items: old.items.map((m) =>
+                m.id === ev.messageId ? removeReactionLocally(m, ev.emoji, ev.userId) : m,
+              ),
+            }
+          : old;
+      queryClient.setQueryData<PaginatedResponse<Message>>(["messages", channelId], updater);
+      if (threadMessageId) {
+        queryClient.setQueryData<PaginatedResponse<Message>>(["thread", threadMessageId], updater);
+      }
     },
   );
 
@@ -198,9 +235,12 @@ export function ChannelPage() {
     <div className="flex flex-1 overflow-hidden">
       <div className="flex flex-1 flex-col min-w-0">
         <header className="flex h-14 items-center border-b border-gray-200 px-4 dark:border-gray-700">
-          <Hash className="mr-2 h-5 w-5 text-gray-400" />
+          {isDm
+            ? <MessageCircle className="mr-2 h-5 w-5 text-gray-400" />
+            : <Hash className="mr-2 h-5 w-5 text-gray-400" />
+          }
           <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-            {channel?.name ?? "Loading..."}
+            {channelTitle()}
           </h2>
           {channel?.topic && (
             <span className="ml-3 text-sm text-gray-500 dark:text-gray-400">
@@ -229,6 +269,7 @@ export function ChannelPage() {
                   message={msg}
                   currentUserId={user?.id ?? ""}
                   channelId={channelId!}
+                  usersById={usersById}
                   onOpenThread={() => openThread(msg.id)}
                   isThreadOpen={threadMessageId === msg.id}
                 />
@@ -240,7 +281,9 @@ export function ChannelPage() {
 
         {typingUsers.size > 0 && (
           <div className="px-4 py-1 text-xs text-gray-400 dark:text-gray-500">
-            {[...typingUsers].map((id) => id.replace("usr_", "").slice(0, 8)).join(", ")}{" "}
+            {[...typingUsers]
+              .map((id) => usersById.get(id) ?? id.replace("usr_", "").slice(0, 8))
+              .join(", ")}{" "}
             {typingUsers.size === 1 ? "is" : "are"} typing...
           </div>
         )}
@@ -259,6 +302,7 @@ export function ChannelPage() {
           channelId={channelId}
           threadMessageId={threadMessageId}
           currentUserId={user?.id ?? ""}
+          usersById={usersById}
           onClose={closeThread}
         />
       )}
@@ -301,14 +345,20 @@ function MessageBubble({
   message,
   currentUserId,
   channelId,
+  threadId,
+  usersById,
   onOpenThread,
-  isThreadOpen,
+  showThreadButton = true,
+  isThreadOpen = false,
 }: {
   message: Message;
   currentUserId: string;
   channelId: string;
-  onOpenThread: () => void;
-  isThreadOpen: boolean;
+  threadId?: string;
+  usersById: Map<string, string>;
+  onOpenThread?: () => void;
+  showThreadButton?: boolean;
+  isThreadOpen?: boolean;
 }) {
   const isDeleted = !!message.deletedAt;
   const [showPicker, setShowPicker] = useState(false);
@@ -324,9 +374,10 @@ function MessageBubble({
   function toggleReaction(emoji: string) {
     const existing = message.reactions.find((r) => r.emoji === emoji);
     const hasReacted = existing?.userIds.includes(currentUserId) ?? false;
-    // Optimistic update
+    // Optimistic update — target the thread cache when inside a thread view
+    const cacheKey: unknown[] = threadId ? ["thread", threadId] : ["messages", channelId];
     queryClient.setQueryData<PaginatedResponse<Message>>(
-      ["messages", channelId],
+      cacheKey,
       (old) =>
         old
           ? {
@@ -345,17 +396,19 @@ function MessageBubble({
     setShowPicker(false);
   }
 
+  const displayName = usersById.get(message.userId) ?? message.userId.replace("usr_", "").slice(0, 8);
+
   return (
     <div
       className={`group relative flex items-start gap-3 rounded-md px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/50 ${
         isThreadOpen ? "bg-indigo-50/50 dark:bg-indigo-900/10" : ""
       }`}
     >
-      <Avatar name={message.userId} size="sm" />
+      <Avatar name={displayName} size="sm" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            {message.userId.replace("usr_", "").slice(0, 8)}
+            {displayName}
           </span>
           <time className="text-xs text-gray-400 dark:text-gray-500">
             {formatTime(message.createdAt)}
@@ -389,8 +442,8 @@ function MessageBubble({
           </div>
         )}
 
-        {/* Thread reply count */}
-        {!isDeleted && message.replyCount > 0 && (
+        {/* Thread reply count — only in main channel view */}
+        {showThreadButton && !isDeleted && message.replyCount > 0 && (
           <button
             onClick={onOpenThread}
             className="mt-1 text-xs text-indigo-600 hover:underline dark:text-indigo-400"
@@ -418,13 +471,15 @@ function MessageBubble({
               />
             )}
           </div>
-          <button
-            onClick={onOpenThread}
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
-            title="Reply in thread"
-          >
-            <MessageSquare className="h-4 w-4" />
-          </button>
+          {showThreadButton && (
+            <button
+              onClick={onOpenThread}
+              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+              title="Reply in thread"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -500,11 +555,13 @@ function ThreadPanel({
   channelId,
   threadMessageId,
   currentUserId,
+  usersById,
   onClose,
 }: {
   channelId: string;
   threadMessageId: string;
   currentUserId: string;
+  usersById: Map<string, string>;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -542,15 +599,13 @@ function ThreadPanel({
 
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
         {rootMessage && (
-          <div className="mb-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800/50">
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                {rootMessage.userId.replace("usr_", "").slice(0, 8)}
-              </span>
-              <time className="text-xs text-gray-400">{formatTime(rootMessage.createdAt)}</time>
-            </div>
-            <p className="text-sm text-gray-800 dark:text-gray-200">{rootMessage.content}</p>
-          </div>
+          <MessageBubble
+            message={rootMessage}
+            currentUserId={currentUserId}
+            channelId={channelId}
+            usersById={usersById}
+            showThreadButton={false}
+          />
         )}
 
         {replies.length > 0 && (
@@ -565,10 +620,14 @@ function ThreadPanel({
           <p className="py-4 text-center text-xs text-gray-400">No replies yet</p>
         ) : (
           replies.map((msg) => (
-            <ThreadReply
+            <MessageBubble
               key={msg.id}
               message={msg}
               currentUserId={currentUserId}
+              channelId={channelId}
+              threadId={threadMessageId}
+              usersById={usersById}
+              showThreadButton={false}
             />
           ))
         )}
@@ -582,36 +641,6 @@ function ThreadPanel({
         onTypingStop={() => {}}
         placeholder="Reply in thread…"
       />
-    </div>
-  );
-}
-
-function ThreadReply({
-  message,
-  currentUserId: _currentUserId,
-}: {
-  message: Message;
-  currentUserId: string;
-}) {
-  const isDeleted = !!message.deletedAt;
-  return (
-    <div className="flex items-start gap-2 rounded-md px-1 py-1 hover:bg-gray-50 dark:hover:bg-gray-900/50">
-      <Avatar name={message.userId} size="sm" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
-            {message.userId.replace("usr_", "").slice(0, 8)}
-          </span>
-          <time className="text-xs text-gray-400">{formatTime(message.createdAt)}</time>
-        </div>
-        <p
-          className={`text-sm ${
-            isDeleted ? "italic text-gray-400" : "text-gray-800 dark:text-gray-200"
-          }`}
-        >
-          {isDeleted ? "This message was deleted" : message.content}
-        </p>
-      </div>
     </div>
   );
 }

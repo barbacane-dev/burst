@@ -25,7 +25,7 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     };
 
     // ── Load channel memberships for filtering ────────────────────────────────
-    let channel_ids: HashSet<Uuid> =
+    let mut channel_ids: HashSet<Uuid> =
         match db::channels::channel_ids_for_user(&state.db, user_id).await {
             Ok(ids) => ids.into_iter().collect(),
             Err(e) => {
@@ -78,6 +78,18 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
             event = rx.recv() => {
                 match event {
                     Ok(ev) => {
+                        // Keep membership set current: when this user joins a new channel
+                        // (e.g. a freshly created DM), add it so subsequent events are forwarded.
+                        if let ServerEvent::ChannelJoined { user_id: uid_str, channel_id: ch_str, .. } = &ev {
+                            if let (Some(uid), Some(ch_id)) = (
+                                parse_prefixed_id(uid_str, "usr_").or_else(|| Uuid::parse_str(uid_str).ok()),
+                                parse_prefixed_id(ch_str, "ch_").or_else(|| Uuid::parse_str(ch_str).ok()),
+                            ) {
+                                if uid == user_id {
+                                    channel_ids.insert(ch_id);
+                                }
+                            }
+                        }
                         if should_forward(&ev, user_id, &channel_ids) {
                             let text = match serde_json::to_string(&ev) {
                                 Ok(t) => t,

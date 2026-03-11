@@ -50,6 +50,12 @@ pub enum ServerEvent {
         user_id: String,
         status: String,
     },
+    #[serde(rename = "channel.joined", rename_all = "camelCase")]
+    ChannelJoined {
+        event_id: String,
+        channel_id: String,
+        user_id: String,
+    },
     #[serde(rename = "reaction.added", rename_all = "camelCase")]
     ReactionAdded {
         event_id: String,

@@ -37,6 +37,12 @@ export interface Channel {
   updatedAt: string;
 }
 
+export interface ChannelMember {
+  userId: string;
+  role: string;
+  joinedAt: string;
+}
+
 export interface ReactionCount {
   emoji: string;
   count: number;
