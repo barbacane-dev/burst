@@ -169,10 +169,9 @@ async fn create_dm_broadcasts_channel_joined_for_both_users(pool: sqlx::PgPool) 
             user_id: ev_uid,
             ..
         } = ev
+            && ev_ch == channel_id
         {
-            if ev_ch == channel_id {
-                joined_for.push(ev_uid);
-            }
+            joined_for.push(ev_uid);
         }
     }
 

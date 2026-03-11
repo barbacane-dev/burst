@@ -66,6 +66,12 @@ pub enum ServerEvent {
         emoji: String,
         user_id: String,
     },
+    #[serde(rename = "channel.joined", rename_all = "camelCase")]
+    ChannelJoined {
+        event_id: String,
+        channel_id: String,
+        user_id: String,
+    },
 }
 
 impl ServerEvent {
@@ -79,6 +85,7 @@ impl ServerEvent {
             ServerEvent::PresenceUpdate { event_id, .. } => event_id,
             ServerEvent::ReactionAdded { event_id, .. } => event_id,
             ServerEvent::ReactionRemoved { event_id, .. } => event_id,
+            ServerEvent::ChannelJoined { event_id, .. } => event_id,
         }
     }
 
@@ -92,26 +99,14 @@ impl ServerEvent {
             ServerEvent::PresenceUpdate { .. } => None,
             ServerEvent::ReactionAdded { channel_id, .. } => Some(channel_id),
             ServerEvent::ReactionRemoved { channel_id, .. } => Some(channel_id),
+            ServerEvent::ChannelJoined { channel_id, .. } => Some(channel_id),
         }
     }
 }
 
-/// Inline message payload sent inside WS events.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MessagePayload {
-    pub id: String,
-    pub channel_id: String,
-    pub user_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub thread_id: Option<String>,
-    pub content: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub edited_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub deleted_at: Option<String>,
-    pub created_at: String,
-}
+/// Message payload reused by both REST responses and WS events.
+pub type MessagePayload = crate::api::channels::MessageResponse;
+pub type ReactionPayload = crate::api::channels::ReactionResponse;
 
 /// Events sent from client to server.
 #[derive(Debug, Deserialize)]

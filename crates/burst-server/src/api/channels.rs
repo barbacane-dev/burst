@@ -108,7 +108,7 @@ fn channel_to_response(row: &db::channels::ChannelRow) -> ChannelResponse {
 
 // ── Message types ──
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReactionResponse {
     pub emoji: String,
@@ -116,7 +116,7 @@ pub struct ReactionResponse {
     pub user_ids: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageResponse {
     pub id: String,
@@ -512,26 +512,15 @@ async fn send_message(
     let message =
         db::messages::create(&state.db, id, ch_id, auth.user_id, thread_id, content).await?;
 
+    let response = build_message_response(&message, 0, vec![]);
     let ev = crate::ws::ServerEvent::MessageCreated {
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),
-        message: crate::ws::MessagePayload {
-            id: burst_core::id::format_message_id(message.id),
-            channel_id: burst_core::id::format_channel_id(message.channel_id),
-            user_id: burst_core::id::format_user_id(message.user_id),
-            thread_id: message.thread_id.map(burst_core::id::format_message_id),
-            content: message.content.clone(),
-            edited_at: message.edited_at.map(|t| t.to_rfc3339()),
-            deleted_at: message.deleted_at.map(|t| t.to_rfc3339()),
-            created_at: message.created_at.to_rfc3339(),
-        },
+        message: response.clone(),
     };
     crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
 
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(build_message_response(&message, 0, vec![])),
-    ))
+    Ok((axum::http::StatusCode::CREATED, Json(response)))
 }
 
 async fn list_messages(
@@ -686,23 +675,15 @@ async fn edit_message(
         return Err(ApiError::NotFound("Message".into()));
     }
 
+    let response = build_message_response(&message, 0, vec![]);
     let ev = crate::ws::ServerEvent::MessageUpdated {
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),
-        message: crate::ws::MessagePayload {
-            id: burst_core::id::format_message_id(message.id),
-            channel_id: burst_core::id::format_channel_id(message.channel_id),
-            user_id: burst_core::id::format_user_id(message.user_id),
-            thread_id: message.thread_id.map(burst_core::id::format_message_id),
-            content: message.content.clone(),
-            edited_at: message.edited_at.map(|t| t.to_rfc3339()),
-            deleted_at: message.deleted_at.map(|t| t.to_rfc3339()),
-            created_at: message.created_at.to_rfc3339(),
-        },
+        message: response.clone(),
     };
     crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
 
-    Ok(Json(build_message_response(&message, 0, vec![])))
+    Ok(Json(response))
 }
 
 async fn delete_message(
