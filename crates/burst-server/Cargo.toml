@@ -24,3 +24,7 @@ base64.workspace = true
 sha2.workspace = true
 hex.workspace = true
 toml.workspace = true
+
+[dev-dependencies]
+serde_yaml = "0.9.34"
+urlencoding = "2.1.3"
