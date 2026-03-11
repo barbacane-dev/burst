@@ -8,6 +8,7 @@ import {
 } from "react";
 import { apiFetch, setAccessToken, silentRefresh } from "../api/client";
 import type { TokenResponse, User } from "../api/types";
+import { queryClient } from "../query-client";
 import { wsClient } from "../ws/client";
 
 interface AuthState {
@@ -70,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       wsClient.disconnect();
       wsClient.reset();
+      queryClient.clear();
       setAccessToken(null);
       setUser(null);
     }

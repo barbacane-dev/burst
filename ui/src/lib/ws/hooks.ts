@@ -18,7 +18,7 @@ export function useWsEvent<T>(type: string, handler: (event: T) => void): void {
  * Track which users are currently typing in a channel.
  * Sends typing.start/stop to the server and returns a set of user IDs typing.
  */
-export function useTypingIndicator(channelId: string): {
+export function useTypingIndicator(channelId: string, currentUserId?: string): {
   typingUsers: Set<string>;
   sendTypingStart: () => void;
   sendTypingStop: () => void;
@@ -30,6 +30,7 @@ export function useTypingIndicator(channelId: string): {
     const offStart = wsClient.on("typing.start", (e) => {
       const ev = e as { type: string; channelId: string; userId: string };
       if (ev.channelId !== channelId) return;
+      if (currentUserId && ev.userId === currentUserId) return;
 
       setTypingUsers((prev) => {
         const next = new Set(prev);

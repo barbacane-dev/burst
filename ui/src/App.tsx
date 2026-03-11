@@ -1,20 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./lib/auth/context";
 import { LoginPage } from "./pages/login";
 import { MainLayout, WelcomeView } from "./components/layout/main-layout";
 import { ChannelPage } from "./pages/channel";
 import { Spinner } from "./components/ui/spinner";
+import { queryClient } from "./lib/query-client";
 import type { ReactNode } from "react";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      retry: 1,
-    },
-  },
-});
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();

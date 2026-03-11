@@ -221,7 +221,7 @@ export function ChannelPage() {
 
   // ── Typing indicator ──────────────────────────────────────────────────────
 
-  const { typingUsers, sendTypingStart, sendTypingStop } = useTypingIndicator(channelId ?? "");
+  const { typingUsers, sendTypingStart, sendTypingStop } = useTypingIndicator(channelId ?? "", user?.id);
 
   const openThread = useCallback((messageId: string) => {
     setThreadMessageId(messageId);
@@ -662,6 +662,11 @@ function MessageComposer({
 }) {
   const [content, setContent] = useState("");
   const queryClient = useQueryClient();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    textareaRef.current?.focus();
+  }, [channelId]);
 
   const mutation = useMutation({
     mutationFn: (text: string) => sendMessage(channelId, text, threadId),
@@ -712,6 +717,7 @@ function MessageComposer({
     >
       <div className="flex items-end gap-2">
         <textarea
+          ref={textareaRef}
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
