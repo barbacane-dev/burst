@@ -96,3 +96,33 @@ async fn get_me(
 
     Ok(Json(user_to_response(&user)))
 }
+
+/// JIT provisioning: create or return an existing user from an external identity.
+pub async fn jit_provision(
+    pool: &sqlx::PgPool,
+    external_id: &str,
+    username: &str,
+    display_name: &str,
+    email: Option<&str>,
+) -> Result<Uuid, ApiError> {
+    if let Some(user) = db::users::find_by_external_id(pool, external_id).await? {
+        return Ok(user.id);
+    }
+
+    let id = burst_core::id::new_id();
+    db::users::create(
+        pool,
+        &db::users::CreateUser {
+            id,
+            username: username.to_string(),
+            display_name: display_name.to_string(),
+            email: email.map(String::from),
+            password_hash: None,
+            external_id: Some(external_id.to_string()),
+            role: "member".to_string(),
+        },
+    )
+    .await?;
+
+    Ok(id)
+}

@@ -1,5 +1,4 @@
 pub mod api;
-pub mod auth;
 pub mod config;
 pub mod db;
 pub mod error;
@@ -35,7 +34,6 @@ impl AppState {
 
 pub fn app_router(state: AppState) -> Router {
     Router::new()
-        .merge(api::auth::router())
         .merge(api::users::router())
         .merge(api::channels::router())
         .route("/ws", axum::routing::get(ws::handler::ws_handler))

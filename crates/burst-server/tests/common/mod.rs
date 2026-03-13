@@ -13,7 +13,7 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use burst_server::{AppState, app_router, auth::issue_access_token, config::AppConfig, db};
+use burst_server::{AppState, app_router, config::AppConfig, db};
 
 // ── TestApp ───────────────────────────────────────────────────────────────────
 
@@ -26,70 +26,70 @@ pub struct TestApp {
 
 impl TestApp {
     pub fn new(pool: PgPool) -> Self {
-        let config = AppConfig {
-            jwt_secret: "test-secret-key-that-is-at-least-32-chars".into(),
-            jwt_expiry_seconds: 900,
-            refresh_expiry_seconds: 3_600,
-            trust_auth_headers: false,
-            cookie_secure: false,
-        };
+        let config = AppConfig;
         let state = AppState::new(pool, config);
         let router = app_router(state.clone());
         Self { router, state }
     }
 
-    /// Issue a signed access token for `user_id` with the given role.
-    pub fn token(&self, user_id: Uuid, role: &str) -> String {
-        issue_access_token(&self.state.config, user_id, role).unwrap()
-    }
-
-    /// POST `uri` with a JSON body and a Bearer token.
-    /// Returns `(status, json_body)`.
+    /// POST `uri` with a JSON body, authenticated via external_id.
     pub async fn post(
         &self,
         uri: &str,
-        token: &str,
+        external_id: &str,
         body: serde_json::Value,
     ) -> (StatusCode, serde_json::Value) {
-        self.request("POST", uri, token, Some(body)).await
+        self.request("POST", uri, Some(external_id), Some(body))
+            .await
     }
 
-    /// GET `uri` with a Bearer token.  Returns `(status, json_body)`.
-    pub async fn get(&self, uri: &str, token: &str) -> (StatusCode, serde_json::Value) {
-        self.request("GET", uri, token, None).await
+    /// GET `uri` authenticated via external_id.
+    pub async fn get(&self, uri: &str, external_id: &str) -> (StatusCode, serde_json::Value) {
+        self.request("GET", uri, Some(external_id), None).await
     }
 
-    /// PATCH `uri` with a JSON body and a Bearer token.
+    /// PATCH `uri` with a JSON body, authenticated via external_id.
     pub async fn patch(
         &self,
         uri: &str,
-        token: &str,
+        external_id: &str,
         body: serde_json::Value,
     ) -> (StatusCode, serde_json::Value) {
-        self.request("PATCH", uri, token, Some(body)).await
+        self.request("PATCH", uri, Some(external_id), Some(body))
+            .await
     }
 
-    /// PUT `uri` with no body and a Bearer token (used for reactions).
-    pub async fn put(&self, uri: &str, token: &str) -> (StatusCode, serde_json::Value) {
-        self.request("PUT", uri, token, None).await
+    /// PUT `uri` with no body, authenticated via external_id (used for reactions).
+    pub async fn put(&self, uri: &str, external_id: &str) -> (StatusCode, serde_json::Value) {
+        self.request("PUT", uri, Some(external_id), None).await
     }
 
-    /// DELETE `uri` with a Bearer token.
-    pub async fn delete(&self, uri: &str, token: &str) -> (StatusCode, serde_json::Value) {
-        self.request("DELETE", uri, token, None).await
+    /// DELETE `uri` authenticated via external_id.
+    pub async fn delete(&self, uri: &str, external_id: &str) -> (StatusCode, serde_json::Value) {
+        self.request("DELETE", uri, Some(external_id), None).await
+    }
+
+    /// Send a request without authentication (no X-Auth-Consumer header).
+    pub async fn post_unauthenticated(
+        &self,
+        uri: &str,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        self.request("POST", uri, None, Some(body)).await
     }
 
     async fn request(
         &self,
         method: &str,
         uri: &str,
-        token: &str,
+        external_id: Option<&str>,
         body: Option<serde_json::Value>,
     ) -> (StatusCode, serde_json::Value) {
-        let mut builder = Request::builder()
-            .method(method)
-            .uri(uri)
-            .header("Authorization", format!("Bearer {token}"));
+        let mut builder = Request::builder().method(method).uri(uri);
+
+        if let Some(eid) = external_id {
+            builder = builder.header("x-auth-consumer", eid);
+        }
 
         let req = if let Some(json) = body {
             builder = builder.header("Content-Type", "application/json");
@@ -113,16 +113,19 @@ impl TestApp {
 // ── Seed helpers ──────────────────────────────────────────────────────────────
 
 /// Create a minimal user row in the test database.
+/// The `external_id` is set to the email so tests can authenticate
+/// via the `X-Auth-Consumer` header using the same value.
 pub async fn seed_user(pool: &PgPool, username: &str) -> db::users::UserRow {
+    let email = format!("{username}@test.example");
     db::users::create(
         pool,
         &db::users::CreateUser {
             id: burst_core::id::new_id(),
             username: username.into(),
             display_name: username.into(),
-            email: Some(format!("{username}@test.example")),
+            email: Some(email.clone()),
             password_hash: None,
-            external_id: None,
+            external_id: Some(email),
             role: "member".into(),
         },
     )

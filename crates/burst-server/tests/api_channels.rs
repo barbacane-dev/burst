@@ -66,14 +66,14 @@ async fn find_or_create_dm_is_commutative(pool: sqlx::PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn non_member_cannot_send_message(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool.clone());
-    let alice = common::seed_user(&pool, "alice").await;
-    let eve = common::seed_user(&pool, "eve").await;
+    let _alice = common::seed_user(&pool, "alice").await;
+    let _eve = common::seed_user(&pool, "eve").await;
 
     // Alice creates a channel (becomes owner/member).
     let (status, ch) = app
         .post(
             "/channels",
-            &app.token(alice.id, "member"),
+            "alice@test.example",
             serde_json::json!({ "name": "alices-room" }),
         )
         .await;
@@ -84,7 +84,7 @@ async fn non_member_cannot_send_message(pool: sqlx::PgPool) {
     let (status, _) = app
         .post(
             &format!("/channels/{channel_id}/messages"),
-            &app.token(eve.id, "member"),
+            "eve@test.example",
             serde_json::json!({ "content": "you shall not post" }),
         )
         .await;
@@ -96,14 +96,14 @@ async fn non_member_cannot_send_message(pool: sqlx::PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn member_can_send_message(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool.clone());
-    let alice = common::seed_user(&pool, "alice").await;
-    let bob = common::seed_user(&pool, "bob").await;
+    let _alice = common::seed_user(&pool, "alice").await;
+    let _bob = common::seed_user(&pool, "bob").await;
 
     // Alice creates the channel.
     let (_, ch) = app
         .post(
             "/channels",
-            &app.token(alice.id, "member"),
+            "alice@test.example",
             serde_json::json!({ "name": "general" }),
         )
         .await;
@@ -113,7 +113,7 @@ async fn member_can_send_message(pool: sqlx::PgPool) {
     let (join_status, _) = app
         .post(
             &format!("/channels/{channel_id}/members"),
-            &app.token(bob.id, "member"),
+            "bob@test.example",
             serde_json::Value::Null,
         )
         .await;
@@ -123,7 +123,7 @@ async fn member_can_send_message(pool: sqlx::PgPool) {
     let (status, msg) = app
         .post(
             &format!("/channels/{channel_id}/messages"),
-            &app.token(bob.id, "member"),
+            "bob@test.example",
             serde_json::json!({ "content": "hello!" }),
         )
         .await;
@@ -143,9 +143,7 @@ async fn own_message_does_not_count_as_unread(pool: sqlx::PgPool) {
 
     common::seed_message(&pool, ch.id, alice.id, "hello from alice").await;
 
-    let (status, list) = app
-        .get("/channels?joined=true", &app.token(alice.id, "member"))
-        .await;
+    let (status, list) = app.get("/channels?joined=true", "alice@test.example").await;
     assert_eq!(status, StatusCode::OK);
 
     let ch_api_id = burst_core::id::format_channel_id(ch.id);
@@ -177,9 +175,7 @@ async fn peer_message_counts_as_unread_for_other_member(pool: sqlx::PgPool) {
 
     common::seed_message(&pool, ch.id, bob.id, "hello from bob").await;
 
-    let (status, list) = app
-        .get("/channels?joined=true", &app.token(alice.id, "member"))
-        .await;
+    let (status, list) = app.get("/channels?joined=true", "alice@test.example").await;
     assert_eq!(status, StatusCode::OK);
 
     let ch_api_id = burst_core::id::format_channel_id(ch.id);
@@ -203,23 +199,21 @@ async fn peer_message_counts_as_unread_for_other_member(pool: sqlx::PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn dm_appears_in_channel_list_for_both_participants(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool.clone());
-    let alice = common::seed_user(&pool, "alice").await;
+    let _alice = common::seed_user(&pool, "alice").await;
     let bob = common::seed_user(&pool, "bob").await;
 
     let (status, dm) = app
         .post(
             "/dms",
-            &app.token(alice.id, "member"),
+            "alice@test.example",
             serde_json::json!({ "userId": format!("usr_{}", bob.id) }),
         )
         .await;
     assert_eq!(status, StatusCode::OK);
     let dm_id = dm["id"].as_str().unwrap().to_owned();
 
-    for (label, user) in [("alice", &alice), ("bob", &bob)] {
-        let (s, list) = app
-            .get("/channels?joined=true", &app.token(user.id, "member"))
-            .await;
+    for (label, ext_id) in [("alice", "alice@test.example"), ("bob", "bob@test.example")] {
+        let (s, list) = app.get("/channels?joined=true", ext_id).await;
         assert_eq!(s, StatusCode::OK, "{label}: GET /channels failed");
         let ids: Vec<&str> = list["items"]
             .as_array()

@@ -15,49 +15,22 @@ export class ApiError extends Error {
   }
 }
 
-// In-memory access token — never written to localStorage.
-// Survives navigation but not a full page reload (by design; refresh cookie
-// handles re-hydration on startup).
-let _accessToken: string | null = null;
+// In-memory access token (JWT from the OIDC provider).
+// Also persisted to sessionStorage so page reloads don't require re-login.
+const SESSION_KEY = "burst_access_token";
+let _accessToken: string | null = sessionStorage.getItem(SESSION_KEY);
 
 export function setAccessToken(token: string | null): void {
   _accessToken = token;
+  if (token) {
+    sessionStorage.setItem(SESSION_KEY, token);
+  } else {
+    sessionStorage.removeItem(SESSION_KEY);
+  }
 }
 
 export function getAccessToken(): string | null {
   return _accessToken;
-}
-
-let _isRefreshing = false;
-let _refreshPromise: Promise<boolean> | null = null;
-
-export async function silentRefresh(): Promise<boolean> {
-  if (_isRefreshing && _refreshPromise) {
-    return _refreshPromise;
-  }
-  _isRefreshing = true;
-  _refreshPromise = (async () => {
-    try {
-      const response = await fetch("/api/auth/refresh", {
-        method: "POST",
-        credentials: "include", // sends the httpOnly refresh_token cookie
-      });
-      if (!response.ok) {
-        _accessToken = null;
-        return false;
-      }
-      const data = await response.json();
-      _accessToken = data.accessToken;
-      return true;
-    } catch {
-      _accessToken = null;
-      return false;
-    } finally {
-      _isRefreshing = false;
-      _refreshPromise = null;
-    }
-  })();
-  return _refreshPromise;
 }
 
 export async function apiFetch<T>(
@@ -74,16 +47,7 @@ export async function apiFetch<T>(
   }
 
   const url = `/api${path}`;
-  let response = await fetch(url, { ...options, headers, credentials: "include" });
-
-  // On 401, attempt a silent refresh and retry once
-  if (response.status === 401 && _accessToken) {
-    const refreshed = await silentRefresh();
-    if (refreshed && _accessToken) {
-      headers["Authorization"] = `Bearer ${_accessToken}`;
-      response = await fetch(url, { ...options, headers, credentials: "include" });
-    }
-  }
+  const response = await fetch(url, { ...options, headers });
 
   if (!response.ok) {
     const problem: ProblemDetails = await response.json().catch(() => ({

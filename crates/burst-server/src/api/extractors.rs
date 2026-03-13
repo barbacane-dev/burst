@@ -3,13 +3,15 @@ use axum::http::request::Parts;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::db;
 use crate::error::ApiError;
 
-/// Extracts the authenticated user ID.
+/// Extracts the authenticated user ID from the `X-Auth-Consumer` header
+/// set by the Barbacane gateway after authentication (basic-auth, jwt-auth, etc.).
 ///
-/// Tries `X-Auth-Consumer` header first (set by Barbacane gateway after JWT validation).
-/// Falls back to validating the `Authorization: Bearer <token>` JWT directly,
-/// which is needed for local development without the gateway.
+/// The header contains the external identity (e.g. a username for basic-auth,
+/// a `sub` claim for OIDC). We look up the corresponding Burst user by
+/// `external_id` in the database.
 pub struct AuthUser {
     pub user_id: Uuid,
 }
@@ -21,35 +23,18 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        // Trust Barbacane header only when explicitly enabled in config.
-        // Without this guard, any client that reaches the port can forge X-Auth-Consumer.
-        if state.config.trust_auth_headers
-            && let Some(header) = parts
-                .headers
-                .get("x-auth-consumer")
-                .and_then(|v| v.to_str().ok())
-        {
-            let user_id = Uuid::parse_str(header).map_err(|_| ApiError::Unauthorized)?;
-            return Ok(AuthUser { user_id });
-        }
-
-        // Fall back to JWT validation (local dev without gateway)
-        let auth_header = parts
+        let external_id = parts
             .headers
-            .get("authorization")
+            .get("x-auth-consumer")
             .and_then(|v| v.to_str().ok())
             .ok_or(ApiError::Unauthorized)?;
 
-        let token = auth_header
-            .strip_prefix("Bearer ")
+        let user = db::users::find_by_external_id(&state.db, external_id)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?
             .ok_or(ApiError::Unauthorized)?;
 
-        let claims = crate::auth::validate_access_token(&state.config, token)
-            .map_err(|_| ApiError::Unauthorized)?;
-
-        let user_id = Uuid::parse_str(&claims.sub).map_err(|_| ApiError::Unauthorized)?;
-
-        Ok(AuthUser { user_id })
+        Ok(AuthUser { user_id: user.id })
     }
 }
 

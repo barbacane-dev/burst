@@ -1,17 +1,11 @@
-.PHONY: help all dev server ui db db-setup db-drop seed check install
+.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed check install
 
 # ── Config ─────────────────────────────────────────────────────────────────────
-PG_BIN    := /opt/homebrew/opt/postgresql@17/bin
-PSQL      := $(PG_BIN)/psql
-CREATEDB  := $(PG_BIN)/createdb
-CREATEUSER := $(PG_BIN)/createuser
-DROPDB    := $(PG_BIN)/dropdb
-PG_READY  := $(PG_BIN)/pg_isready
+DB_URL    := postgres://burst:burst@localhost:5432/burst
 
-DB_USER   := burst
-DB_PASS   := burst
-DB_NAME   := burst
-DB_URL    := postgres://$(DB_USER):$(DB_PASS)@localhost:5432/$(DB_NAME)
+BARBACANE_DIR := ../Barbacane
+BARBACANE_BIN := $(BARBACANE_DIR)/target/release/barbacane
+BURST_BCA     := burst-api.bca
 
 # ── Help ───────────────────────────────────────────────────────────────────────
 help: ## Show this help
@@ -19,17 +13,64 @@ help: ## Show this help
 	/^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 # ── Combined ───────────────────────────────────────────────────────────────────
-all: ## Start server + UI via overmind (requires: make install, make db-setup)
+all: services-up gateway-compile ## Start gateway + server + UI via overmind
 	overmind start
 
-dev: ## Print instructions for running server + ui in separate terminals
+stop: ## Stop overmind processes and free ports (Docker stays running)
+	overmind quit 2>/dev/null || true
+	@for port in 3000 5173 8080; do \
+		pid=$$(lsof -ti :$$port 2>/dev/null); \
+		[ -n "$$pid" ] && kill $$pid 2>/dev/null && echo "killed pid $$pid on :$$port"; \
+	done; true
+
+restart: gateway-compile stop services-up ## Recompile gateway, stop everything, then start fresh
+	overmind start
+
+services-up: ## Ensure Docker services are running and healthy
+	@docker compose -f docker-compose.dev.yml up -d
+	@until curl -sf http://localhost:9099/burst/.well-known/openid-configuration >/dev/null 2>&1; do \
+		sleep 0.5; \
+	done
+	@echo "Services ready"
+
+dev: ## Print instructions for running the full stack
 	@echo ""
-	@echo "  Open two terminals and run:"
+	@echo "  First, compile the gateway artifact:"
 	@echo ""
-	@echo "    make server    # Burst API on :3000"
-	@echo "    make ui        # Vite dev server on :5173"
+	@echo "    make gateway-compile"
+	@echo ""
+	@echo "  Then open four terminals and run:"
+	@echo ""
+	@echo "    make services    # PostgreSQL + mock OIDC (Docker)"
+	@echo "    make server      # Burst API on :3000"
+	@echo "    make gateway     # Barbacane gateway on :8080"
+	@echo "    make ui          # Vite dev server on :5173"
 	@echo ""
 	@echo "  Then open http://localhost:5173"
+
+# ── Gateway ───────────────────────────────────────────────────────────────────
+$(BARBACANE_BIN):
+	cargo build --release --manifest-path $(BARBACANE_DIR)/Cargo.toml
+
+gateway-compile: $(BARBACANE_BIN) ## Compile the Burst OpenAPI spec into a Barbacane artifact
+	$(BARBACANE_BIN) compile \
+		--spec specs/burst-api.yaml \
+		--manifest barbacane.yaml \
+		--output $(BURST_BCA) \
+		--allow-plaintext
+	@echo "Compiled $(BURST_BCA)"
+
+gateway: $(BURST_BCA) ## Run the Barbacane gateway (requires: make gateway-compile)
+	$(BARBACANE_BIN) serve \
+		--artifact $(BURST_BCA) \
+		--listen 0.0.0.0:8080 \
+		--dev \
+		--allow-plaintext-upstream \
+		--log-format pretty
+
+# ── Dev Services ──────────────────────────────────────────────────────────
+services: ## Run PostgreSQL + mock OIDC server (Docker)
+	docker compose -f docker-compose.dev.yml up
 
 # ── Backend ────────────────────────────────────────────────────────────────────
 server: ## Run the Burst API server
@@ -39,34 +80,21 @@ server-release: ## Run with release build
 	cargo build --release && RUST_LOG=info ./target/release/burst burst.toml
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
-ui: ## Run the Vite dev server (proxies API to localhost:3000)
+ui: ## Run the Vite dev server (proxies API to localhost:8080)
 	cd ui && npm run dev
 
 # ── Database ───────────────────────────────────────────────────────────────────
-db-setup: ## Create the burst role and database in local postgres (run once)
-	@$(PG_READY) -q || (echo "ERROR: local postgres is not running (brew services start postgresql@17)"; exit 1)
-	@$(PSQL) -d postgres -tAc "SELECT 1 FROM pg_roles WHERE rolname='$(DB_USER)'" | grep -q 1 \
-		|| $(CREATEUSER) --createdb $(DB_USER) && echo "Created role: $(DB_USER)"
-	@$(PSQL) -U $(DB_USER) -d postgres -tAc "ALTER USER $(DB_USER) WITH PASSWORD '$(DB_PASS)'" > /dev/null
-	@$(PSQL) -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$(DB_NAME)'" | grep -q 1 \
-		|| $(CREATEDB) -O $(DB_USER) $(DB_NAME) && echo "Created database: $(DB_NAME)"
-	@echo "Database ready at $(DB_URL)"
-
-db-drop: ## Drop the burst database (destructive!)
-	$(DROPDB) --if-exists $(DB_NAME)
-	@echo "Dropped database: $(DB_NAME)"
-
 db: ## Open a psql shell on the burst database
-	$(PSQL) $(DB_URL)
+	docker compose -f docker-compose.dev.yml exec postgres psql -U burst burst
 
-seed: ## Seed the database with a test user
+seed: ## Seed the database with sample users
 	cargo run --example seed -- $(DB_URL)
 
 # ── Quality ────────────────────────────────────────────────────────────────────
 check: ## Run fmt, clippy, and tests
 	cargo fmt --all
 	cargo clippy --all-targets -- -D warnings
-	cargo test
+	DATABASE_URL=$(DB_URL) cargo test
 
 # ── Tooling ────────────────────────────────────────────────────────────────────
 install: ## Install dev tooling (overmind)

@@ -1,0 +1,10 @@
+# Barbacane manifest for Burst
+# Declares the gateway plugins required by specs/burst-api.yaml
+
+plugins:
+  http-upstream:
+    path: ../Barbacane/plugins/http-upstream/http-upstream.wasm
+  ws-upstream:
+    path: ../Barbacane/plugins/ws-upstream/ws-upstream.wasm
+  oidc-auth:
+    path: ../Barbacane/plugins/oidc-auth/oidc-auth.wasm

@@ -1,7 +1,7 @@
 export interface TokenResponse {
-  accessToken: string;
-  tokenType: string;
-  expiresIn: number;
+  access_token: string;
+  token_type: string;
+  expires_in: number;
 }
 
 export interface User {

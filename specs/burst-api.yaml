@@ -19,21 +19,17 @@ servers:
 # ── Barbacane gateway configuration ──
 
 x-barbacane-middlewares:
-  - name: jwt-auth
+  - name: oidc-auth
     config:
-      secret: "env://BURST_AUTH_JWT_SECRET"
-      claims_to_headers:
-        - claim: sub
-          header: X-Auth-Consumer
-        - claim: role
-          header: X-Auth-Consumer-Groups
-      strip_authorization_header: true
+      issuer_url: "http://localhost:9099/burst"
+      audience: "burst"
+      allow_query_token: true
 
 # ── Tags ──
 
 tags:
-  - name: Auth
-    description: Authentication endpoints for local login and token refresh
+  - name: Realtime
+    description: WebSocket real-time messaging
   - name: Users
     description: User profile management
   - name: Channels
@@ -46,153 +42,37 @@ tags:
 # ── Paths ──
 
 paths:
-  /auth/login:
-    post:
-      operationId: login
-      summary: Log in with email and password
-      description: Authenticates a local user and returns JWT access and refresh tokens.
-      tags:
-        - Auth
-      security: []
-      x-barbacane-middlewares: []
-      x-barbacane-dispatch:
-        name: http-upstream
-        config:
-          url: "http://localhost:3000"
-      requestBody:
-        description: User credentials
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LoginRequest"
-            example:
-              email: "alice@example.com"
-              password: "hunter2"
-      responses:
-        "200":
-          description: Authentication successful
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TokenResponse"
-              example:
-                accessToken: "eyJhbGciOiJIUzI1NiJ9..."
-                tokenType: "Bearer"
-                expiresIn: 900
-        "400":
-          description: Malformed request
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-              example:
-                type: "urn:burst:error:bad-request"
-                title: "Bad Request"
-                status: 400
-                detail: "Missing required field: email"
-        "401":
-          description: Invalid credentials
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-              example:
-                type: "urn:burst:error:unauthorized"
-                title: "Unauthorized"
-                status: 401
-                detail: "Missing or invalid authentication"
-        "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-              example:
-                type: "urn:burst:error:rate-limited"
-                title: "Too Many Requests"
-                status: 429
-        "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-              example:
-                type: "urn:burst:error:internal-error"
-                title: "Internal Server Error"
-                status: 500
-
-  /auth/refresh:
-    post:
-      operationId: refreshToken
-      summary: Refresh an access token
+  /ws:
+    get:
+      operationId: websocket
+      summary: WebSocket real-time connection
       description: >-
-        Exchanges a valid refresh token for a new access token. The refresh token
-        is read from the `refresh_token` httpOnly cookie set at login; no request
-        body is required.
+        Upgrades to a WebSocket connection for real-time events. Authentication
+        is handled by Barbacane on the HTTP Upgrade request. The optional
+        lastEventId query parameter enables gap-fill on reconnect.
       tags:
-        - Auth
-      security: []
-      x-barbacane-middlewares: []
+        - Realtime
+      security:
+        - BearerAuth: []
       x-barbacane-dispatch:
-        name: http-upstream
+        name: ws-upstream
         config:
-          url: "http://localhost:3000"
+          url: "ws://localhost:3000"
+      parameters:
+        - name: lastEventId
+          in: query
+          description: >-
+            ID of the last event received by the client. If provided, the server
+            will replay missed events after the WebSocket connection is established.
+          schema:
+            type: string
+            format: uuid
+            maxLength: 36
       responses:
-        "200":
-          description: Token refreshed successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TokenResponse"
-              example:
-                accessToken: "eyJhbGciOiJIUzI1NiJ9..."
-                tokenType: "Bearer"
-                expiresIn: 900
-        "400":
-          description: Malformed request
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+        "101":
+          description: Switching Protocols — WebSocket upgrade successful
         "401":
-          description: Invalid or expired refresh token
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-        "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
-
-  /auth/logout:
-    post:
-      operationId: logout
-      summary: Log out and revoke refresh token
-      description: Revokes the current refresh token cookie and ends the session.
-      tags:
-        - Auth
-      security: []
-      x-barbacane-middlewares: []
-      x-barbacane-dispatch:
-        name: http-upstream
-        config:
-          url: "http://localhost:3000"
-      responses:
-        "204":
-          description: Logged out successfully
-        "500":
-          description: Internal server error
+          description: Unauthorized — missing or invalid authentication
           content:
             application/problem+json:
               schema:
@@ -224,12 +104,10 @@ paths:
           in: query
           description: Number of results per page
           schema:
-            type: integer
-            format: int32
-            default: 50
-            minimum: 1
-            maximum: 200
-            example: 50
+            type: string
+            pattern: "^[1-9][0-9]{0,2}$"
+            default: "50"
+            example: "50"
       responses:
         "200":
           description: Paginated user list
@@ -323,6 +201,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/users/{userId}"
       parameters:
         - name: userId
           in: path
@@ -395,8 +274,9 @@ paths:
           in: query
           description: When true, restrict results to channels the caller has joined.
           schema:
-            type: boolean
-            default: false
+            type: string
+            enum: ["true", "false"]
+            default: "false"
         - name: cursor
           in: query
           description: Pagination cursor (opaque token from previous response)
@@ -407,11 +287,9 @@ paths:
           in: query
           description: Number of results per page
           schema:
-            type: integer
-            format: int32
-            default: 50
-            minimum: 1
-            maximum: 200
+            type: string
+            pattern: "^[1-9][0-9]{0,2}$"
+            default: "50"
       responses:
         "200":
           description: Paginated channel list
@@ -524,6 +402,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -575,6 +454,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
@@ -699,6 +579,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -747,6 +628,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -796,6 +678,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/members/me"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -833,6 +716,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/members/me/last-read"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -882,6 +766,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - name: cursor
@@ -895,11 +780,9 @@ paths:
           in: query
           description: Number of results per page
           schema:
-            type: integer
-            format: int32
-            default: 50
-            minimum: 1
-            maximum: 200
+            type: string
+            pattern: "^[1-9][0-9]{0,2}$"
+            default: "50"
       responses:
         "200":
           description: Paginated message list
@@ -943,6 +826,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
@@ -1005,6 +889,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1057,6 +942,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1122,6 +1008,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1172,6 +1059,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages/{messageId}/replies"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1185,11 +1073,9 @@ paths:
           in: query
           description: Number of results per page
           schema:
-            type: integer
-            format: int32
-            default: 50
-            minimum: 1
-            maximum: 200
+            type: string
+            pattern: "^[1-9][0-9]{0,2}$"
+            default: "50"
       responses:
         "200":
           description: Paginated thread reply list
@@ -1241,6 +1127,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1297,6 +1184,7 @@ paths:
         name: http-upstream
         config:
           url: "http://localhost:3000"
+          path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1351,8 +1239,9 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: >-
-        JWT access token issued by Burst local auth or an external OIDC provider.
-        Validated by Barbacane jwt-auth plugin. This scheme supports RFC8725.
+        JWT validated by the Barbacane oidc-auth middleware which sets the
+        X-Auth-Consumer header (sub claim) before forwarding to Burst.
+        In local dev, tokens are issued by a mock OIDC server (localhost:9099).
 
   parameters:
     ChannelId:
@@ -1377,53 +1266,6 @@ components:
         example: "msg_0193a5e0-7c1a-7000-8000-000000000100"
 
   schemas:
-    LoginRequest:
-      type: object
-      description: Credentials for local password authentication.
-      required:
-        - email
-        - password
-      properties:
-        email:
-          type: string
-          format: email
-          maxLength: 255
-          example: "alice@example.com"
-        password:
-          type: string
-          format: password
-          maxLength: 128
-          example: "hunter2"
-
-    TokenResponse:
-      type: object
-      description: >-
-        Access token returned on successful authentication. The refresh token is
-        delivered as an httpOnly cookie and is not included in this response body.
-      required:
-        - accessToken
-        - tokenType
-        - expiresIn
-      properties:
-        accessToken:
-          type: string
-          format: byte
-          maxLength: 2048
-          description: JWT access token.
-          example: "eyJhbGciOiJIUzI1NiJ9..."
-        tokenType:
-          type: string
-          enum:
-            - Bearer
-          example: "Bearer"
-        expiresIn:
-          type: integer
-          format: int64
-          minimum: 0
-          maximum: 86400
-          description: Access token TTL in seconds.
-          example: 900
-
     User:
       type: object
       description: User profile visible to other authenticated users.

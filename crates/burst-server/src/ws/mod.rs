@@ -112,11 +112,6 @@ pub type ReactionPayload = crate::api::channels::ReactionResponse;
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ClientEvent {
-    Auth {
-        token: String,
-        #[serde(rename = "lastEventId")]
-        last_event_id: Option<String>,
-    },
     Heartbeat,
     #[serde(rename = "typing.start")]
     TypingStart {

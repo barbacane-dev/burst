@@ -3,11 +3,8 @@
 //! Usage:
 //!   cargo run --example seed -- postgres://burst:burst@localhost:5432/burst
 //!
-//! Credentials:
-//!   alice@example.com / burst123  (admin)
-//!   bob@example.com   / burst123  (member)
+//! Users are created with `external_id` set for Barbacane-based authentication.
 
-use burst_server::auth::hash_password;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
@@ -29,26 +26,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bob_id = Uuid::now_v7();
     let channel_id = Uuid::now_v7();
 
-    let hash = hash_password("burst123").map_err(|e| e.to_string())?;
-
     // ── Users ──────────────────────────────────────────────────────────────────
     sqlx::query(
-        "INSERT INTO users (id, username, display_name, email, password_hash, role)
-         VALUES ($1, 'alice', 'Alice Martin', 'alice@example.com', $2, 'admin')
+        "INSERT INTO users (id, username, display_name, email, external_id, role)
+         VALUES ($1, 'alice', 'Alice Martin', 'alice@example.com', 'alice@example.com', 'admin')
          ON CONFLICT (email) DO NOTHING",
     )
     .bind(alice_id)
-    .bind(&hash)
     .execute(&pool)
     .await?;
 
     sqlx::query(
-        "INSERT INTO users (id, username, display_name, email, password_hash, role)
-         VALUES ($1, 'bob', 'Bob Dupont', 'bob@example.com', $2, 'member')
+        "INSERT INTO users (id, username, display_name, email, external_id, role)
+         VALUES ($1, 'bob', 'Bob Dupont', 'bob@example.com', 'bob@example.com', 'member')
          ON CONFLICT (email) DO NOTHING",
     )
     .bind(bob_id)
-    .bind(&hash)
     .execute(&pool)
     .await?;
 
@@ -91,9 +84,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("Seeded:");
-    println!("  alice@example.com / burst123  (admin, owner of #general)");
-    println!("  bob@example.com   / burst123  (member of #general)");
+    println!("  alice (admin, owner of #general) — id: {alice_id}");
+    println!("  bob   (member of #general)       — id: {bob_id}");
     println!("  #general channel ready");
+    println!();
+    println!("Auth is handled by Barbacane basic-auth:");
+    println!("  alice@example.com:alice  (admin)");
+    println!("  bob@example.com:bob      (member)");
 
     Ok(())
 }

@@ -27,6 +27,8 @@ export function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.problem.detail ?? err.problem.title);
+      } else if (err instanceof Error) {
+        setError(err.message);
       } else {
         setError("An unexpected error occurred");
       }

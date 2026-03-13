@@ -4,6 +4,7 @@ burst.toml
 .env
 *.swp
 *.swo
+*.bca
 .DS_Store
 
 # Frontend

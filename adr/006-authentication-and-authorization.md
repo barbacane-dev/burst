@@ -1,6 +1,6 @@
 # ADR-006: Authentication & Authorization
 
-**Status:** Accepted
+**Status:** Amended (2026-03-12)
 **Date:** 2026-03-06
 
 ## Context
@@ -51,21 +51,14 @@ Client → IdP login (standard OIDC flow)
 
 Burst does not participate in the OIDC flow at all. The IdP configuration lives entirely in the Barbacane spec (`x-barbacane-*` extensions on the security scheme). This means adding SSO to Burst is a gateway configuration change, not a code change.
 
-#### Local password (simple deployments)
+#### ~~Local password (simple deployments)~~ — Removed (2026-03-12)
 
-For teams that don't have an IdP, Burst provides a minimal local auth flow:
+Local password authentication has been removed from Burst. All authentication is now fully delegated to Barbacane. For teams that don't have an IdP, options include:
 
-```
-Client → POST /auth/login (email + password, marked security: [] in spec)
-       → Burst validates credentials against local DB
-       → Burst issues a JWT (signed with a configured secret)
-       → Client sends requests with Bearer token
-       → Barbacane jwt-auth validates token on every subsequent request
-       → Barbacane sets X-Auth-Consumer, X-Auth-Consumer-Groups from claims
-       → Burst reads headers
-```
+- Placing an OIDC bridge (e.g. Keycloak) in front of an identity source and using Barbacane's `oidc-auth` plugin.
+- Using Barbacane's `basic-auth` plugin for simple deployments.
 
-This is the only auth code Burst implements: a login endpoint that issues JWTs and a password hashing/verification layer. Everything else is Barbacane.
+Burst contains **zero auth code** — no JWT issuance, no password hashing, no token validation.
 
 #### Bot / integration auth
 
@@ -78,18 +71,21 @@ Integration → Request with API key or Basic auth credentials
 
 Bot credentials are managed in the Barbacane configuration. Burst stores the bot user profiles (display name, avatar, permissions) but not the credentials themselves.
 
-#### WebSocket authentication
+#### WebSocket authentication (amended 2026-03-12)
 
-Per [ADR-004](004-real-time-architecture.md), WebSocket connections authenticate via the first frame:
+WebSocket connections are routed through Barbacane's `ws-upstream` dispatcher plugin. Authentication happens on the HTTP Upgrade request — the same as any REST endpoint:
 
 ```
-Client → WS upgrade to /ws (security: [] in spec — no gateway auth)
-       → First WS frame contains Bearer token
-       → Burst forwards token to Barbacane via an internal validation request
-       → On success, connection is associated with the user from the response headers
+Client → WS upgrade to /ws with Bearer token in Authorization header
+       → Barbacane jwt-auth validates token on the HTTP Upgrade request
+       → Barbacane sets X-Auth-Consumer, X-Auth-Consumer-Groups headers
+       → Barbacane ws-upstream proxies the connection to Burst
+       → Burst reads X-Auth-Consumer from the upgrade request headers
+       → Connection is associated with the authenticated user
+       → Frames are relayed transparently (no per-frame auth)
 ```
 
-Rather than reimplementing token validation, Burst calls Barbacane internally (loopback request to a dedicated `/auth/validate` endpoint) to validate the WebSocket token. This ensures the same validation logic applies to both REST and WebSocket, and exercises Barbacane's auth plugins for both paths.
+The optional `lastEventId` query parameter enables gap-fill on reconnect (per ADR-004). No first-frame auth handshake is needed.
 
 ### Authorization: split between Barbacane and Burst
 
@@ -137,10 +133,10 @@ Profile data is re-synced on each login to pick up changes from the IdP (name ch
 
 ## Consequences
 
-- **Burst contains almost zero auth code.** The local login endpoint and password hashing are the only auth logic in the codebase. This dramatically reduces the security surface area of Burst itself.
-- **SSO is a configuration change, not a code change.** Switching from local auth to OIDC is a matter of updating the Barbacane spec — no Burst deployment or code change needed. This is a powerful operational story.
-- **Barbacane gets stress-tested on real auth scenarios.** OIDC discovery, JWKS rotation, token introspection, ACL enforcement — all exercised in production by Burst. Bugs found here benefit all Barbacane users.
+- **Burst contains zero auth code.** No JWT issuance, no password hashing, no token validation. This dramatically reduces the security surface area.
+- **SSO is a configuration change, not a code change.** Switching IdP providers is a matter of updating the Barbacane spec — no Burst deployment or code change needed.
+- **Barbacane gets stress-tested on real auth scenarios.** OIDC discovery, JWKS rotation, token introspection, ACL enforcement, WebSocket upgrade auth — all exercised in production by Burst. Bugs found here benefit all Barbacane users.
 - **Burst trusts Barbacane completely.** If Barbacane is compromised or misconfigured, Burst's auth is compromised. This is acceptable because Barbacane is the security boundary by design — the same trust model as any API gateway.
-- **The WebSocket loopback validation is an internal request per connection.** This adds one HTTP call on WS connect (not per message). Acceptable latency for a connection that lasts minutes to hours.
+- **WebSocket auth uses the same path as REST.** Barbacane's `ws-upstream` dispatcher runs the full middleware chain (including jwt-auth) on the HTTP Upgrade request. No special loopback or first-frame validation needed.
 - **The role model is deliberately simple (4 roles).** Fine-grained permissions can be added later without re-architecting, but we start simple per ADR-001.
 - **LDAP is a gap.** Barbacane does not currently have an LDAP auth plugin. For LDAP-only deployments, two options: (a) place an OIDC bridge like Keycloak in front of LDAP and use Barbacane's oidc-auth, or (b) build LDAP support as a Barbacane plugin — which is a contribution back to the gateway. Option (b) is preferred as it extends Barbacane's capabilities.

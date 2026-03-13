@@ -91,19 +91,10 @@ fn assert_fields_match<T: Serialize>(type_name: &str, spec_name: &str, example: 
 
 // ── Example builders (all fields populated so they appear in JSON) ──────────
 
-use burst_server::api::auth::TokenResponse;
 use burst_server::api::channels::{
     ChannelMemberResponse, ChannelResponse, MessageResponse, ReactionResponse,
 };
 use burst_server::api::users::UserResponse;
-
-fn example_token_response() -> TokenResponse {
-    TokenResponse {
-        access_token: "eyJ...".into(),
-        token_type: "Bearer".into(),
-        expires_in: 900,
-    }
-}
 
 fn example_user_response() -> UserResponse {
     UserResponse {
@@ -173,11 +164,6 @@ fn example_reaction_count() -> ReactionResponse {
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
-
-#[test]
-fn token_response_matches_spec() {
-    assert_fields_match("TokenResponse", "TokenResponse", &example_token_response());
-}
 
 #[test]
 fn user_response_matches_spec() {
