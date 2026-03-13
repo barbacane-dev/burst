@@ -29,6 +29,29 @@ make ui         # Vite on :5173
 
 Open http://localhost:5173 and sign in with `alice@example.com` (any password).
 
+## OpenAPI linting
+
+The API spec is linted with [vacuum](https://quobix.com/vacuum/) using Burst-specific rules (ADR-005) and the [Barbacane ruleset](https://docs.barbacane.dev/guide/vacuum.html).
+
+```bash
+# Download the Barbacane ruleset and custom functions (first time only)
+mkdir -p .barbacane/rulesets/functions
+curl -fsSL https://docs.barbacane.dev/rulesets/barbacane.yaml \
+  -o .barbacane/rulesets/barbacane.yaml
+for f in barbacane-auth-opt-out barbacane-no-duplicate-middlewares \
+         barbacane-no-plaintext-upstream barbacane-no-unknown-extensions \
+         barbacane-valid-secret-refs barbacane-validate-dispatch-config \
+         barbacane-validate-middleware-config; do
+  curl -fsSL "https://docs.barbacane.dev/rulesets/functions/${f}.js" \
+    -o ".barbacane/rulesets/functions/${f}.js"
+done
+
+# Lint
+vacuum lint -f .barbacane/rulesets/functions specs/burst-api.yaml -r specs/.vacuum.yaml
+```
+
+CI downloads the ruleset automatically on each run.
+
 ## Architecture
 
 ```

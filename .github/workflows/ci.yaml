@@ -105,10 +105,23 @@ jobs:
     # Always lint — not just when specs/ changes. Catches spec regressions introduced by any commit.
     steps:
       - uses: actions/checkout@v4
+      - name: Download Barbacane ruleset & functions
+        run: |
+          mkdir -p .barbacane/rulesets/functions
+          curl -fsSL https://docs.barbacane.dev/rulesets/barbacane.yaml \
+            -o .barbacane/rulesets/barbacane.yaml
+          for f in barbacane-auth-opt-out barbacane-no-duplicate-middlewares \
+                   barbacane-no-plaintext-upstream barbacane-no-unknown-extensions \
+                   barbacane-valid-secret-refs barbacane-validate-dispatch-config \
+                   barbacane-validate-middleware-config; do
+            curl -fsSL "https://docs.barbacane.dev/rulesets/functions/${f}.js" \
+              -o ".barbacane/rulesets/functions/${f}.js"
+          done
       - name: Lint OpenAPI spec with vacuum
         run: |
           docker run --rm -v "$GITHUB_WORKSPACE":/work:ro \
             dshanley/vacuum:latest lint \
+            --functions /work/.barbacane/rulesets/functions \
             --ruleset /work/specs/.vacuum.yaml \
             --fail-severity error \
             /work/specs/burst-api.yaml

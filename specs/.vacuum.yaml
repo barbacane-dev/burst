@@ -1,13 +1,18 @@
 # Burst OpenAPI Ruleset (ADR-005)
 #
-# Extends Vacuum's recommended OAS rules and OWASP rules,
-# with Burst-specific conventions layered on top.
+# Extends Vacuum's recommended OAS rules, OWASP rules, and Barbacane's
+# gateway-specific rules, with Burst-specific conventions layered on top.
+#
+# Custom functions must be loaded with:
+#   vacuum lint -f .barbacane/rulesets/functions specs/burst-api.yaml -r specs/.vacuum.yaml
 
 extends:
   - - "vacuum:oas"
     - "recommended"
   - - "vacuum:owasp"
     - "all"
+  - - ".barbacane/rulesets/barbacane.yaml"
+    - "recommended"
 
 rules:
 
@@ -109,3 +114,8 @@ rules:
 
   # Examples are nice-to-have, not blocking
   oas3-missing-example: warn
+
+  # ── Barbacane ruleset adjustments ──
+  #
+  # Dev server URLs use plaintext HTTP/WS (localhost); HTTPS/WSS in prod
+  barbacane-no-plaintext-upstream: warn

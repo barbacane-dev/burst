@@ -7,6 +7,9 @@ burst.toml
 *.bca
 .DS_Store
 
+# Barbacane ruleset (downloaded at lint time)
+.barbacane/
+
 # Frontend
 ui/node_modules/
 ui/dist/
