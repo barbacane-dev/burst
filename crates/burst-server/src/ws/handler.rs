@@ -2,28 +2,54 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket};
-use axum::extract::{State, WebSocketUpgrade};
+use axum::extract::{Query, State, WebSocketUpgrade};
+use axum::http::HeaderMap;
 use axum::response::IntoResponse;
-use tokio::time::{Duration, timeout};
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::auth::validate_access_token;
 use crate::db;
+use crate::error::ApiError;
 use crate::ws::{ClientEvent, EventBuffer, ServerEvent};
 use burst_core::id::{format_channel_id, format_user_id, parse_prefixed_id};
 
-pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WsQuery {
+    pub last_event_id: Option<String>,
 }
 
-async fn handle_socket(mut socket: WebSocket, state: AppState) {
-    // ── Auth handshake (10s timeout) ──────────────────────────────────────────
-    let (user_id, last_event_id) = match auth_handshake(&mut socket, &state).await {
-        Some(v) => v,
-        None => return,
-    };
+pub async fn ws_handler(
+    ws: WebSocketUpgrade,
+    headers: HeaderMap,
+    Query(query): Query<WsQuery>,
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, ApiError> {
+    let external_id = headers
+        .get("x-auth-consumer")
+        .and_then(|v| v.to_str().ok())
+        .ok_or(ApiError::Unauthorized)?;
 
+    let user = db::users::find_by_external_id(&state.db, external_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or(ApiError::Unauthorized)?;
+
+    let last_event_id = query
+        .last_event_id
+        .as_deref()
+        .and_then(|s| Uuid::parse_str(s).ok());
+
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, state, user.id, last_event_id)))
+}
+
+async fn handle_socket(
+    mut socket: WebSocket,
+    state: AppState,
+    user_id: Uuid,
+    last_event_id: Option<Uuid>,
+) {
     // ── Load channel memberships for filtering ────────────────────────────────
     let mut channel_ids: HashSet<Uuid> =
         match db::channels::channel_ids_for_user(&state.db, user_id).await {
@@ -80,15 +106,14 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     Ok(ev) => {
                         // Keep membership set current: when this user joins a new channel
                         // (e.g. a freshly created DM), add it so subsequent events are forwarded.
-                        if let ServerEvent::ChannelJoined { user_id: uid_str, channel_id: ch_str, .. } = &ev {
-                            if let (Some(uid), Some(ch_id)) = (
+                        if let ServerEvent::ChannelJoined { user_id: uid_str, channel_id: ch_str, .. } = &ev
+                            && let (Some(uid), Some(ch_id)) = (
                                 parse_prefixed_id(uid_str, "usr_").or_else(|| Uuid::parse_str(uid_str).ok()),
                                 parse_prefixed_id(ch_str, "ch_").or_else(|| Uuid::parse_str(ch_str).ok()),
-                            ) {
-                                if uid == user_id {
-                                    channel_ids.insert(ch_id);
-                                }
-                            }
+                            )
+                            && uid == user_id
+                        {
+                            channel_ids.insert(ch_id);
                         }
                         if should_forward(&ev, user_id, &channel_ids) {
                             let text = match serde_json::to_string(&ev) {
@@ -121,33 +146,6 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-async fn auth_handshake(socket: &mut WebSocket, state: &AppState) -> Option<(Uuid, Option<Uuid>)> {
-    let msg = timeout(Duration::from_secs(10), socket.recv())
-        .await
-        .ok()??
-        .ok()?;
-
-    let text = match msg {
-        Message::Text(t) => t,
-        _ => return None,
-    };
-
-    let event: ClientEvent = serde_json::from_str(&text).ok()?;
-
-    match event {
-        ClientEvent::Auth {
-            token,
-            last_event_id,
-        } => {
-            let claims = validate_access_token(&state.config, &token).ok()?;
-            let user_id = Uuid::parse_str(&claims.sub).ok()?;
-            let last_id = last_event_id.and_then(|s| Uuid::parse_str(&s).ok());
-            Some((user_id, last_id))
-        }
-        _ => None,
-    }
-}
 
 async fn handle_client_message(
     text: &str,
@@ -192,7 +190,6 @@ async fn handle_client_message(
                 push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
             }
         }
-        ClientEvent::Auth { .. } => {} // already authenticated
     }
 }
 

@@ -109,7 +109,7 @@ export function ChannelPage() {
       queryClient.setQueryData<PaginatedResponse<Message>>(
         ["messages", channelId],
         (old) => {
-          const hydrated: Message = { reactions: [], replyCount: 0, ...ev.message };
+          const hydrated: Message = { ...ev.message, reactions: ev.message.reactions ?? [], replyCount: ev.message.replyCount ?? 0 };
           if (!old) return { items: [hydrated], cursor: undefined };
           if (ev.message.threadId) {
             // Increment reply count on the parent in the main view
@@ -132,7 +132,7 @@ export function ChannelPage() {
         queryClient.setQueryData<PaginatedResponse<Message>>(
           ["thread", threadMessageId],
           (old) => {
-            const hydratedReply: Message = { reactions: [], replyCount: 0, ...ev.message };
+            const hydratedReply: Message = { ...ev.message, reactions: ev.message.reactions ?? [], replyCount: ev.message.replyCount ?? 0 };
             if (!old) return { items: [hydratedReply], cursor: undefined };
             if (old.items.some((m) => m.id === ev.message.id)) return old;
             return { ...old, items: [...old.items, hydratedReply] };
@@ -673,14 +673,37 @@ function MessageComposer({
     onSuccess: (msg) => {
       setContent("");
       onTypingStop();
-      // For thread replies, push directly to thread cache (WS handles broadcast)
       if (threadId) {
+        // Thread reply: push to thread cache and bump parent reply count
         queryClient.setQueryData<PaginatedResponse<Message>>(
           ["thread", threadId],
           (old) => {
             if (!old) return { items: [msg], cursor: undefined };
             if (old.items.some((m) => m.id === msg.id)) return old;
             return { ...old, items: [...old.items, msg] };
+          },
+        );
+        queryClient.setQueryData<PaginatedResponse<Message>>(
+          ["messages", channelId],
+          (old) =>
+            old
+              ? {
+                  ...old,
+                  items: old.items.map((m) =>
+                    m.id === threadId ? { ...m, replyCount: m.replyCount + 1 } : m,
+                  ),
+                }
+              : old,
+        );
+      } else {
+        // Top-level message: add to channel cache immediately
+        const hydrated: Message = { ...msg, reactions: msg.reactions ?? [], replyCount: msg.replyCount ?? 0 };
+        queryClient.setQueryData<PaginatedResponse<Message>>(
+          ["messages", channelId],
+          (old) => {
+            if (!old) return { items: [hydrated], cursor: undefined };
+            if (old.items.some((m) => m.id === msg.id)) return old;
+            return { ...old, items: [hydrated, ...old.items] };
           },
         );
       }

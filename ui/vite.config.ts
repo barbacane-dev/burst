@@ -7,12 +7,17 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:3000",
+        target: "http://localhost:8080",
         rewrite: (path) => path.replace(/^\/api/, ""),
       },
       "/ws": {
-        target: "ws://localhost:3000",
+        target: "http://localhost:8080",
         ws: true,
+      },
+      "/oauth": {
+        target: "http://localhost:9099",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/oauth/, ""),
       },
     },
   },

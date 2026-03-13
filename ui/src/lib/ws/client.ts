@@ -19,15 +19,19 @@ class WsClient {
   }
 
   private _open(): void {
-    const url = `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/ws`;
+    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    let url = `${protocol}://${location.host}/ws`;
+
+    const params = new URLSearchParams();
+    const token = getAccessToken();
+    if (token) params.set("access_token", token);
+    if (this.lastEventId) params.set("lastEventId", this.lastEventId);
+    if (params.size) url += `?${params}`;
+
     const ws = new WebSocket(url);
     this.ws = ws;
 
     ws.onopen = () => {
-      const token = getAccessToken();
-      const msg: Record<string, string> = { type: "auth", token: token ?? "" };
-      if (this.lastEventId) msg.lastEventId = this.lastEventId;
-      ws.send(JSON.stringify(msg));
       this.reconnectDelay = RECONNECT_BASE_MS;
     };
 
