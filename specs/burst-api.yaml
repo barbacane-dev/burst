@@ -105,6 +105,7 @@ paths:
           description: Number of results per page
           schema:
             type: string
+            maxLength: 3
             pattern: "^[1-9][0-9]{0,2}$"
             default: "50"
             example: "50"
@@ -288,6 +289,7 @@ paths:
           description: Number of results per page
           schema:
             type: string
+            maxLength: 3
             pattern: "^[1-9][0-9]{0,2}$"
             default: "50"
       responses:
@@ -781,6 +783,7 @@ paths:
           description: Number of results per page
           schema:
             type: string
+            maxLength: 3
             pattern: "^[1-9][0-9]{0,2}$"
             default: "50"
       responses:
@@ -1074,6 +1077,7 @@ paths:
           description: Number of results per page
           schema:
             type: string
+            maxLength: 3
             pattern: "^[1-9][0-9]{0,2}$"
             default: "50"
       responses:
@@ -1239,9 +1243,10 @@ components:
       scheme: bearer
       bearerFormat: JWT
       description: >-
-        JWT validated by the Barbacane oidc-auth middleware which sets the
-        X-Auth-Consumer header (sub claim) before forwarding to Burst.
-        In local dev, tokens are issued by a mock OIDC server (localhost:9099).
+        JWT validated by the Barbacane oidc-auth middleware (RFC8725 best
+        practices enforced) which sets the X-Auth-Consumer header (sub claim)
+        before forwarding to Burst. In local dev, tokens are issued by a mock
+        OIDC server (localhost:9099).
 
   parameters:
     ChannelId:
