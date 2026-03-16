@@ -612,6 +612,14 @@ async fn send_message(
         attachment_responses.push(attachment_to_response(&att));
     }
 
+    // Parse @mentions and persist them.
+    let mentioned_usernames: Vec<String> = parse_mentions(&content);
+    if !mentioned_usernames.is_empty() {
+        let mention_ids =
+            db::users::find_ids_by_usernames(&state.db, &mentioned_usernames).await?;
+        db::mentions::insert_mentions(&state.db, id, &mention_ids).await?;
+    }
+
     let response = build_message_response(&message, 0, vec![], attachment_responses);
     let ev = crate::ws::ServerEvent::MessageCreated {
         event_id: burst_core::id::new_id().to_string(),
@@ -1212,4 +1220,30 @@ fn slugify(name: &str) -> String {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("-")
+}
+
+/// Extracts unique @username mentions from message content.
+fn parse_mentions(content: &str) -> Vec<String> {
+    let mut usernames = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let chars: Vec<char> = content.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '@' && (i == 0 || !chars[i - 1].is_alphanumeric()) {
+            i += 1;
+            let start = i;
+            while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                i += 1;
+            }
+            if i > start {
+                let username: String = chars[start..i].iter().collect();
+                if seen.insert(username.clone()) {
+                    usernames.push(username);
+                }
+            }
+        } else {
+            i += 1;
+        }
+    }
+    usernames
 }

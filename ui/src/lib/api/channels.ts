@@ -140,3 +140,34 @@ export async function removeReaction(
     { method: "DELETE" },
   );
 }
+
+export async function pinMessage(
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  await apiFetch<void>(
+    `/channels/${channelId}/messages/${messageId}/pin`,
+    { method: "PUT" },
+  );
+}
+
+export async function unpinMessage(
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  await apiFetch<void>(
+    `/channels/${channelId}/messages/${messageId}/pin`,
+    { method: "DELETE" },
+  );
+}
+
+export interface PinnedMessage {
+  channelId: string;
+  messageId: string;
+  pinnedBy: string;
+  pinnedAt: string;
+}
+
+export async function listPins(channelId: string): Promise<PinnedMessage[]> {
+  return apiFetch<PinnedMessage[]>(`/channels/${channelId}/pins`);
+}

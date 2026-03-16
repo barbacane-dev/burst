@@ -241,6 +241,22 @@ pub async fn list_all_channels(
     }
 }
 
+pub async fn find_ids_by_usernames(
+    pool: &PgPool,
+    usernames: &[String],
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    if usernames.is_empty() {
+        return Ok(vec![]);
+    }
+    let rows = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM users WHERE username = ANY($1)",
+    )
+    .bind(usernames)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
 pub struct UpdateUser {
     pub display_name: Option<String>,
     pub email: Option<String>,

@@ -8,7 +8,8 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, X, Paperclip } from "lucide-react";
 import { sendMessage } from "../../lib/api/channels";
-import type { Message, PaginatedResponse } from "../../lib/api/types";
+import { MentionAutocomplete } from "./mention-autocomplete";
+import type { Message, PaginatedResponse, User } from "../../lib/api/types";
 
 export function MessageComposer({
   channelId,
@@ -16,14 +17,17 @@ export function MessageComposer({
   onTypingStart,
   onTypingStop,
   placeholder = "Type a message...",
+  users = [],
 }: {
   channelId: string;
   threadId?: string;
   onTypingStart: () => void;
   onTypingStop: () => void;
   placeholder?: string;
+  users?: User[];
 }) {
   const [content, setContent] = useState("");
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const queryClient = useQueryClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -89,19 +93,41 @@ export function MessageComposer({
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Escape" && mentionQuery !== null) {
+      setMentionQuery(null);
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+      setMentionQuery(null);
       handleSubmit();
     }
   }
 
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-    setContent(e.target.value);
-    if (e.target.value.trim()) {
+    const val = e.target.value;
+    setContent(val);
+    if (val.trim()) {
       onTypingStart();
     } else {
       onTypingStop();
     }
+
+    // Detect @mention trigger
+    const cursor = e.target.selectionStart ?? val.length;
+    const before = val.slice(0, cursor);
+    const match = before.match(/@(\w*)$/);
+    setMentionQuery(match ? match[1] : null);
+  }
+
+  function insertMention(username: string) {
+    const cursor = textareaRef.current?.selectionStart ?? content.length;
+    const before = content.slice(0, cursor);
+    const after = content.slice(cursor);
+    const replaced = before.replace(/@\w*$/, `@${username} `);
+    setContent(replaced + after);
+    setMentionQuery(null);
+    textareaRef.current?.focus();
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -154,7 +180,15 @@ export function MessageComposer({
           ))}
         </div>
       )}
-      <div className="flex items-end gap-2">
+      <div className="relative flex items-end gap-2">
+        {mentionQuery !== null && users.length > 0 && (
+          <MentionAutocomplete
+            query={mentionQuery}
+            users={users}
+            onSelect={insertMention}
+            onClose={() => setMentionQuery(null)}
+          />
+        )}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}

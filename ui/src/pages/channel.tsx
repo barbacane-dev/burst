@@ -3,10 +3,11 @@ import {
   useRef,
   useEffect,
   useCallback,
+  useMemo,
 } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Hash, MessageCircle } from "lucide-react";
+import { Hash, MessageCircle, Pin } from "lucide-react";
 import {
   getChannel,
   listMembers,
@@ -19,8 +20,10 @@ import { Spinner } from "../components/ui/spinner";
 import { MessageBubble } from "../components/message/message-bubble";
 import { MessageComposer } from "../components/message/message-composer";
 import { ThreadPanel } from "../components/channel/thread-panel";
+import { PinnedMessagesPanel } from "../components/channel/pinned-messages-panel";
 import { addReactionLocally, removeReactionLocally } from "../lib/reactions";
 import type { Channel, ChannelMember, Message, PaginatedResponse, User } from "../lib/api/types";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { useWsEvent, useTypingIndicator } from "../lib/ws/hooks";
 
 export function ChannelPage() {
@@ -28,6 +31,7 @@ export function ChannelPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [threadMessageId, setThreadMessageId] = useState<string | null>(null);
+  const [showPins, setShowPins] = useState(false);
 
   const cachedChannels = queryClient.getQueryData<PaginatedResponse<Channel>>(["channels"]);
   const cachedChannel = cachedChannels?.items.find((ch) => ch.id === channelId);
@@ -80,11 +84,15 @@ export function ChannelPage() {
   });
 
   const messages = data?.items ?? [];
-  const sorted = [...messages].reverse();
+  const sorted = useMemo(() => [...messages].reverse(), [messages]);
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const prevCountRef = useRef(0);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "instant" });
+    if (sorted.length > prevCountRef.current && sorted.length > 0) {
+      virtuosoRef.current?.scrollToIndex({ index: sorted.length - 1, behavior: "auto" });
+    }
+    prevCountRef.current = sorted.length;
   }, [sorted.length]);
 
   // Mark channel as read when visiting; refresh sidebar unread counts
@@ -240,9 +248,19 @@ export function ChannelPage() {
               {channel.topic}
             </span>
           )}
+          <div className="ml-auto">
+            <button
+              onClick={() => setShowPins((p) => !p)}
+              className={`rounded p-1.5 ${showPins ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"}`}
+              title="Pinned messages"
+              aria-label="Toggle pinned messages"
+            >
+              <Pin className="h-4 w-4" />
+            </button>
+          </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-2" role="log" aria-label="Messages" aria-live="polite">
+        <div className="flex-1 overflow-hidden px-4 py-2" role="log" aria-label="Messages" aria-live="polite">
           {isLoading ? (
             <div className="flex h-full items-center justify-center">
               <Spinner className="h-6 w-6 text-indigo-600" />
@@ -255,8 +273,12 @@ export function ChannelPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-1" role="list">
-              {sorted.map((msg) => (
+            <Virtuoso
+              ref={virtuosoRef}
+              data={sorted}
+              initialTopMostItemIndex={sorted.length - 1}
+              followOutput="smooth"
+              itemContent={(_index, msg) => (
                 <MessageBubble
                   key={msg.id}
                   message={msg}
@@ -266,9 +288,8 @@ export function ChannelPage() {
                   onOpenThread={() => openThread(msg.id)}
                   isThreadOpen={threadMessageId === msg.id}
                 />
-              ))}
-              <div ref={bottomRef} />
-            </div>
+              )}
+            />
           )}
         </div>
 
@@ -286,6 +307,7 @@ export function ChannelPage() {
             channelId={channelId}
             onTypingStart={sendTypingStart}
             onTypingStop={sendTypingStop}
+            users={usersData?.items ?? []}
           />
         )}
       </div>
@@ -297,6 +319,14 @@ export function ChannelPage() {
           currentUserId={user?.id ?? ""}
           usersById={usersById}
           onClose={closeThread}
+        />
+      )}
+
+      {showPins && channelId && !threadMessageId && (
+        <PinnedMessagesPanel
+          channelId={channelId}
+          usersById={usersById}
+          onClose={() => setShowPins(false)}
         />
       )}
     </div>

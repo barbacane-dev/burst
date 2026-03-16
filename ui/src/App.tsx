@@ -6,6 +6,7 @@ import { LoginPage } from "./pages/login";
 import { MainLayout, WelcomeView } from "./components/layout/main-layout";
 import { ChannelPage } from "./pages/channel";
 import { SettingsPage } from "./pages/settings";
+import { AdminPage } from "./pages/admin";
 import { Spinner } from "./components/ui/spinner";
 import { queryClient } from "./lib/query-client";
 import type { ReactNode } from "react";
@@ -56,6 +57,7 @@ function AppRoutes() {
         <Route index element={<WelcomeView />} />
         <Route path="channels/:channelId" element={<ChannelPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="admin" element={<AdminPage />} />
       </Route>
     </Routes>
   );

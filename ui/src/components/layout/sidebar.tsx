@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle, Search, Sun, Moon, Settings } from "lucide-react";
+import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle, Search, Sun, Moon, Settings, Shield } from "lucide-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "../../lib/ws/hooks";
 import { useAuth } from "../../lib/auth/context";
@@ -186,6 +186,15 @@ export function Sidebar() {
                 {user.username}
               </p>
             </div>
+            {user.role === "admin" && (
+              <button
+                onClick={() => navigate("/admin")}
+                className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                title="Administration"
+              >
+                <Shield className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={() => navigate("/settings")}
               className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"

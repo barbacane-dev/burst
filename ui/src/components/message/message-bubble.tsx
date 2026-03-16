@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Smile, MessageSquare } from "lucide-react";
-import { addReaction, removeReaction } from "../../lib/api/channels";
+import { Smile, MessageSquare, Pin } from "lucide-react";
+import { addReaction, removeReaction, pinMessage } from "../../lib/api/channels";
 import { addReactionLocally, removeReactionLocally } from "../../lib/reactions";
 import { formatTime } from "../../lib/format";
 import { Avatar } from "../ui/avatar";
@@ -39,6 +39,11 @@ export function MessageBubble({
       hasReacted
         ? removeReaction(channelId, message.id, emoji)
         : addReaction(channelId, message.id, emoji),
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: () => pinMessage(channelId, message.id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pins", channelId] }),
   });
 
   function toggleReaction(emoji: string) {
@@ -149,6 +154,13 @@ export function MessageBubble({
               />
             )}
           </div>
+          <button
+            onClick={() => pinMutation.mutate()}
+            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+            title="Pin message"
+          >
+            <Pin className="h-4 w-4" />
+          </button>
           {showThreadButton && (
             <button
               onClick={onOpenThread}
