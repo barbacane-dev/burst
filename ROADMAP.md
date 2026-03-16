@@ -125,19 +125,19 @@ Find messages and share files.
 
 ### Backend
 
-- [ ] PostgreSQL full-text search — `search_vec` trigger, search endpoint (ADR-003, ADR-007)
-- [ ] Search trait — unified interface for PG FTS and Typesense (ADR-003)
-- [ ] File upload — multipart form, storage trait, local FS backend (ADR-011)
-- [ ] File download — access control, Content-Disposition headers (ADR-011)
-- [ ] Image metadata — dimension extraction on upload (ADR-011)
-- [ ] File constraints — size limits, blocked extensions (ADR-011)
+- [x] PostgreSQL full-text search — `search_vec` trigger, search endpoint (ADR-003, ADR-007)
+- [ ] Search trait — unified interface for PG FTS and Typesense (ADR-003) — deferred to M8 (ships with Typesense)
+- [x] File upload — multipart form, storage trait, local FS backend (ADR-011)
+- [x] File download — access control, Content-Disposition headers (ADR-011)
+- [x] Image metadata — dimension extraction on upload (ADR-011)
+- [x] File constraints — size limits, blocked extensions (ADR-011)
 
 ### Frontend
 
-- [ ] Search — input with debounce, results with highlighted matches, channel context
-- [ ] File upload — drag-and-drop or button in composer
-- [ ] File preview — inline images, download link for other types
-- [ ] Virtualised message list — handle large channel histories (ADR-013)
+- [x] Search — input with debounce, results with highlighted matches, channel context
+- [x] File upload — drag-and-drop or button in composer
+- [x] File preview — inline images, download link for other types
+- [ ] Virtualised message list — handle large channel histories (ADR-013) — deferred to M6
 
 ---
 
