@@ -7,6 +7,7 @@ import { formatTime } from "../../lib/format";
 import { Avatar } from "../ui/avatar";
 import { AttachmentPreview } from "../attachment-preview";
 import { EmojiPickerDropdown } from "./emoji-picker-dropdown";
+import { MarkdownContent } from "./markdown-content";
 import { ReactionPill } from "./reaction-pill";
 import type { Message, PaginatedResponse } from "../../lib/api/types";
 
@@ -68,6 +69,8 @@ export function MessageBubble({
 
   return (
     <div
+      role="listitem"
+      aria-label={`Message from ${displayName}`}
       className={`group relative flex items-start gap-3 rounded-md px-2 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-900/50 ${
         isThreadOpen ? "bg-indigo-50/50 dark:bg-indigo-900/10" : ""
       }`}
@@ -86,15 +89,13 @@ export function MessageBubble({
           )}
         </div>
 
-        <p
-          className={`text-sm ${
-            isDeleted
-              ? "italic text-gray-400 dark:text-gray-500"
-              : "text-gray-800 dark:text-gray-200"
-          }`}
-        >
-          {isDeleted ? "This message was deleted" : message.content}
-        </p>
+        {isDeleted ? (
+          <p className="text-sm italic text-gray-400 dark:text-gray-500">
+            This message was deleted
+          </p>
+        ) : (
+          <MarkdownContent content={message.content} />
+        )}
 
         {/* Attachments */}
         {!isDeleted && message.attachments?.length > 0 && (

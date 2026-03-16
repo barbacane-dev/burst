@@ -42,11 +42,12 @@ export function ThreadPanel({
   }, [replies.length]);
 
   return (
-    <div className="flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <aside aria-label="Thread" className="flex w-80 shrink-0 flex-col border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
       <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-700">
         <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Thread</span>
         <button
           onClick={onClose}
+          aria-label="Close thread"
           className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
         >
           <X className="h-4 w-4" />
@@ -97,6 +98,6 @@ export function ThreadPanel({
         onTypingStop={() => {}}
         placeholder="Reply in thread…"
       />
-    </div>
+    </aside>
   );
 }

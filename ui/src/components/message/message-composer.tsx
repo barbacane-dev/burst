@@ -160,6 +160,7 @@ export function MessageComposer({
           onClick={() => fileInputRef.current?.click()}
           className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
           title="Attach files"
+          aria-label="Attach files"
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -176,12 +177,14 @@ export function MessageComposer({
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
+          aria-label="Message input"
           rows={1}
           className="flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-500"
         />
         <button
           type="submit"
           disabled={!hasContent || mutation.isPending}
+          aria-label="Send message"
           className="rounded-md bg-indigo-600 p-2 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:pointer-events-none"
         >
           <Send className="h-4 w-4" />

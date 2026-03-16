@@ -242,7 +242,7 @@ export function ChannelPage() {
           )}
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-2">
+        <div className="flex-1 overflow-y-auto px-4 py-2" role="log" aria-label="Messages" aria-live="polite">
           {isLoading ? (
             <div className="flex h-full items-center justify-center">
               <Spinner className="h-6 w-6 text-indigo-600" />
@@ -255,7 +255,7 @@ export function ChannelPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="space-y-1" role="list">
               {sorted.map((msg) => (
                 <MessageBubble
                   key={msg.id}
@@ -273,7 +273,7 @@ export function ChannelPage() {
         </div>
 
         {typingUsers.size > 0 && (
-          <div className="px-4 py-1 text-xs text-gray-400 dark:text-gray-500">
+          <div className="px-4 py-1 text-xs text-gray-400 dark:text-gray-500" aria-live="polite" role="status">
             {[...typingUsers]
               .map((id) => usersById.get(id) ?? id.replace("usr_", "").slice(0, 8))
               .join(", ")}{" "}

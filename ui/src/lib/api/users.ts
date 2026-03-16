@@ -11,3 +11,14 @@ export async function listUsers(cursor?: string): Promise<PaginatedResponse<User
 export async function getMe(): Promise<User> {
   return apiFetch<User>("/users/me");
 }
+
+export async function updateMe(body: {
+  displayName?: string;
+  email?: string;
+  statusText?: string;
+}): Promise<User> {
+  return apiFetch<User>("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}

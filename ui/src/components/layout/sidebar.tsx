@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle, Search } from "lucide-react";
+import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle, Search, Sun, Moon, Settings } from "lucide-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "../../lib/ws/hooks";
 import { useAuth } from "../../lib/auth/context";
+import { useTheme } from "../../lib/theme";
 import { listChannels, listMembers, createChannel, createDm, browseChannels, joinChannel } from "../../lib/api/channels";
 import { listUsers } from "../../lib/api/users";
 import { Avatar } from "../ui/avatar";
@@ -14,6 +15,7 @@ import type { Channel, ChannelMember, PaginatedResponse, User } from "../../lib/
 
 export function Sidebar() {
   const { user, logout } = useAuth();
+  const { resolved, setTheme } = useTheme();
   const navigate = useNavigate();
   const { channelId } = useParams();
   const [showCreate, setShowCreate] = useState(false);
@@ -184,6 +186,20 @@ export function Sidebar() {
                 {user.username}
               </p>
             </div>
+            <button
+              onClick={() => navigate("/settings")}
+              className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+              title="Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setTheme(resolved === "dark" ? "light" : "dark")}
+              className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+              title={resolved === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {resolved === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
             <button
               onClick={logout}
               className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"

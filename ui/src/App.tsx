@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useAuth } from "./lib/auth/context";
+import { ThemeProvider } from "./lib/theme";
 import { LoginPage } from "./pages/login";
 import { MainLayout, WelcomeView } from "./components/layout/main-layout";
 import { ChannelPage } from "./pages/channel";
+import { SettingsPage } from "./pages/settings";
 import { Spinner } from "./components/ui/spinner";
 import { queryClient } from "./lib/query-client";
 import type { ReactNode } from "react";
@@ -53,6 +55,7 @@ function AppRoutes() {
       >
         <Route index element={<WelcomeView />} />
         <Route path="channels/:channelId" element={<ChannelPage />} />
+        <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>
   );
@@ -60,12 +63,14 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
