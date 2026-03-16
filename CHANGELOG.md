@@ -23,6 +23,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Optimistic cache updates for sent messages in UI
 - Makefile, Procfile, seed script
 - React/Vite/Tailwind frontend with TanStack Query
+- File attachments: multipart upload, auth-guarded download, local FS storage with storage trait
+- Full-text search: PG tsvector-based message search with channel scoping
+- Attachment and search endpoints in OpenAPI spec
+- Barbacane Vacuum ruleset integration for OpenAPI linting
+- k6 smoke tests (65 checks: auth, channels, messages, reactions, attachments, search, pagination, errors)
+- UI: attachment preview component, search dialog, sidebar search
 
 ### Changed
 - Unified WS and REST message types
@@ -34,6 +40,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Tests authenticate via `X-Auth-Consumer` header instead of JWT tokens
 - Makefile reorganised with `gateway-compile`, `services`, `stop`, `restart` targets
 - Vite WS proxy uses `http://` target with `ws: true` (not `ws://`)
+- Pagination cursors accept prefixed IDs (`msg_`, `ch_`) instead of raw UUIDs
+- Login form uses username instead of email (matches OIDC sub claims)
 
 ### Fixed
 - Real-time message delivery through Barbacane gateway (ws-upstream runtime affinity bug)
@@ -43,6 +51,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Unread count bugs
 - Channel membership UX
 - Null guard on reactions in channel page
+- Pagination cursor round-trip through Barbacane (prefixed ID stripping)
+- Seed `external_id` values to match mock OIDC server
+- OpenAPI spec: added `maxLength` on limit params, added RFC 8725 reference
 
 ### Removed
 - Local password authentication (`/auth/login`, `/auth/logout`, `/auth/refresh`)
