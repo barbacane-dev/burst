@@ -347,6 +347,51 @@ pub async fn find_or_create_dm(
     Ok(ch)
 }
 
+/// Archives a channel (sets is_archived and is_readonly).
+pub async fn archive(pool: &PgPool, id: Uuid) -> Result<Option<ChannelRow>, sqlx::Error> {
+    sqlx::query_as::<_, ChannelRow>(
+        "UPDATE channels SET is_archived = TRUE, is_readonly = TRUE, updated_at = now() \
+         WHERE id = $1 \
+         RETURNING id, kind, name, slug, topic, description, created_by, \
+         is_archived, is_readonly, created_at, updated_at",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Unarchives a channel (clears is_archived and is_readonly).
+pub async fn unarchive(pool: &PgPool, id: Uuid) -> Result<Option<ChannelRow>, sqlx::Error> {
+    sqlx::query_as::<_, ChannelRow>(
+        "UPDATE channels SET is_archived = FALSE, is_readonly = FALSE, updated_at = now() \
+         WHERE id = $1 \
+         RETURNING id, kind, name, slug, topic, description, created_by, \
+         is_archived, is_readonly, created_at, updated_at",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Updates the notification preference for a user in a channel.
+pub async fn update_notify(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+    notify: &str,
+) -> Result<Option<ChannelMemberRow>, sqlx::Error> {
+    sqlx::query_as::<_, ChannelMemberRow>(
+        "UPDATE channel_members SET notify = $3 \
+         WHERE channel_id = $1 AND user_id = $2 \
+         RETURNING channel_id, user_id, role, notify, joined_at",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .bind(notify)
+    .fetch_optional(pool)
+    .await
+}
+
 /// Updates the last-read timestamp for a user in a channel.
 pub async fn update_last_read(
     pool: &PgPool,

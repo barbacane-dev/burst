@@ -1,6 +1,10 @@
 pub mod attachments;
+pub mod audit_log;
 pub mod channels;
+pub mod custom_emojis;
+pub mod mentions;
 pub mod messages;
+pub mod pinned_messages;
 pub mod reactions;
 pub mod search;
 pub mod users;
