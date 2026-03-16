@@ -41,6 +41,7 @@ pub fn app_router(state: AppState) -> Router {
         .merge(api::channels::router())
         .merge(api::search::router())
         .merge(api::attachments::router())
+        .merge(api::admin::router())
         .route("/ws", axum::routing::get(ws::handler::ws_handler))
         .with_state(state)
 }

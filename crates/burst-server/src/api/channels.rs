@@ -33,6 +33,10 @@ pub fn router() -> Router<AppState> {
             axum::routing::patch(mark_read),
         )
         .route(
+            "/channels/{channel_id}/members/me/notify",
+            axum::routing::patch(update_notify),
+        )
+        .route(
             "/channels/{channel_id}/messages",
             get(list_messages).post(send_message),
         )
@@ -47,6 +51,19 @@ pub fn router() -> Router<AppState> {
         .route(
             "/channels/{channel_id}/messages/{message_id}/reactions/{emoji}",
             put(add_reaction).delete(remove_reaction),
+        )
+        .route(
+            "/channels/{channel_id}/messages/{message_id}/pin",
+            put(pin_message).delete(unpin_message),
+        )
+        .route("/channels/{channel_id}/pins", get(list_pins))
+        .route(
+            "/channels/{channel_id}/archive",
+            axum::routing::post(archive_channel),
+        )
+        .route(
+            "/channels/{channel_id}/unarchive",
+            axum::routing::post(unarchive_channel),
         )
 }
 
@@ -94,7 +111,7 @@ fn channel_with_unread_to_response(row: &db::channels::ChannelWithUnreadRow) -> 
     }
 }
 
-fn channel_to_response(row: &db::channels::ChannelRow) -> ChannelResponse {
+pub fn channel_to_response(row: &db::channels::ChannelRow) -> ChannelResponse {
     ChannelResponse {
         id: burst_core::id::format_channel_id(row.id),
         kind: row.kind.clone(),
@@ -504,6 +521,14 @@ async fn send_message(
         return Err(ApiError::Forbidden);
     }
 
+    // Reject writes to archived/readonly channels.
+    let channel = db::channels::find_by_id(&state.db, ch_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
+    if channel.is_readonly {
+        return Err(ApiError::Forbidden);
+    }
+
     let content_type = headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
@@ -850,6 +875,13 @@ async fn edit_message(
         return Err(ApiError::Forbidden);
     }
 
+    let channel = db::channels::find_by_id(&state.db, ch_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
+    if channel.is_readonly {
+        return Err(ApiError::Forbidden);
+    }
+
     let msg_id = parse_message_id(&message_id)?;
     let content = body.content.trim();
     if content.is_empty() {
@@ -966,6 +998,207 @@ async fn remove_reaction(
         };
         crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
     }
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+// ── Pin handlers ──
+
+async fn pin_message(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((channel_id, message_id)): Path<(String, String)>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
+        return Err(ApiError::Forbidden);
+    }
+
+    let msg_id = parse_message_id(&message_id)?;
+    let message = db::messages::find_by_id(&state.db, msg_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Message".into()))?;
+    if message.channel_id != ch_id {
+        return Err(ApiError::NotFound("Message".into()));
+    }
+
+    let is_new = db::pinned_messages::pin(&state.db, ch_id, msg_id, auth.user_id).await?;
+    if is_new {
+        let ev = crate::ws::ServerEvent::MessagePinned {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: burst_core::id::format_channel_id(ch_id),
+            message_id: burst_core::id::format_message_id(msg_id),
+            user_id: burst_core::id::format_user_id(auth.user_id),
+        };
+        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    }
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+async fn unpin_message(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((channel_id, message_id)): Path<(String, String)>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
+        return Err(ApiError::Forbidden);
+    }
+
+    let msg_id = parse_message_id(&message_id)?;
+    let removed = db::pinned_messages::unpin(&state.db, ch_id, msg_id).await?;
+    if removed {
+        let ev = crate::ws::ServerEvent::MessageUnpinned {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: burst_core::id::format_channel_id(ch_id),
+            message_id: burst_core::id::format_message_id(msg_id),
+        };
+        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    }
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+async fn list_pins(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(channel_id): Path<String>,
+) -> Result<Json<Vec<MessageResponse>>, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
+        return Err(ApiError::Forbidden);
+    }
+
+    let pins = db::pinned_messages::list_for_channel(&state.db, ch_id).await?;
+    let message_ids: Vec<Uuid> = pins.iter().map(|p| p.message_id).collect();
+
+    if message_ids.is_empty() {
+        return Ok(Json(vec![]));
+    }
+
+    // Batch-fetch all pinned message data.
+    let mut messages = Vec::new();
+    for &mid in &message_ids {
+        if let Some(msg) = db::messages::find_by_id(&state.db, mid).await? {
+            messages.push(msg);
+        }
+    }
+
+    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
+    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
+    let reply_counts: std::collections::HashMap<Uuid, i64> =
+        db::messages::reply_counts(&state.db, &message_ids)
+            .await?
+            .into_iter()
+            .collect();
+
+    let items: Vec<_> = messages
+        .iter()
+        .map(|m| {
+            let rc = *reply_counts.get(&m.id).unwrap_or(&0);
+            let reactions = aggregate_reactions(&reaction_rows, m.id);
+            let attachments = group_attachments(&attachment_rows, m.id);
+            build_message_response(m, rc, reactions, attachments)
+        })
+        .collect();
+
+    Ok(Json(items))
+}
+
+// ── Archive handlers ──
+
+async fn archive_channel(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(channel_id): Path<String>,
+) -> Result<Json<ChannelResponse>, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    // Only channel owners or instance admins can archive.
+    let member = db::channels::list_members(&state.db, ch_id)
+        .await?
+        .into_iter()
+        .find(|m| m.user_id == auth.user_id);
+
+    let is_channel_owner = member.as_ref().is_some_and(|m| m.role == "owner");
+    let is_admin = auth.user_role == "admin";
+    if !is_channel_owner && !is_admin {
+        return Err(ApiError::Forbidden);
+    }
+
+    let channel = db::channels::archive(&state.db, ch_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
+
+    let ev = crate::ws::ServerEvent::ChannelUpdated {
+        event_id: burst_core::id::new_id().to_string(),
+        channel_id: burst_core::id::format_channel_id(ch_id),
+    };
+    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+
+    Ok(Json(channel_to_response(&channel)))
+}
+
+async fn unarchive_channel(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(channel_id): Path<String>,
+) -> Result<Json<ChannelResponse>, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    let member = db::channels::list_members(&state.db, ch_id)
+        .await?
+        .into_iter()
+        .find(|m| m.user_id == auth.user_id);
+
+    let is_channel_owner = member.as_ref().is_some_and(|m| m.role == "owner");
+    let is_admin = auth.user_role == "admin";
+    if !is_channel_owner && !is_admin {
+        return Err(ApiError::Forbidden);
+    }
+
+    let channel = db::channels::unarchive(&state.db, ch_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
+
+    let ev = crate::ws::ServerEvent::ChannelUpdated {
+        event_id: burst_core::id::new_id().to_string(),
+        channel_id: burst_core::id::format_channel_id(ch_id),
+    };
+    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+
+    Ok(Json(channel_to_response(&channel)))
+}
+
+// ── Notification preference handler ──
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateNotifyRequest {
+    pub notify: String,
+}
+
+async fn update_notify(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path(channel_id): Path<String>,
+    Json(body): Json<UpdateNotifyRequest>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let ch_id = parse_channel_id(&channel_id)?;
+
+    if !matches!(body.notify.as_str(), "all" | "mentions" | "nothing") {
+        return Err(ApiError::BadRequest(
+            "notify must be 'all', 'mentions', or 'nothing'".into(),
+        ));
+    }
+
+    db::channels::update_notify(&state.db, ch_id, auth.user_id, &body.notify)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Channel membership".into()))?;
 
     Ok(axum::http::StatusCode::NO_CONTENT)
 }

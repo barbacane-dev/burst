@@ -135,6 +135,112 @@ pub async fn list(
     }
 }
 
+pub async fn update_role(
+    pool: &PgPool,
+    id: Uuid,
+    role: &str,
+) -> Result<Option<UserRow>, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET role = $2, updated_at = now() \
+         WHERE id = $1 \
+         RETURNING id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         created_at, updated_at",
+    )
+    .bind(id)
+    .bind(role)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn deactivate(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET deactivated_at = now(), updated_at = now() \
+         WHERE id = $1 AND deactivated_at IS NULL \
+         RETURNING id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         created_at, updated_at",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn reactivate(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET deactivated_at = NULL, updated_at = now() \
+         WHERE id = $1 AND deactivated_at IS NOT NULL \
+         RETURNING id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         created_at, updated_at",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn list_all(
+    pool: &PgPool,
+    cursor: Option<Uuid>,
+    limit: i64,
+) -> Result<Vec<UserRow>, sqlx::Error> {
+    match cursor {
+        Some(cursor_id) => {
+            sqlx::query_as::<_, UserRow>(
+                "SELECT id, external_id, username, display_name, email, avatar_url, \
+                 role, status, status_text, password_hash, is_bot, deactivated_at, \
+                 created_at, updated_at \
+                 FROM users WHERE id > $1 ORDER BY id LIMIT $2",
+            )
+            .bind(cursor_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
+        None => {
+            sqlx::query_as::<_, UserRow>(
+                "SELECT id, external_id, username, display_name, email, avatar_url, \
+                 role, status, status_text, password_hash, is_bot, deactivated_at, \
+                 created_at, updated_at \
+                 FROM users ORDER BY id LIMIT $1",
+            )
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
+    }
+}
+
+pub async fn list_all_channels(
+    pool: &PgPool,
+    cursor: Option<Uuid>,
+    limit: i64,
+) -> Result<Vec<super::channels::ChannelRow>, sqlx::Error> {
+    match cursor {
+        Some(cursor_id) => {
+            sqlx::query_as::<_, super::channels::ChannelRow>(
+                "SELECT id, kind, name, slug, topic, description, created_by, \
+                 is_archived, is_readonly, created_at, updated_at \
+                 FROM channels WHERE id > $1 ORDER BY id LIMIT $2",
+            )
+            .bind(cursor_id)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
+        None => {
+            sqlx::query_as::<_, super::channels::ChannelRow>(
+                "SELECT id, kind, name, slug, topic, description, created_by, \
+                 is_archived, is_readonly, created_at, updated_at \
+                 FROM channels ORDER BY id LIMIT $1",
+            )
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+        }
+    }
+}
+
 pub struct UpdateUser {
     pub display_name: Option<String>,
     pub email: Option<String>,

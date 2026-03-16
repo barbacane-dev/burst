@@ -72,6 +72,24 @@ pub enum ServerEvent {
         emoji: String,
         user_id: String,
     },
+    #[serde(rename = "message.pinned", rename_all = "camelCase")]
+    MessagePinned {
+        event_id: String,
+        channel_id: String,
+        message_id: String,
+        user_id: String,
+    },
+    #[serde(rename = "message.unpinned", rename_all = "camelCase")]
+    MessageUnpinned {
+        event_id: String,
+        channel_id: String,
+        message_id: String,
+    },
+    #[serde(rename = "channel.updated", rename_all = "camelCase")]
+    ChannelUpdated {
+        event_id: String,
+        channel_id: String,
+    },
 }
 
 impl ServerEvent {
@@ -86,6 +104,9 @@ impl ServerEvent {
             ServerEvent::ReactionAdded { event_id, .. } => event_id,
             ServerEvent::ReactionRemoved { event_id, .. } => event_id,
             ServerEvent::ChannelJoined { event_id, .. } => event_id,
+            ServerEvent::MessagePinned { event_id, .. } => event_id,
+            ServerEvent::MessageUnpinned { event_id, .. } => event_id,
+            ServerEvent::ChannelUpdated { event_id, .. } => event_id,
         }
     }
 
@@ -100,6 +121,9 @@ impl ServerEvent {
             ServerEvent::ReactionAdded { channel_id, .. } => Some(channel_id),
             ServerEvent::ReactionRemoved { channel_id, .. } => Some(channel_id),
             ServerEvent::ChannelJoined { channel_id, .. } => Some(channel_id),
+            ServerEvent::MessagePinned { channel_id, .. } => Some(channel_id),
+            ServerEvent::MessageUnpinned { channel_id, .. } => Some(channel_id),
+            ServerEvent::ChannelUpdated { channel_id, .. } => Some(channel_id),
         }
     }
 }

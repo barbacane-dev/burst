@@ -14,6 +14,7 @@ use crate::error::ApiError;
 /// `external_id` in the database.
 pub struct AuthUser {
     pub user_id: Uuid,
+    pub user_role: String,
 }
 
 impl FromRequestParts<AppState> for AuthUser {
@@ -34,7 +35,32 @@ impl FromRequestParts<AppState> for AuthUser {
             .map_err(|e| ApiError::Internal(e.to_string()))?
             .ok_or(ApiError::Unauthorized)?;
 
-        Ok(AuthUser { user_id: user.id })
+        Ok(AuthUser {
+            user_id: user.id,
+            user_role: user.role,
+        })
+    }
+}
+
+/// Extracts an authenticated admin user. Rejects non-admin roles with 403.
+pub struct AdminUser {
+    pub user_id: Uuid,
+}
+
+impl FromRequestParts<AppState> for AdminUser {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = AuthUser::from_request_parts(parts, state).await?;
+        if auth.user_role != "admin" {
+            return Err(ApiError::Forbidden);
+        }
+        Ok(AdminUser {
+            user_id: auth.user_id,
+        })
     }
 }
 
