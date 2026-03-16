@@ -41,7 +41,7 @@ impl FromRequestParts<AppState> for AuthUser {
 /// Pagination query parameters.
 #[derive(Debug, serde::Deserialize)]
 pub struct PaginationParams {
-    pub cursor: Option<Uuid>,
+    pub cursor: Option<String>,
     #[serde(default = "default_limit")]
     pub limit: i64,
 }
@@ -53,5 +53,19 @@ fn default_limit() -> i64 {
 impl PaginationParams {
     pub fn clamped_limit(&self) -> i64 {
         self.limit.clamp(1, 200)
+    }
+
+    /// Parse the cursor string into a UUID, stripping any known prefix
+    /// (e.g. `msg_`, `ch_`, `usr_`, `att_`).
+    pub fn cursor_uuid(&self) -> Option<Uuid> {
+        self.cursor.as_deref().and_then(|s| {
+            // Try stripping known prefixes, fall back to raw UUID parse
+            for prefix in &["msg_", "ch_", "usr_", "att_"] {
+                if let Some(rest) = s.strip_prefix(prefix) {
+                    return Uuid::parse_str(rest).ok();
+                }
+            }
+            Uuid::parse_str(s).ok()
+        })
     }
 }

@@ -64,3 +64,33 @@ export async function apiFetch<T>(
 
   return response.json();
 }
+
+export async function apiFetchFormData<T>(
+  path: string,
+  formData: FormData,
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  // Do NOT set Content-Type — let the browser set multipart boundary automatically.
+
+  if (_accessToken) {
+    headers["Authorization"] = `Bearer ${_accessToken}`;
+  }
+
+  const url = `/api${path}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const problem: ProblemDetails = await response.json().catch(() => ({
+      type: "urn:burst:error:internal-error",
+      title: "Request failed",
+      status: response.status,
+    }));
+    throw new ApiError(problem);
+  }
+
+  return response.json();
+}

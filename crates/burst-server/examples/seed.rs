@@ -29,8 +29,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // ── Users ──────────────────────────────────────────────────────────────────
     sqlx::query(
         "INSERT INTO users (id, username, display_name, email, external_id, role)
-         VALUES ($1, 'alice', 'Alice Martin', 'alice@example.com', 'alice@example.com', 'admin')
-         ON CONFLICT (email) DO NOTHING",
+         VALUES ($1, 'alice', 'Alice Martin', 'alice@example.com', 'alice', 'admin')
+         ON CONFLICT (email) DO UPDATE SET external_id = EXCLUDED.external_id",
     )
     .bind(alice_id)
     .execute(&pool)
@@ -38,8 +38,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     sqlx::query(
         "INSERT INTO users (id, username, display_name, email, external_id, role)
-         VALUES ($1, 'bob', 'Bob Dupont', 'bob@example.com', 'bob@example.com', 'member')
-         ON CONFLICT (email) DO NOTHING",
+         VALUES ($1, 'bob', 'Bob Dupont', 'bob@example.com', 'bob', 'member')
+         ON CONFLICT (email) DO UPDATE SET external_id = EXCLUDED.external_id",
     )
     .bind(bob_id)
     .execute(&pool)
@@ -88,9 +88,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  bob   (member of #general)       — id: {bob_id}");
     println!("  #general channel ready");
     println!();
-    println!("Auth is handled by Barbacane basic-auth:");
-    println!("  alice@example.com:alice  (admin)");
-    println!("  bob@example.com:bob      (member)");
+    println!("Auth is handled by Barbacane (OIDC sub claim → external_id):");
+    println!("  alice → external_id 'alice'  (admin)");
+    println!("  bob   → external_id 'bob'    (member)");
 
     Ok(())
 }

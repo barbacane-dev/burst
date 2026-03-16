@@ -8,7 +8,7 @@ import {
 } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Hash, Send, MessageSquare, X, Smile, MessageCircle } from "lucide-react";
+import { Hash, Send, MessageSquare, X, Smile, MessageCircle, Paperclip } from "lucide-react";
 import {
   getChannel,
   listMembers,
@@ -23,6 +23,7 @@ import { listUsers } from "../lib/api/users";
 import { useAuth } from "../lib/auth/context";
 import { Avatar } from "../components/ui/avatar";
 import { Spinner } from "../components/ui/spinner";
+import { AttachmentPreview } from "../components/attachment-preview";
 import type { Channel, ChannelMember, Message, PaginatedResponse, ReactionCount, User } from "../lib/api/types";
 import { useWsEvent, useTypingIndicator } from "../lib/ws/hooks";
 
@@ -109,7 +110,7 @@ export function ChannelPage() {
       queryClient.setQueryData<PaginatedResponse<Message>>(
         ["messages", channelId],
         (old) => {
-          const hydrated: Message = { ...ev.message, reactions: ev.message.reactions ?? [], replyCount: ev.message.replyCount ?? 0 };
+          const hydrated: Message = { ...ev.message, reactions: ev.message.reactions ?? [], attachments: ev.message.attachments ?? [], replyCount: ev.message.replyCount ?? 0 };
           if (!old) return { items: [hydrated], cursor: undefined };
           if (ev.message.threadId) {
             // Increment reply count on the parent in the main view
@@ -132,7 +133,7 @@ export function ChannelPage() {
         queryClient.setQueryData<PaginatedResponse<Message>>(
           ["thread", threadMessageId],
           (old) => {
-            const hydratedReply: Message = { ...ev.message, reactions: ev.message.reactions ?? [], replyCount: ev.message.replyCount ?? 0 };
+            const hydratedReply: Message = { ...ev.message, reactions: ev.message.reactions ?? [], attachments: ev.message.attachments ?? [], replyCount: ev.message.replyCount ?? 0 };
             if (!old) return { items: [hydratedReply], cursor: undefined };
             if (old.items.some((m) => m.id === ev.message.id)) return old;
             return { ...old, items: [...old.items, hydratedReply] };
@@ -428,6 +429,15 @@ function MessageBubble({
           {isDeleted ? "This message was deleted" : message.content}
         </p>
 
+        {/* Attachments */}
+        {!isDeleted && message.attachments?.length > 0 && (
+          <div className="mt-1 flex flex-col gap-1">
+            {message.attachments.map((att) => (
+              <AttachmentPreview key={att.id} attachment={att} />
+            ))}
+          </div>
+        )}
+
         {/* Reactions */}
         {message.reactions.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-1">
@@ -661,17 +671,21 @@ function MessageComposer({
   placeholder?: string;
 }) {
   const [content, setContent] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const queryClient = useQueryClient();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     textareaRef.current?.focus();
   }, [channelId]);
 
   const mutation = useMutation({
-    mutationFn: (text: string) => sendMessage(channelId, text, threadId),
+    mutationFn: ({ text, attachedFiles }: { text: string; attachedFiles: File[] }) =>
+      sendMessage(channelId, text, threadId, attachedFiles.length > 0 ? attachedFiles : undefined),
     onSuccess: (msg) => {
       setContent("");
+      setFiles([]);
       onTypingStop();
       if (threadId) {
         // Thread reply: push to thread cache and bump parent reply count
@@ -697,7 +711,12 @@ function MessageComposer({
         );
       } else {
         // Top-level message: add to channel cache immediately
-        const hydrated: Message = { ...msg, reactions: msg.reactions ?? [], replyCount: msg.replyCount ?? 0 };
+        const hydrated: Message = {
+          ...msg,
+          reactions: msg.reactions ?? [],
+          attachments: msg.attachments ?? [],
+          replyCount: msg.replyCount ?? 0,
+        };
         queryClient.setQueryData<PaginatedResponse<Message>>(
           ["messages", channelId],
           (old) => {
@@ -710,11 +729,12 @@ function MessageComposer({
     },
   });
 
+  const hasContent = content.trim().length > 0 || files.length > 0;
+
   function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
-    const trimmed = content.trim();
-    if (!trimmed || mutation.isPending) return;
-    mutation.mutate(trimmed);
+    if (!hasContent || mutation.isPending) return;
+    mutation.mutate({ text: content.trim(), attachedFiles: files });
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -733,12 +753,73 @@ function MessageComposer({
     }
   }
 
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files;
+    if (!selected) return;
+    setFiles((prev) => [...prev, ...Array.from(selected)]);
+    // Reset so the same file can be re-selected.
+    e.target.value = "";
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const dropped = e.dataTransfer.files;
+    if (dropped.length > 0) {
+      setFiles((prev) => [...prev, ...Array.from(dropped)]);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+  }
+
   return (
     <form
       onSubmit={handleSubmit}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
       className="border-t border-gray-200 px-4 py-3 dark:border-gray-700"
     >
+      {/* File pills */}
+      {files.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {files.map((file, i) => (
+            <span
+              key={`${file.name}-${i}`}
+              className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+            >
+              {file.name}
+              <button
+                type="button"
+                onClick={() => removeFile(i)}
+                className="ml-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="flex items-end gap-2">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+          title="Attach files"
+        >
+          <Paperclip className="h-4 w-4" />
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
         <textarea
           ref={textareaRef}
           value={content}
@@ -750,7 +831,7 @@ function MessageComposer({
         />
         <button
           type="submit"
-          disabled={!content.trim() || mutation.isPending}
+          disabled={!hasContent || mutation.isPending}
           className="rounded-md bg-indigo-600 p-2 text-white hover:bg-indigo-500 disabled:opacity-50 disabled:pointer-events-none"
         >
           <Send className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle, Search } from "lucide-react";
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import { listUsers } from "../../lib/api/users";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { SearchDialog } from "../search-dialog";
 import type { Channel, ChannelMember, PaginatedResponse, User } from "../../lib/api/types";
 
 export function Sidebar() {
@@ -18,6 +19,19 @@ export function Sidebar() {
   const [showCreate, setShowCreate] = useState(false);
   const [showBrowse, setShowBrowse] = useState(false);
   const [showDm, setShowDm] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+
+  // Global Cmd+K / Ctrl+K shortcut to open search.
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setShowSearch((prev) => !prev);
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const queryClient = useQueryClient();
 
@@ -65,11 +79,20 @@ export function Sidebar() {
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
-      <div className="flex h-14 items-center border-b border-gray-200 px-4 dark:border-gray-700">
-        <MessageSquare className="mr-2 h-5 w-5 text-indigo-600" />
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Burst
-        </h1>
+      <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-700">
+        <div className="flex items-center">
+          <MessageSquare className="mr-2 h-5 w-5 text-indigo-600" />
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+            Burst
+          </h1>
+        </div>
+        <button
+          onClick={() => setShowSearch(true)}
+          className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+          title="Search messages (Cmd+K)"
+        >
+          <Search className="h-4 w-4" />
+        </button>
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3" role="navigation">
@@ -182,6 +205,10 @@ export function Sidebar() {
 
       {showDm && (
         <NewDmDialog onClose={() => setShowDm(false)} currentUserId={user?.id ?? ""} />
+      )}
+
+      {showSearch && (
+        <SearchDialog onClose={() => setShowSearch(false)} />
       )}
     </aside>
   );

@@ -66,6 +66,7 @@ gateway: $(BURST_BCA) ## Run the Barbacane gateway (requires: make gateway-compi
 		--listen 0.0.0.0:8080 \
 		--dev \
 		--allow-plaintext-upstream \
+		--max-body-size 10485760 \
 		--log-format pretty
 
 # ── Dev Services ──────────────────────────────────────────────────────────

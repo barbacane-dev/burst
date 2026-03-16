@@ -40,5 +40,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # Error handling
 thiserror = "2"
 
+# File handling
+axum-extra = { version = "0.10", features = ["multipart"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+mime_guess = "2"
+bytes = "1"
+multer = "3"
+
 # Misc
 urlencoding = "2"

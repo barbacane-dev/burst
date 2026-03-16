@@ -49,6 +49,15 @@ export interface ReactionCount {
   userIds: string[];
 }
 
+export interface Attachment {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  contentType: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface Message {
   id: string;
   channelId: string;
@@ -59,5 +68,16 @@ export interface Message {
   deletedAt?: string;
   replyCount: number;
   reactions: ReactionCount[];
+  attachments: Attachment[];
+  createdAt: string;
+}
+
+export interface SearchResult {
+  id: string;
+  channelId: string;
+  userId: string;
+  threadId?: string;
+  content: string;
+  headline: string;
   createdAt: string;
 }

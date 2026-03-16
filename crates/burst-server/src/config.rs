@@ -6,6 +6,8 @@ pub struct Config {
     #[serde(default)]
     pub server: ServerConfig,
     pub database: DatabaseConfig,
+    #[serde(default)]
+    pub storage: StorageConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -46,7 +48,58 @@ fn default_max_connections() -> u32 {
 
 /// Subset of config passed into AppState (no secrets like DB URL).
 #[derive(Debug, Clone)]
-pub struct AppConfig;
+pub struct AppConfig {
+    pub storage: StorageConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct StorageConfig {
+    #[serde(default = "default_storage_backend")]
+    pub backend: String,
+    #[serde(default = "default_local_path")]
+    pub local_path: String,
+    #[serde(default = "default_max_file_size")]
+    pub max_file_size: u64,
+    #[serde(default = "default_max_files_per_message")]
+    pub max_files_per_message: usize,
+    #[serde(default = "default_blocked_extensions")]
+    pub blocked_extensions: Vec<String>,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            backend: default_storage_backend(),
+            local_path: default_local_path(),
+            max_file_size: default_max_file_size(),
+            max_files_per_message: default_max_files_per_message(),
+            blocked_extensions: default_blocked_extensions(),
+        }
+    }
+}
+
+fn default_storage_backend() -> String {
+    "local".into()
+}
+
+fn default_local_path() -> String {
+    "./uploads".into()
+}
+
+fn default_max_file_size() -> u64 {
+    20 * 1024 * 1024 // 20 MB
+}
+
+fn default_max_files_per_message() -> usize {
+    10
+}
+
+fn default_blocked_extensions() -> Vec<String> {
+    ["exe", "bat", "sh", "msi", "cmd", "ps1"]
+        .iter()
+        .map(|s| (*s).to_string())
+        .collect()
+}
 
 impl Config {
     pub fn load(path: Option<&Path>) -> Result<Self, ConfigError> {
@@ -64,6 +117,7 @@ impl Config {
                         url: String::new(),
                         max_connections: default_max_connections(),
                     },
+                    storage: StorageConfig::default(),
                 },
             }
         };
@@ -82,7 +136,9 @@ impl Config {
     }
 
     pub fn app_config(&self) -> AppConfig {
-        AppConfig
+        AppConfig {
+            storage: self.storage.clone(),
+        }
     }
 }
 

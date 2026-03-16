@@ -18,6 +18,11 @@ chrono.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 toml.workspace = true
+axum-extra.workspace = true
+image.workspace = true
+mime_guess.workspace = true
+bytes.workspace = true
+multer.workspace = true
 
 [dev-dependencies]
 burst-core.workspace = true
@@ -28,3 +33,4 @@ tower.workspace = true
 uuid.workspace = true
 urlencoding.workspace = true
 sqlx = { workspace = true }
+tempfile = "3"

@@ -13,7 +13,12 @@ use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-use burst_server::{AppState, app_router, config::AppConfig, db};
+use burst_server::{
+    AppState, app_router,
+    config::{AppConfig, StorageConfig},
+    db,
+    storage::{Storage, local::LocalStorage},
+};
 
 // ── TestApp ───────────────────────────────────────────────────────────────────
 
@@ -22,14 +27,27 @@ pub struct TestApp {
     pub router: axum::Router,
     /// The full app state — useful for inspecting the broker, presence, etc.
     pub state: AppState,
+    /// Temp dir backing the local storage (kept alive for the test lifetime).
+    _storage_dir: tempfile::TempDir,
 }
 
 impl TestApp {
     pub fn new(pool: PgPool) -> Self {
-        let config = AppConfig;
-        let state = AppState::new(pool, config);
+        let storage_dir = tempfile::tempdir().expect("failed to create temp storage dir");
+        let config = AppConfig {
+            storage: StorageConfig {
+                local_path: storage_dir.path().to_string_lossy().into_owned(),
+                ..StorageConfig::default()
+            },
+        };
+        let storage = Storage::Local(LocalStorage::new(storage_dir.path().to_path_buf()).unwrap());
+        let state = AppState::new(pool, config, storage);
         let router = app_router(state.clone());
-        Self { router, state }
+        Self {
+            router,
+            state,
+            _storage_dir: storage_dir,
+        }
     }
 
     /// POST `uri` with a JSON body, authenticated via external_id.

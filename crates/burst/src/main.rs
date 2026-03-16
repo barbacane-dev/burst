@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use burst_server::config::Config;
+use burst_server::storage::{Storage, local::LocalStorage};
 use burst_server::{AppState, admin_router, app_router};
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
@@ -44,7 +45,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("../../migrations").run(&pool).await?;
     tracing::info!("migrations applied");
 
-    let state = AppState::new(pool, config.app_config());
+    let app_config = config.app_config();
+    let storage = Storage::Local(
+        LocalStorage::new(std::path::PathBuf::from(&app_config.storage.local_path))
+            .expect("failed to initialise local storage"),
+    );
+    let state = AppState::new(pool, app_config, storage);
 
     // Main server
     let app = app_router(state.clone());

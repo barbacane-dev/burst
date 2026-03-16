@@ -1,4 +1,4 @@
-import { apiFetch } from "./client";
+import { apiFetch, apiFetchFormData } from "./client";
 import type { Channel, ChannelMember, Message, PaginatedResponse } from "./types";
 
 export async function listChannels(): Promise<PaginatedResponse<Channel>> {
@@ -82,7 +82,17 @@ export async function sendMessage(
   channelId: string,
   content: string,
   threadId?: string,
+  files?: File[],
 ): Promise<Message> {
+  if (files && files.length > 0) {
+    const formData = new FormData();
+    formData.append("content", content);
+    if (threadId) formData.append("threadId", threadId);
+    for (const file of files) {
+      formData.append("files", file, file.name);
+    }
+    return apiFetchFormData<Message>(`/channels/${channelId}/messages`, formData);
+  }
   return apiFetch<Message>(`/channels/${channelId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content, ...(threadId ? { threadId } : {}) }),

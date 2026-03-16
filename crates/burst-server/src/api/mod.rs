@@ -1,6 +1,8 @@
+pub mod attachments;
 pub mod channels;
 pub mod extractors;
 pub mod health;
+pub mod search;
 pub mod users;
 
 use serde::Serialize;

@@ -10,6 +10,7 @@ impl IntoResponse for ApiError {
             ApiError::Forbidden => ProblemDetails::forbidden(),
             ApiError::BadRequest(msg) => ProblemDetails::bad_request(msg.as_str()),
             ApiError::Conflict(msg) => ProblemDetails::conflict(msg.as_str()),
+            ApiError::PayloadTooLarge(msg) => ProblemDetails::payload_too_large(msg.as_str()),
             ApiError::Internal(msg) => {
                 tracing::error!("internal error: {msg}");
                 ProblemDetails::internal_error()
@@ -40,6 +41,8 @@ pub enum ApiError {
     BadRequest(String),
     #[error("conflict: {0}")]
     Conflict(String),
+    #[error("payload too large: {0}")]
+    PayloadTooLarge(String),
     #[error("internal error: {0}")]
     Internal(String),
 }

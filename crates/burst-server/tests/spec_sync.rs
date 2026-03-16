@@ -91,9 +91,11 @@ fn assert_fields_match<T: Serialize>(type_name: &str, spec_name: &str, example: 
 
 // ── Example builders (all fields populated so they appear in JSON) ──────────
 
+use burst_server::api::attachments::AttachmentResponse;
 use burst_server::api::channels::{
     ChannelMemberResponse, ChannelResponse, MessageResponse, ReactionResponse,
 };
+use burst_server::api::search::SearchResultResponse;
 use burst_server::api::users::UserResponse;
 
 fn example_user_response() -> UserResponse {
@@ -151,6 +153,7 @@ fn example_message_response() -> MessageResponse {
             count: 1,
             user_ids: vec!["usr_00000000-0000-0000-0000-000000000001".into()],
         }],
+        attachments: vec![],
         created_at: "2026-01-01T00:00:00Z".into(),
     }
 }
@@ -195,5 +198,46 @@ fn reaction_count_matches_spec() {
         "ReactionResponse",
         "ReactionCount",
         &example_reaction_count(),
+    );
+}
+
+fn example_attachment_response() -> AttachmentResponse {
+    AttachmentResponse {
+        id: "att_00000000-0000-0000-0000-000000000200".into(),
+        file_name: "report.pdf".into(),
+        file_size: 1024,
+        content_type: "application/pdf".into(),
+        metadata: serde_json::json!({}),
+        created_at: "2026-01-01T00:00:00Z".into(),
+    }
+}
+
+fn example_search_result_response() -> SearchResultResponse {
+    SearchResultResponse {
+        id: "msg_00000000-0000-0000-0000-000000000300".into(),
+        channel_id: "ch_00000000-0000-0000-0000-000000000010".into(),
+        user_id: "usr_00000000-0000-0000-0000-000000000001".into(),
+        thread_id: Some("msg_00000000-0000-0000-0000-000000000099".into()),
+        content: "matching content".into(),
+        headline: "<mark>matching</mark> content".into(),
+        created_at: "2026-01-01T00:00:00Z".into(),
+    }
+}
+
+#[test]
+fn attachment_response_matches_spec() {
+    assert_fields_match(
+        "AttachmentResponse",
+        "Attachment",
+        &example_attachment_response(),
+    );
+}
+
+#[test]
+fn search_result_response_matches_spec() {
+    assert_fields_match(
+        "SearchResultResponse",
+        "SearchResult",
+        &example_search_result_response(),
     );
 }

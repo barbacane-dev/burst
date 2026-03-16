@@ -1,11 +1,16 @@
+use std::path::Path as StdPath;
+
 use axum::extract::{Path, Query, State};
+use axum::http::HeaderMap;
 use axum::routing::{delete, get, put};
 use axum::{Json, Router};
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::AppState;
 use crate::api::PaginatedResponse;
+use crate::api::attachments::{AttachmentResponse, attachment_to_response};
 use crate::api::extractors::{AuthUser, PaginationParams};
 use crate::db;
 use crate::error::ApiError;
@@ -131,6 +136,7 @@ pub struct MessageResponse {
     pub deleted_at: Option<String>,
     pub reply_count: i64,
     pub reactions: Vec<ReactionResponse>,
+    pub attachments: Vec<AttachmentResponse>,
     pub created_at: String,
 }
 
@@ -138,6 +144,7 @@ fn build_message_response(
     row: &db::messages::MessageRow,
     reply_count: i64,
     reactions: Vec<ReactionResponse>,
+    attachments: Vec<AttachmentResponse>,
 ) -> MessageResponse {
     MessageResponse {
         id: burst_core::id::format_message_id(row.id),
@@ -149,8 +156,20 @@ fn build_message_response(
         deleted_at: row.deleted_at.map(|t| t.to_rfc3339()),
         reply_count,
         reactions,
+        attachments,
         created_at: row.created_at.to_rfc3339(),
     }
+}
+
+/// Groups attachment rows by message ID for batch response building.
+fn group_attachments(
+    rows: &[db::attachments::AttachmentRow],
+    message_id: Uuid,
+) -> Vec<AttachmentResponse> {
+    rows.iter()
+        .filter(|a| a.message_id == message_id)
+        .map(attachment_to_response)
+        .collect()
 }
 
 /// Aggregates reaction rows into per-emoji summaries.
@@ -248,7 +267,7 @@ async fn list_channels(
     Query(params): Query<ListChannelsParams>,
 ) -> Result<Json<PaginatedResponse<ChannelResponse>>, ApiError> {
     let limit = params.pagination.clamped_limit();
-    let cursor = params.pagination.cursor;
+    let cursor = params.pagination.cursor_uuid();
 
     if params.joined.unwrap_or(false) {
         let channels =
@@ -476,7 +495,8 @@ async fn send_message(
     auth: AuthUser,
     State(state): State<AppState>,
     Path(channel_id): Path<String>,
-    Json(body): Json<SendMessageRequest>,
+    headers: HeaderMap,
+    body: axum::body::Body,
 ) -> Result<(axum::http::StatusCode, Json<MessageResponse>), ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
 
@@ -484,15 +504,31 @@ async fn send_message(
         return Err(ApiError::Forbidden);
     }
 
-    let content = body.content.trim();
-    if content.is_empty() {
+    let content_type = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/json");
+
+    let (content, thread_id_str, files) = if content_type.starts_with("multipart/form-data") {
+        parse_multipart_message(body, headers, &state).await?
+    } else {
+        let bytes = axum::body::to_bytes(body, 1024 * 1024)
+            .await
+            .map_err(|_| ApiError::BadRequest("invalid request body".into()))?;
+        let req: SendMessageRequest =
+            serde_json::from_slice(&bytes).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        (req.content, req.thread_id, vec![])
+    };
+
+    let content = content.trim().to_string();
+    if content.is_empty() && files.is_empty() {
         return Err(ApiError::BadRequest(
             "message content cannot be empty".into(),
         ));
     }
 
     // Resolve optional thread_id and verify it belongs to this channel
-    let thread_id = if let Some(ref tid_str) = body.thread_id {
+    let thread_id = if let Some(ref tid_str) = thread_id_str {
         let tid = parse_message_id(tid_str)?;
         let parent = db::messages::find_by_id(&state.db, tid)
             .await?
@@ -502,17 +538,56 @@ async fn send_message(
                 "thread message belongs to a different channel".into(),
             ));
         }
-        // Replies always point to the root (flat threading)
         Some(parent.thread_id.unwrap_or(parent.id))
     } else {
         None
     };
 
+    // Use a placeholder content for file-only messages.
+    let msg_content = if content.is_empty() { " " } else { &content };
+
     let id = burst_core::id::new_id();
     let message =
-        db::messages::create(&state.db, id, ch_id, auth.user_id, thread_id, content).await?;
+        db::messages::create(&state.db, id, ch_id, auth.user_id, thread_id, msg_content).await?;
 
-    let response = build_message_response(&message, 0, vec![]);
+    // Process file uploads.
+    let mut attachment_responses = Vec::new();
+    for (file_name, file_data, file_ct) in &files {
+        let att_id = burst_core::id::new_id();
+        let now = chrono::Utc::now();
+        let storage_key = format!("{}/{}/{}/{}", ch_id, now.format("%Y/%m"), att_id, file_name);
+
+        state
+            .storage
+            .put(&storage_key, file_data.clone(), file_ct)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+        // Extract image dimensions if applicable.
+        let metadata = if file_ct.starts_with("image/") {
+            extract_image_metadata(file_data)
+        } else {
+            serde_json::json!({})
+        };
+
+        let att = db::attachments::create(
+            &state.db,
+            &db::attachments::CreateAttachment {
+                id: att_id,
+                message_id: id,
+                file_name: file_name.clone(),
+                file_size: file_data.len() as i64,
+                content_type: file_ct.clone(),
+                storage_key,
+                metadata,
+            },
+        )
+        .await?;
+
+        attachment_responses.push(attachment_to_response(&att));
+    }
+
+    let response = build_message_response(&message, 0, vec![], attachment_responses);
     let ev = crate::ws::ServerEvent::MessageCreated {
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),
@@ -521,6 +596,111 @@ async fn send_message(
     crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
 
     Ok((axum::http::StatusCode::CREATED, Json(response)))
+}
+
+/// Parse a multipart/form-data request into (content, thread_id, files).
+async fn parse_multipart_message(
+    body: axum::body::Body,
+    headers: HeaderMap,
+    state: &AppState,
+) -> Result<(String, Option<String>, Vec<(String, Bytes, String)>), ApiError> {
+    let boundary = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|ct| multer::parse_boundary(ct).ok())
+        .ok_or_else(|| ApiError::BadRequest("missing multipart boundary".into()))?;
+
+    let stream = body.into_data_stream();
+    let mut multipart = multer::Multipart::new(stream, boundary);
+
+    let storage_config = &state.config.storage;
+    let mut content = String::new();
+    let mut thread_id = None;
+    let mut files: Vec<(String, Bytes, String)> = Vec::new();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("multipart error: {e}")))?
+    {
+        let field_name = field.name().unwrap_or("").to_string();
+        match field_name.as_str() {
+            "content" => {
+                content = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::BadRequest(format!("invalid content field: {e}")))?;
+            }
+            "threadId" => {
+                thread_id =
+                    Some(field.text().await.map_err(|e| {
+                        ApiError::BadRequest(format!("invalid threadId field: {e}"))
+                    })?);
+            }
+            "files" => {
+                if files.len() >= storage_config.max_files_per_message {
+                    return Err(ApiError::BadRequest(format!(
+                        "maximum {} files per message",
+                        storage_config.max_files_per_message
+                    )));
+                }
+
+                let file_name = field.file_name().unwrap_or("unnamed").to_string();
+
+                // Validate extension.
+                if let Some(ext) = StdPath::new(&file_name)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    && storage_config
+                        .blocked_extensions
+                        .iter()
+                        .any(|b| b.eq_ignore_ascii_case(ext))
+                {
+                    return Err(ApiError::BadRequest(format!(
+                        "file extension .{ext} is not allowed"
+                    )));
+                }
+
+                let file_ct = field
+                    .content_type()
+                    .map(|ct| ct.to_string())
+                    .unwrap_or_else(|| {
+                        mime_guess::from_path(&file_name)
+                            .first_or_octet_stream()
+                            .to_string()
+                    });
+
+                let data = field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::BadRequest(format!("failed to read file: {e}")))?;
+
+                if data.len() as u64 > storage_config.max_file_size {
+                    return Err(ApiError::PayloadTooLarge(format!(
+                        "file exceeds maximum size of {} bytes",
+                        storage_config.max_file_size
+                    )));
+                }
+
+                files.push((file_name, data, file_ct));
+            }
+            _ => {} // ignore unknown fields
+        }
+    }
+
+    Ok((content, thread_id, files))
+}
+
+fn extract_image_metadata(data: &Bytes) -> serde_json::Value {
+    let cursor = std::io::Cursor::new(data.as_ref());
+    match image::ImageReader::new(cursor)
+        .with_guessed_format()
+        .ok()
+        .and_then(|r| r.into_dimensions().ok())
+    {
+        Some((width, height)) => serde_json::json!({ "width": width, "height": height }),
+        None => serde_json::json!({}),
+    }
 }
 
 async fn list_messages(
@@ -537,7 +717,7 @@ async fn list_messages(
 
     let limit = params.clamped_limit();
     let messages =
-        db::messages::list_in_channel(&state.db, ch_id, params.cursor, limit + 1).await?;
+        db::messages::list_in_channel(&state.db, ch_id, params.cursor_uuid(), limit + 1).await?;
 
     let has_more = messages.len() as i64 > limit;
     let messages: Vec<_> = messages.into_iter().take(limit as usize).collect();
@@ -549,13 +729,15 @@ async fn list_messages(
             .into_iter()
             .collect();
     let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
+    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
 
     let items: Vec<_> = messages
         .iter()
         .map(|m| {
             let rc = *reply_count_map.get(&m.id).unwrap_or(&0);
             let reactions = aggregate_reactions(&reaction_rows, m.id);
-            build_message_response(m, rc, reactions)
+            let attachments = group_attachments(&attachment_rows, m.id);
+            build_message_response(m, rc, reactions, attachments)
         })
         .collect();
 
@@ -595,10 +777,17 @@ async fn get_message(
             .into_iter()
             .collect();
     let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
+    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
     let rc = *reply_count_map.get(&message.id).unwrap_or(&0);
     let reactions = aggregate_reactions(&reaction_rows, message.id);
+    let attachments = group_attachments(&attachment_rows, message.id);
 
-    Ok(Json(build_message_response(&message, rc, reactions)))
+    Ok(Json(build_message_response(
+        &message,
+        rc,
+        reactions,
+        attachments,
+    )))
 }
 
 async fn list_thread_replies(
@@ -616,19 +805,21 @@ async fn list_thread_replies(
     let thread_id = parse_message_id(&message_id)?;
     let limit = params.clamped_limit();
     let messages =
-        db::messages::list_in_thread(&state.db, thread_id, params.cursor, limit + 1).await?;
+        db::messages::list_in_thread(&state.db, thread_id, params.cursor_uuid(), limit + 1).await?;
 
     let has_more = messages.len() as i64 > limit;
     let messages: Vec<_> = messages.into_iter().take(limit as usize).collect();
 
     let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
     let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
+    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
 
     let items: Vec<_> = messages
         .iter()
         .map(|m| {
             let reactions = aggregate_reactions(&reaction_rows, m.id);
-            build_message_response(m, 0, reactions)
+            let attachments = group_attachments(&attachment_rows, m.id);
+            build_message_response(m, 0, reactions, attachments)
         })
         .collect();
 
@@ -675,7 +866,9 @@ async fn edit_message(
         return Err(ApiError::NotFound("Message".into()));
     }
 
-    let response = build_message_response(&message, 0, vec![]);
+    let attachment_rows = db::attachments::list_for_messages(&state.db, &[message.id]).await?;
+    let attachments = group_attachments(&attachment_rows, message.id);
+    let response = build_message_response(&message, 0, vec![], attachments);
     let ev = crate::ws::ServerEvent::MessageUpdated {
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),

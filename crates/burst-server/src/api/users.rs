@@ -53,7 +53,7 @@ async fn list_users(
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<UserResponse>>, ApiError> {
     let limit = params.clamped_limit();
-    let users = db::users::list(&state.db, params.cursor, limit + 1).await?;
+    let users = db::users::list(&state.db, params.cursor_uuid(), limit + 1).await?;
 
     let has_more = users.len() as i64 > limit;
     let items: Vec<_> = users

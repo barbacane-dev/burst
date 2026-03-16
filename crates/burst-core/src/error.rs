@@ -79,6 +79,17 @@ impl ProblemDetails {
         }
     }
 
+    pub fn payload_too_large(detail: impl Into<String>) -> Self {
+        Self {
+            error_type: "urn:burst:error:payload-too-large".into(),
+            title: "Payload Too Large".into(),
+            status: 413,
+            detail: Some(detail.into()),
+            instance: None,
+            errors: Vec::new(),
+        }
+    }
+
     pub fn conflict(detail: impl Into<String>) -> Self {
         Self {
             error_type: "urn:burst:error:conflict".into(),

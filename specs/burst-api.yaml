@@ -21,7 +21,8 @@ servers:
 x-barbacane-middlewares:
   - name: oidc-auth
     config:
-      issuer_url: "http://localhost:9099/burst"
+      issuer_url: "http://127.0.0.1:9099/burst"
+      issuer_override: "http://localhost:9099/burst"
       audience: "burst"
       allow_query_token: true
 
@@ -38,6 +39,10 @@ tags:
     description: Messaging within channels
   - name: Reactions
     description: Emoji reactions on messages
+  - name: Search
+    description: Full-text message search
+  - name: Files
+    description: File attachments
 
 # ── Paths ──
 
@@ -57,7 +62,7 @@ paths:
       x-barbacane-dispatch:
         name: ws-upstream
         config:
-          url: "ws://localhost:3000"
+          url: "ws://127.0.0.1:3000"
       parameters:
         - name: lastEventId
           in: query
@@ -90,16 +95,16 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
       parameters:
         - name: cursor
           in: query
           description: Pagination cursor (opaque token from previous response)
           schema:
             type: string
-            format: uuid
-            maxLength: 36
-            example: "0193a5e0-7c1a-7000-8000-000000000001"
+            pattern: "^ch_[0-9a-f-]{36}$"
+            maxLength: 39
+            example: "ch_0193a5e0-7c1a-7000-8000-000000000001"
         - name: limit
           in: query
           description: Number of results per page
@@ -153,7 +158,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
       responses:
         "200":
           description: Current user profile
@@ -201,7 +206,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/users/{userId}"
       parameters:
         - name: userId
@@ -269,7 +274,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
       parameters:
         - name: joined
           in: query
@@ -340,7 +345,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
       requestBody:
         description: Channel to create
         required: true
@@ -403,7 +408,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -455,7 +460,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -522,7 +527,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
       requestBody:
         description: Target user for the DM
         required: true
@@ -580,7 +585,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -629,7 +634,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -679,7 +684,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/members/me"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -717,7 +722,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/members/me/last-read"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -767,7 +772,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -776,8 +781,8 @@ paths:
           description: Pagination cursor (message ID; returns messages older than this)
           schema:
             type: string
-            format: uuid
-            maxLength: 36
+            pattern: "^msg_[0-9a-f-]{36}$"
+            maxLength: 40
         - name: limit
           in: query
           description: Number of results per page
@@ -828,12 +833,14 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
-        description: Message to send
+        description: >-
+          Send as JSON for text-only messages, or multipart/form-data to
+          include file attachments.
         required: true
         content:
           application/json:
@@ -841,6 +848,9 @@ paths:
               $ref: "#/components/schemas/SendMessageRequest"
             example:
               content: "Hello, world!"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/SendMessageMultipart"
       responses:
         "201":
           description: Message sent
@@ -891,7 +901,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -944,7 +954,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1010,7 +1020,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1061,7 +1071,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages/{messageId}/replies"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1130,7 +1140,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1187,7 +1197,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://localhost:3000"
+          url: "http://127.0.0.1:3000"
           path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1223,6 +1233,143 @@ paths:
                 $ref: "#/components/schemas/ProblemDetails"
         "429":
           description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /search/messages:
+    get:
+      operationId: searchMessages
+      summary: Full-text search across messages
+      description: >-
+        Searches message content using PostgreSQL full-text search. Results are
+        scoped to channels the caller is a member of. Supports quoted phrases
+        and -exclude syntax via websearch_to_tsquery. Returns highlighted
+        snippets in the headline field.
+      tags:
+        - Search
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+          path: "/search/messages"
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (supports quoted phrases and -exclude)
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+            example: "deploy fix"
+        - name: channelId
+          in: query
+          description: Restrict results to a specific channel
+          schema:
+            type: string
+            pattern: "^(ch_)?[0-9a-f-]{36}$"
+            maxLength: 39
+            example: "ch_0193a5e0-7c1a-7000-8000-000000000010"
+        - name: cursor
+          in: query
+          description: Pagination cursor (opaque token from previous response)
+          schema:
+            type: string
+            pattern: "^msg_[0-9a-f-]{36}$"
+            maxLength: 40
+        - name: limit
+          in: query
+          description: Number of results per page
+          schema:
+            type: string
+            maxLength: 3
+            pattern: "^[1-9][0-9]{0,2}$"
+            default: "50"
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResultList"
+        "400":
+          description: Invalid or empty search query
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          description: Rate limited
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /attachments/{attachmentId}:
+    get:
+      operationId: downloadAttachment
+      summary: Download a file attachment
+      description: >-
+        Returns the raw file content for the given attachment. The caller must
+        be a member of the channel that contains the attachment's message.
+        Images and PDFs are served inline; other files as downloads.
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+          path: "/attachments/{attachmentId}"
+      parameters:
+        - name: attachmentId
+          in: path
+          required: true
+          description: Attachment ID (prefixed or raw UUID)
+          schema:
+            type: string
+            pattern: "^(att_)?[0-9a-f-]{36}$"
+            maxLength: 40
+            example: "att_0193a5e0-7c1a-7000-8000-000000000200"
+      responses:
+        "200":
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Missing or invalid authentication
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Attachment not found or caller is not a channel member
           content:
             application/problem+json:
               schema:
@@ -1589,6 +1736,7 @@ components:
         - content
         - replyCount
         - reactions
+        - attachments
         - createdAt
       properties:
         id:
@@ -1640,6 +1788,12 @@ components:
           description: Aggregated emoji reactions on this message.
           items:
             $ref: "#/components/schemas/ReactionCount"
+        attachments:
+          type: array
+          maxItems: 10
+          description: File attachments on this message.
+          items:
+            $ref: "#/components/schemas/Attachment"
         createdAt:
           type: string
           format: date-time
@@ -1681,6 +1835,28 @@ components:
           maxLength: 40
           description: ID of the thread root message. Omit to post a top-level message.
           example: "msg_0193a5e0-7c1a-7000-8000-000000000100"
+
+    SendMessageMultipart:
+      type: object
+      description: Multipart form for sending a message with file attachments.
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          maxLength: 4000
+          description: Message text content.
+        threadId:
+          type: string
+          maxLength: 40
+          description: ID of the thread root message.
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+          maxItems: 10
+          description: File attachments (max 10 files, 10 MB each).
 
     EditMessageRequest:
       type: object
@@ -1737,3 +1913,114 @@ components:
           maxLength: 40
           description: ID of the user to open a DM with.
           example: "usr_0193a5e0-7c1a-7000-8000-000000000002"
+
+    SearchResult:
+      type: object
+      description: A message matching a full-text search query.
+      required:
+        - id
+        - channelId
+        - userId
+        - content
+        - headline
+        - createdAt
+      properties:
+        id:
+          type: string
+          pattern: "^msg_[0-9a-f-]{36}$"
+          maxLength: 40
+          description: Prefixed message ID.
+          example: "msg_0193a5e0-7c1a-7000-8000-000000000100"
+        channelId:
+          type: string
+          pattern: "^ch_[0-9a-f-]{36}$"
+          maxLength: 39
+          example: "ch_0193a5e0-7c1a-7000-8000-000000000010"
+        userId:
+          type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
+          maxLength: 40
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+        threadId:
+          type: string
+          pattern: "^msg_[0-9a-f-]{36}$"
+          maxLength: 40
+          description: Thread root message ID. Absent for top-level messages.
+        content:
+          type: string
+          pattern: "^[\\s\\S]*$"
+          maxLength: 4000
+          description: Full message content.
+          example: "The deploy fix is ready for review"
+        headline:
+          type: string
+          maxLength: 1000
+          description: >-
+            Highlighted snippet with <mark> tags around matching terms.
+            Suitable for rendering in search result UIs.
+          example: "The <mark>deploy</mark> <mark>fix</mark> is ready for review"
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          example: "2026-03-06T10:05:00Z"
+
+    SearchResultList:
+      type: object
+      description: Paginated list of search results with cursor for next page.
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items:
+            $ref: "#/components/schemas/SearchResult"
+        cursor:
+          type: string
+          maxLength: 40
+          pattern: "^msg_[0-9a-f-]{36}$"
+          description: Cursor for next page, absent if no more results.
+
+    Attachment:
+      type: object
+      description: A file attachment on a message.
+      required:
+        - id
+        - fileName
+        - fileSize
+        - contentType
+        - metadata
+        - createdAt
+      properties:
+        id:
+          type: string
+          pattern: "^att_[0-9a-f-]{36}$"
+          maxLength: 40
+          description: Prefixed attachment ID.
+          example: "att_0193a5e0-7c1a-7000-8000-000000000200"
+        fileName:
+          type: string
+          maxLength: 255
+          description: Original file name.
+          example: "screenshot.png"
+        fileSize:
+          type: integer
+          format: int64
+          minimum: 0
+          description: File size in bytes.
+          example: 204800
+        contentType:
+          type: string
+          maxLength: 255
+          description: MIME type of the file.
+          example: "image/png"
+        metadata:
+          type: object
+          description: Additional metadata (e.g. image width/height).
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 30
+          example: "2026-03-06T10:05:00Z"

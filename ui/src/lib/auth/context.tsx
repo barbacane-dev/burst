@@ -14,7 +14,7 @@ import { wsClient } from "../ws/client";
 interface AuthState {
   user: User | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -55,11 +55,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchMe]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (username: string, password: string) => {
       // Exchange credentials for a JWT via the mock OIDC server's password grant.
       const params = new URLSearchParams({
         grant_type: "password",
-        username: email,
+        username,
         password,
         client_id: "burst",
         client_secret: "secret",

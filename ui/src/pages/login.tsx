@@ -11,7 +11,7 @@ export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -22,7 +22,7 @@ export function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      await login(email, password);
+      await login(username, password);
       navigate("/", { replace: true });
     } catch (err) {
       if (err instanceof ApiError) {
@@ -55,14 +55,14 @@ export function LoginPage() {
           )}
 
           <Input
-            id="email"
-            label="Email"
-            type="email"
-            autoComplete="email"
+            id="username"
+            label="Username"
+            type="text"
+            autoComplete="username"
             required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="alice"
           />
 
           <Input
