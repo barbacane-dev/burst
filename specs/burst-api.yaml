@@ -1800,7 +1800,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ChannelList"
+                $ref: "#/components/schemas/AdminChannelList"
         "401":
           description: Unauthorized
           content:
@@ -2696,6 +2696,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AdminUser"
+        cursor:
+          type: string
+          maxLength: 40
+
+    AdminChannelList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Channel"
         cursor:
           type: string
           maxLength: 40
