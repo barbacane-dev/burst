@@ -248,12 +248,10 @@ pub async fn find_ids_by_usernames(
     if usernames.is_empty() {
         return Ok(vec![]);
     }
-    let rows = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM users WHERE username = ANY($1)",
-    )
-    .bind(usernames)
-    .fetch_all(pool)
-    .await?;
+    let rows = sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE username = ANY($1)")
+        .bind(usernames)
+        .fetch_all(pool)
+        .await?;
     Ok(rows)
 }
 

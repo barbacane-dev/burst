@@ -615,8 +615,7 @@ async fn send_message(
     // Parse @mentions and persist them.
     let mentioned_usernames: Vec<String> = parse_mentions(&content);
     if !mentioned_usernames.is_empty() {
-        let mention_ids =
-            db::users::find_ids_by_usernames(&state.db, &mentioned_usernames).await?;
+        let mention_ids = db::users::find_ids_by_usernames(&state.db, &mentioned_usernames).await?;
         db::mentions::insert_mentions(&state.db, id, &mention_ids).await?;
     }
 
