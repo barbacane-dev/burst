@@ -29,6 +29,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Barbacane Vacuum ruleset integration for OpenAPI linting
 - k6 smoke tests (65 checks: auth, channels, messages, reactions, attachments, search, pagination, errors)
 - UI: attachment preview component, search dialog, sidebar search
+- M6 data model: `pinned_messages`, `audit_log`, `custom_emojis`, `message_mentions` tables
+- Pin/unpin message endpoints with WebSocket events (`message.pinned`, `message.unpinned`)
+- Channel archive/unarchive endpoints with read-only enforcement
+- Per-channel notification preferences (`PATCH /channels/{id}/members/me/notify`)
+- Admin endpoints: user management, channel management, audit log
+- `AdminUser` extractor for defense-in-depth admin route protection
+- `@mention` parsing on message send with `message_mentions` persistence
+- Dark mode: class-based toggle with localStorage persistence and system theme detection
+- Markdown rendering in messages (react-markdown + remark-gfm)
+- Settings page: profile editing, theme selection, browser notification toggle
+- Browser notifications for new messages when tab is unfocused
+- Admin panel UI: user list with role/deactivation controls, channel management, audit log
+- Pinned messages panel with pin/unpin from message hover actions
+- Virtualised message list using react-virtuoso for large channel histories
+- `@mention` autocomplete in message composer
+- Accessibility: skip-to-content link, ARIA landmarks/roles/labels on messages and controls
+- OpenAPI spec: pin, archive, notify, and admin endpoints with schemas
 
 ### Changed
 - Unified WS and REST message types

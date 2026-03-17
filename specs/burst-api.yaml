@@ -43,6 +43,10 @@ tags:
     description: Full-text message search
   - name: Files
     description: File attachments
+  - name: Pins
+    description: Pinned messages
+  - name: Admin
+    description: Administration endpoints (admin role required)
 
 # ── Paths ──
 
@@ -1382,6 +1386,612 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
 
+  # ── Pinned messages ──
+
+  /channels/{channelId}/messages/{messageId}/pin:
+    put:
+      operationId: pinMessage
+      summary: Pin a message
+      description: Pins a message in the channel. Requires channel membership.
+      tags:
+        - Pins
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+      responses:
+        "204":
+          description: Message pinned
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Channel or message not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    delete:
+      operationId: unpinMessage
+      summary: Unpin a message
+      description: Removes a pin from a message in the channel.
+      tags:
+        - Pins
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/MessageId"
+      responses:
+        "204":
+          description: Message unpinned
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Pin not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/pins:
+    get:
+      operationId: listPins
+      summary: List pinned messages
+      description: Returns all pinned messages for a channel, ordered by pin time.
+      tags:
+        - Pins
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "200":
+          description: List of pinned messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PinnedMessage"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  # ── Channel archival ──
+
+  /channels/{channelId}/archive:
+    post:
+      operationId: archiveChannel
+      summary: Archive a channel
+      description: >-
+        Archives a channel, making it read-only. Requires admin role or
+        channel ownership.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "200":
+          description: Channel archived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden — not admin or channel owner
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /channels/{channelId}/unarchive:
+    post:
+      operationId: unarchiveChannel
+      summary: Unarchive a channel
+      description: Restores an archived channel to normal read-write mode.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "200":
+          description: Channel unarchived
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  # ── Notification preferences ──
+
+  /channels/{channelId}/members/me/notify:
+    patch:
+      operationId: updateNotifyPreference
+      summary: Update notification preference
+      description: >-
+        Sets the per-channel notification preference for the current user.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notify:
+                  type: string
+                  enum: [all, mentions, nothing]
+                  description: Notification level for this channel
+              required:
+                - notify
+      responses:
+        "204":
+          description: Preference updated
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  # ── Admin endpoints ──
+
+  /admin/users:
+    get:
+      operationId: listAdminUsers
+      summary: List all users (admin)
+      description: >-
+        Returns a paginated list of all users including deactivated ones.
+        Requires admin role.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 40
+        - name: limit
+          in: query
+          schema:
+            type: string
+            maxLength: 3
+            default: "50"
+      responses:
+        "200":
+          description: Paginated admin user list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserList"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden — admin role required
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /admin/users/{userId}:
+    patch:
+      operationId: updateAdminUser
+      summary: Update a user (admin)
+      description: >-
+        Updates user role or deactivation status. All changes are audit-logged.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [admin, moderator, member, guest]
+                deactivated:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: User not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /admin/channels:
+    get:
+      operationId: listAdminChannels
+      summary: List all channels (admin)
+      description: >-
+        Returns all channels including archived ones. Requires admin role.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 40
+        - name: limit
+          in: query
+          schema:
+            type: string
+            maxLength: 3
+            default: "50"
+      responses:
+        "200":
+          description: Paginated channel list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelList"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /admin/channels/{channelId}:
+    patch:
+      operationId: updateAdminChannel
+      summary: Update a channel (admin)
+      description: Archive or unarchive a channel. Changes are audit-logged.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                isArchived:
+                  type: boolean
+      responses:
+        "200":
+          description: Updated channel
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Channel"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Channel not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+    delete:
+      operationId: deleteAdminChannel
+      summary: Delete a channel (admin)
+      description: >-
+        Permanently deletes a channel and all its messages. This action
+        cannot be undone. Changes are audit-logged.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+      responses:
+        "204":
+          description: Channel deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "404":
+          description: Channel not found
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /admin/audit-log:
+    get:
+      operationId: listAuditLog
+      summary: List audit log entries
+      description: >-
+        Returns a paginated list of admin action audit log entries.
+        Optionally filterable by target type.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "http://127.0.0.1:3000"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+            maxLength: 40
+        - name: limit
+          in: query
+          schema:
+            type: string
+            maxLength: 3
+            default: "50"
+        - name: targetType
+          in: query
+          description: Filter by target type (e.g. "user", "channel")
+          schema:
+            type: string
+            maxLength: 50
+      responses:
+        "200":
+          description: Paginated audit log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogList"
+        "401":
+          description: Unauthorized
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "403":
+          description: Forbidden
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "500":
+          description: Internal server error
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
 # ── Components ──
 
 components:
@@ -2026,3 +2636,104 @@ components:
           format: date-time
           maxLength: 30
           example: "2026-03-06T10:05:00Z"
+
+    # ── Pin & Admin schemas ──
+
+    PinnedMessage:
+      type: object
+      required: [channelId, messageId, pinnedBy, pinnedAt]
+      properties:
+        channelId:
+          type: string
+          maxLength: 40
+        messageId:
+          type: string
+          maxLength: 40
+        pinnedBy:
+          type: string
+          maxLength: 40
+        pinnedAt:
+          type: string
+          format: date-time
+          maxLength: 30
+
+    AdminUser:
+      type: object
+      required: [id, username, displayName, role, isBot, createdAt]
+      properties:
+        id:
+          type: string
+          maxLength: 40
+        username:
+          type: string
+          maxLength: 100
+        displayName:
+          type: string
+          maxLength: 200
+        email:
+          type: string
+          maxLength: 255
+        role:
+          type: string
+          enum: [admin, moderator, member, guest]
+        isBot:
+          type: boolean
+        deactivatedAt:
+          type: string
+          format: date-time
+          maxLength: 30
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 30
+
+    AdminUserList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        cursor:
+          type: string
+          maxLength: 40
+
+    AuditLogEntry:
+      type: object
+      required: [id, action, targetType, targetId, createdAt]
+      properties:
+        id:
+          type: string
+          maxLength: 40
+        userId:
+          type: string
+          maxLength: 40
+        action:
+          type: string
+          maxLength: 100
+        targetType:
+          type: string
+          maxLength: 50
+        targetId:
+          type: string
+          maxLength: 40
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 30
+
+    AuditLogList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
+        cursor:
+          type: string
+          maxLength: 40

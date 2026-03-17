@@ -107,14 +107,14 @@ Complete the core messaging experience.
 - [ ] Custom emoji — `custom_emojis` table, upload endpoint, admin-only (ADR-007) — deferred to M6 Admin
 - [x] Direct messages — DM channel creation via `POST /dms`, find-or-create (ADR-007)
 - [ ] Group DMs — multi-participant DM channels (ADR-007) — deferred to M6
-- [ ] Mentions — `@username` parsing, mention notification events — deferred to M6
+- [x] Mentions — `@username` parsing, mention persistence — completed in M6
 
 ### Frontend
 
 - [x] Thread panel — side panel with replies, reusing message components
 - [x] Reaction picker — emoji hover menu, reaction pills on messages
 - [x] DM list — separate section in sidebar with New DM dialog
-- [ ] Mention autocomplete — `@` trigger in composer — deferred to M6
+- [x] Mention autocomplete — `@` trigger in composer — completed in M6
 - [x] Unread counts — per-channel badge, cleared on visit
 
 ---
@@ -137,7 +137,7 @@ Find messages and share files.
 - [x] Search — input with debounce, results with highlighted matches, channel context
 - [x] File upload — drag-and-drop or button in composer
 - [x] File preview — inline images, download link for other types
-- [ ] Virtualised message list — handle large channel histories (ADR-013) — deferred to M6
+- [x] Virtualised message list — react-virtuoso for large channel histories (ADR-013) — completed in M6
 
 ---
 
@@ -147,22 +147,22 @@ Notifications, pins, administration, and the UI features needed before v1.0 is u
 
 ### Backend
 
-- [ ] Notification preferences — per-channel settings in `channel_members.notify` (ADR-007)
-- [ ] Pinned messages — pin/unpin endpoints, `pinned_messages` table (ADR-007)
-- [ ] Channel archival — archive/unarchive, read-only mode (ADR-007)
-- [ ] Admin endpoints — user management, channel management, instance settings
-- [ ] Audit log — append-only log of admin actions (ADR-007)
+- [x] Notification preferences — per-channel settings in `channel_members.notify` (ADR-007)
+- [x] Pinned messages — pin/unpin endpoints, `pinned_messages` table (ADR-007)
+- [x] Channel archival — archive/unarchive, read-only mode (ADR-007)
+- [x] Admin endpoints — user management, channel management, instance settings
+- [x] Audit log — append-only log of admin actions (ADR-007)
 
 ### Frontend
 
-- [ ] Markdown rendering — bold, italic, code blocks with shiki, emoji shortcodes (ADR-013)
-- [ ] Browser notifications — Notification API for mentions and DMs when tab unfocused
-- [ ] Notification preferences — per-channel settings in UI
-- [ ] Pinned messages — pin/unpin action, pinned messages panel
-- [ ] Admin panel — user list, channel management
-- [ ] Settings page — profile, notification preferences, theme toggle
-- [ ] Accessibility — keyboard navigation, ARIA roles, screen reader support (ADR-013)
-- [ ] Dark mode (ADR-013)
+- [x] Markdown rendering — react-markdown + remark-gfm (ADR-013)
+- [x] Browser notifications — Notification API for new messages when tab unfocused
+- [x] Notification preferences — per-channel settings in UI (settings page)
+- [x] Pinned messages — pin/unpin action, pinned messages panel
+- [x] Admin panel — user list, channel management, audit log
+- [x] Settings page — profile editing, notification preferences, theme toggle
+- [x] Accessibility — skip-to-content, ARIA roles/labels, keyboard navigation (ADR-013)
+- [x] Dark mode — class-based toggle with localStorage persistence (ADR-013)
 
 > **Note:** Markdown rendering is placed here, not M7, because messages without formatting look visually incomplete. M5 delivers the ability to send and search messages; M6 makes them look right.
 
