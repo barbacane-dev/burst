@@ -89,11 +89,10 @@ rules:
   # enforcement, and global security policies (ADR-006, ADR-009). Rules that
   # mandate those concerns in the spec itself are demoted to warn.
 
-  # Rate limiting and retry-after: Barbacane enforces globally
+  # Rate limiting: Barbacane rate-limit middleware injects headers and 429s at gateway level.
+  # Response headers and 429 codes are declared in the spec to match runtime behaviour.
   owasp-rate-limit: warn
   owasp-rate-limit-retry-after: warn
-
-  # 429 responses: enforced at gateway level
   owasp-define-error-responses-429: warn
 
   # 401 responses: Barbacane jwt-auth middleware handles globally (ADR-006)

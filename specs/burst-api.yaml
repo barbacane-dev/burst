@@ -10,7 +10,6 @@ info:
     url: https://github.com/barbacane-dev/burst
   license:
     name: Apache-2.0
-    identifier: Apache-2.0
 
 servers:
   - url: https://localhost:8080
@@ -26,6 +25,11 @@ x-barbacane-middlewares:
       audience: "burst"
       allow_query_token: true
       groups_claim: "roles"
+  - name: rate-limit
+    config:
+      quota: 100
+      window: 60
+      partition_key: "context:auth.sub"
 
 # ── Tags ──
 
@@ -82,12 +86,10 @@ paths:
         "101":
           description: Switching Protocols — WebSocket upgrade successful
         "401":
-          description: Unauthorized — missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /users:
     get:
       operationId: listUsers
@@ -122,34 +124,40 @@ paths:
       responses:
         "200":
           description: Paginated user list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/UserList"
         "400":
           description: Invalid query parameters
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /users/me:
     get:
@@ -167,6 +175,15 @@ paths:
       responses:
         "200":
           description: Current user profile
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -181,23 +198,11 @@ paths:
                 isBot: false
                 createdAt: "2026-03-06T10:00:00Z"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /users/{userId}:
     get:
@@ -226,40 +231,42 @@ paths:
       responses:
         "200":
           description: User profile
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
         "400":
           description: Invalid user ID format
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: User not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/UserNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels:
     get:
@@ -305,6 +312,15 @@ paths:
       responses:
         "200":
           description: Paginated channel list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -322,23 +338,11 @@ paths:
                     maxLength: 40
                     description: Cursor for next page, absent if no more results.
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
     post:
       operationId: createChannel
       summary: Create a channel
@@ -366,40 +370,42 @@ paths:
       responses:
         "201":
           description: Channel created
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Channel"
         "400":
-          description: Malformed request
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MalformedRequest"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "409":
           description: Channel slug already exists
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}:
     get:
@@ -420,40 +426,42 @@ paths:
       responses:
         "200":
           description: Channel details
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Channel"
         "400":
           description: Invalid channel ID format
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "404":
-          description: Channel not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/ChannelNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
     patch:
       operationId: updateChannel
       summary: Update a channel
@@ -479,46 +487,31 @@ paths:
       responses:
         "200":
           description: Channel updated
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Channel"
         "400":
-          description: Malformed request
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MalformedRequest"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
-          description: Channel not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/ChannelNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /dms:
     post:
@@ -543,40 +536,42 @@ paths:
       responses:
         "200":
           description: DM channel (existing or newly created)
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Channel"
         "400":
-          description: Malformed request
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MalformedRequest"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: Target user not found
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}/members:
     get:
@@ -597,6 +592,15 @@ paths:
       responses:
         "200":
           description: Channel member list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -605,29 +609,13 @@ paths:
                 items:
                   $ref: "#/components/schemas/ChannelMember"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
     post:
       operationId: joinChannel
       summary: Join a channel
@@ -646,36 +634,38 @@ paths:
       responses:
         "204":
           description: Joined successfully
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Cannot join non-public channel
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "404":
-          description: Channel not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/ChannelNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}/members/me:
     delete:
@@ -696,24 +686,21 @@ paths:
       responses:
         "204":
           description: Left successfully
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}/members/me/last-read:
     patch:
@@ -734,36 +721,25 @@ paths:
       responses:
         "204":
           description: Last-read timestamp updated
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
-          description: Channel not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/ChannelNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}/messages:
     get:
@@ -799,34 +775,27 @@ paths:
       responses:
         "200":
           description: Paginated message list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageList"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
     post:
       operationId: sendMessage
       summary: Send a message
@@ -859,40 +828,29 @@ paths:
       responses:
         "201":
           description: Message sent
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
         "400":
-          description: Malformed request
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MalformedRequest"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}/messages/{messageId}:
     get:
@@ -914,40 +872,29 @@ paths:
       responses:
         "200":
           description: Message details
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
-          description: Message not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MessageNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
     patch:
       operationId: editMessage
       summary: Edit a message
@@ -974,46 +921,31 @@ paths:
       responses:
         "200":
           description: Message edited
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
         "400":
-          description: Malformed request
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MalformedRequest"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
-          description: Message not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MessageNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
     delete:
       operationId: deleteMessage
       summary: Delete a message
@@ -1033,36 +965,25 @@ paths:
       responses:
         "204":
           description: Message deleted
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
-          description: Message not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MessageNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}/messages/{messageId}/replies:
     get:
@@ -1098,40 +1019,29 @@ paths:
       responses:
         "200":
           description: Paginated thread reply list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageList"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
-          description: Message not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MessageNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /channels/{channelId}/messages/{messageId}/reactions/{emoji}:
     put:
@@ -1161,36 +1071,25 @@ paths:
       responses:
         "204":
           description: Reaction added
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
-          description: Message not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/MessageNotFound"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
     delete:
       operationId: removeReaction
       summary: Remove a reaction from a message
@@ -1218,36 +1117,38 @@ paths:
       responses:
         "204":
           description: Reaction removed
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Not a channel member
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/NotChannelMember"
         "404":
           description: Message or reaction not found
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /search/messages:
     get:
@@ -1303,34 +1204,40 @@ paths:
       responses:
         "200":
           description: Search results
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SearchResultList"
         "400":
           description: Invalid or empty search query
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "429":
-          description: Rate limited
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/RateLimited"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
   /attachments/{attachmentId}:
     get:
@@ -1369,11 +1276,7 @@ paths:
                 format: binary
                 maxLength: 10485760
         "401":
-          description: Missing or invalid authentication
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: Attachment not found or caller is not a channel member
           content:
@@ -1381,12 +1284,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   # ── Pinned messages ──
 
   /channels/{channelId}/messages/{messageId}/pin:
@@ -1409,11 +1310,7 @@ paths:
         "204":
           description: Message pinned
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: Channel or message not found
           content:
@@ -1421,11 +1318,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     delete:
       operationId: unpinMessage
       summary: Unpin a message
@@ -1445,11 +1340,7 @@ paths:
         "204":
           description: Message unpinned
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "404":
           description: Pin not found
           content:
@@ -1457,12 +1348,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /channels/{channelId}/pins:
     get:
       operationId: listPins
@@ -1485,21 +1374,16 @@ paths:
             application/json:
               schema:
                 type: array
+                maxItems: 100
                 items:
                   $ref: "#/components/schemas/PinnedMessage"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   # ── Channel archival ──
 
   /channels/{channelId}/archive:
@@ -1527,11 +1411,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Channel"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Forbidden — not admin or channel owner
           content:
@@ -1539,12 +1419,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /channels/{channelId}/unarchive:
     post:
       operationId: unarchiveChannel
@@ -1568,24 +1446,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/Channel"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Forbidden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Forbidden"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   # ── Notification preferences ──
 
   /channels/{channelId}/members/me/notify:
@@ -1621,18 +1489,12 @@ paths:
         "204":
           description: Preference updated
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   # ── Admin endpoints ──
 
   /admin/users:
@@ -1658,11 +1520,13 @@ paths:
       parameters:
         - name: cursor
           in: query
+          description: Opaque pagination cursor returned by a previous request.
           schema:
             type: string
             maxLength: 40
         - name: limit
           in: query
+          description: Maximum number of items to return per page.
           schema:
             type: string
             maxLength: 3
@@ -1675,11 +1539,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminUserList"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
           description: Forbidden — admin role required
           content:
@@ -1687,12 +1547,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/users/{userId}:
     patch:
       operationId: updateAdminUser
@@ -1716,6 +1574,7 @@ paths:
         - name: userId
           in: path
           required: true
+          description: The user's unique identifier.
           schema:
             type: string
             maxLength: 40
@@ -1739,30 +1598,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminUser"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Forbidden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Forbidden"
         "404":
-          description: User not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/UserNotFound"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/channels:
     get:
       operationId: listAdminChannels
@@ -1785,11 +1630,13 @@ paths:
       parameters:
         - name: cursor
           in: query
+          description: Opaque pagination cursor returned by a previous request.
           schema:
             type: string
             maxLength: 40
         - name: limit
           in: query
+          description: Maximum number of items to return per page.
           schema:
             type: string
             maxLength: 3
@@ -1802,24 +1649,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdminChannelList"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Forbidden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Forbidden"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/channels/{channelId}:
     patch:
       operationId: updateAdminChannel
@@ -1857,29 +1694,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/Channel"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Forbidden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Forbidden"
         "404":
-          description: Channel not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/ChannelNotFound"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     delete:
       operationId: deleteAdminChannel
       summary: Delete a channel (admin)
@@ -1905,30 +1728,16 @@ paths:
         "204":
           description: Channel deleted
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Forbidden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Forbidden"
         "404":
-          description: Channel not found
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/ChannelNotFound"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/audit-log:
     get:
       operationId: listAuditLog
@@ -1952,11 +1761,13 @@ paths:
       parameters:
         - name: cursor
           in: query
+          description: Opaque pagination cursor returned by a previous request.
           schema:
             type: string
             maxLength: 40
         - name: limit
           in: query
+          description: Maximum number of items to return per page.
           schema:
             type: string
             maxLength: 3
@@ -1975,24 +1786,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/AuditLogList"
         "401":
-          description: Unauthorized
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Unauthorized"
         "403":
-          description: Forbidden
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/Forbidden"
         "500":
-          description: Internal server error
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/ProblemDetails"
+          $ref: "#/components/responses/InternalError"
 
+        "429":
+          $ref: "#/components/responses/RateLimited"
 # ── Components ──
 
 components:
@@ -2028,6 +1829,182 @@ components:
         pattern: "^(msg_)?[0-9a-f-]{36}$"
         maxLength: 40
         example: "msg_0193a5e0-7c1a-7000-8000-000000000100"
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    RateLimited:
+      description: Rate limited
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+        Retry-After:
+          $ref: "#/components/headers/Retry-After"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    InternalError:
+      description: Internal server error
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    NotChannelMember:
+      description: Not a channel member
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+    ChannelNotFound:
+      description: Channel not found
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+    Forbidden:
+      description: Forbidden
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+    MalformedRequest:
+      description: Malformed request
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+    MessageNotFound:
+      description: Message not found
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+    UserNotFound:
+      description: User not found
+      headers:
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
+        X-RateLimit-Policy:
+          $ref: "#/components/headers/X-RateLimit-Policy"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum requests allowed in the current window.
+      schema:
+        type: integer
+        format: int32
+        example: 100
+    X-RateLimit-Remaining:
+      description: Remaining requests in the current window.
+      schema:
+        type: integer
+        format: int32
+        example: 87
+    X-RateLimit-Reset:
+      description: Unix timestamp when the current window resets.
+      schema:
+        type: integer
+        format: int64
+        example: 1741200000
+    X-RateLimit-Policy:
+      description: Policy name and settings (IETF draft-ietf-httpapi-ratelimit-headers).
+      schema:
+        type: string
+        maxLength: 100
+        example: "100;w=60"
+    Retry-After:
+      description: Seconds until the next request will be accepted.
+      schema:
+        type: integer
+        format: int32
+        example: 12
 
   schemas:
     User:
@@ -2641,6 +2618,7 @@ components:
     # ── Pin & Admin schemas ──
 
     PinnedMessage:
+      description: A message pinned to a channel.
       type: object
       required: [channelId, messageId, pinnedBy, pinnedAt]
       properties:
@@ -2659,6 +2637,7 @@ components:
           maxLength: 30
 
     AdminUser:
+      description: User record as seen by administrators, includes role and deactivation status.
       type: object
       required: [id, username, displayName, role, isBot, createdAt]
       properties:
@@ -2689,11 +2668,13 @@ components:
           maxLength: 30
 
     AdminUserList:
+      description: Cursor-paginated list of admin user records.
       type: object
       required: [items]
       properties:
         items:
           type: array
+          maxItems: 200
           items:
             $ref: "#/components/schemas/AdminUser"
         cursor:
@@ -2701,11 +2682,13 @@ components:
           maxLength: 40
 
     AdminChannelList:
+      description: Cursor-paginated list of channels for admin management.
       type: object
       required: [items]
       properties:
         items:
           type: array
+          maxItems: 200
           items:
             $ref: "#/components/schemas/Channel"
         cursor:
@@ -2713,6 +2696,7 @@ components:
           maxLength: 40
 
     AuditLogEntry:
+      description: A single audit log record capturing an admin action.
       type: object
       required: [id, action, targetType, targetId, createdAt]
       properties:
@@ -2740,11 +2724,13 @@ components:
           maxLength: 30
 
     AuditLogList:
+      description: Cursor-paginated list of audit log entries.
       type: object
       required: [items]
       properties:
         items:
           type: array
+          maxItems: 200
           items:
             $ref: "#/components/schemas/AuditLogEntry"
         cursor:

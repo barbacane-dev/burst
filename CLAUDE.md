@@ -40,13 +40,16 @@ cargo test
 cargo audit
 
 # 5. Lint OpenAPI spec (MUST pass — CI gate)
-docker run --rm -v "$PWD":/work:ro dshanley/vacuum lint \
-  -f /work/.barbacane/rulesets/functions \
-  /work/specs/burst-api.yaml \
-  -r /work/specs/.vacuum.yaml
+vacuum lint -f .barbacane/rulesets/functions specs/burst-api.yaml -r specs/.vacuum.yaml
 ```
 
 The vacuum lint step is a **hard gate** in CI. Any errors will fail the pipeline.
+
+To debug vacuum errors, use details mode and filter for error markers:
+
+```bash
+vacuum lint -f .barbacane/rulesets/functions specs/burst-api.yaml -r specs/.vacuum.yaml --no-banner -d -q 2>&1 | grep "✗"
+```
 
 ## OpenAPI Spec
 
