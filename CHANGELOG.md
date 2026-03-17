@@ -46,6 +46,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `@mention` autocomplete in message composer
 - Accessibility: skip-to-content link, ARIA landmarks/roles/labels on messages and controls
 - OpenAPI spec: pin, archive, notify, and admin endpoints with schemas
+- Gateway-level ACL on admin routes via `groups_claim` in oidc-auth plugin
+- JIT user provisioning wired into `AuthUser` extractor and WebSocket handler
+- Backend integration tests: admin, pins, mentions, notifications, WS event buffer
+- Playwright E2E tests: authentication, messaging, admin panel (13 tests)
+- Mock OAuth configured with per-user role claims for dev/test
 
 ### Changed
 - Unified WS and REST message types

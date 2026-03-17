@@ -14,3 +14,7 @@ burst.toml
 ui/node_modules/
 ui/dist/
 uploads/
+
+# Playwright
+ui/test-results/
+ui/playwright-report/

@@ -11,7 +11,8 @@ use crate::error::ApiError;
 ///
 /// The header contains the external identity (e.g. a username for basic-auth,
 /// a `sub` claim for OIDC). We look up the corresponding Burst user by
-/// `external_id` in the database.
+/// `external_id` in the database. If no user exists, JIT provisioning creates
+/// one automatically (ADR-006).
 pub struct AuthUser {
     pub user_id: Uuid,
     pub user_role: String,
@@ -30,15 +31,52 @@ impl FromRequestParts<AppState> for AuthUser {
             .and_then(|v| v.to_str().ok())
             .ok_or(ApiError::Unauthorized)?;
 
-        let user = db::users::find_by_external_id(&state.db, external_id)
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?
-            .ok_or(ApiError::Unauthorized)?;
+        let user = match db::users::find_by_external_id(&state.db, external_id).await? {
+            Some(user) => user,
+            None => {
+                // JIT provisioning: create the user on first authenticated request.
+                let email = extract_email_from_claims(parts);
+                let display_name = humanize_username(external_id);
+                super::users::jit_provision(
+                    &state.db,
+                    external_id,
+                    external_id,
+                    &display_name,
+                    email.as_deref(),
+                )
+                .await?;
+                db::users::find_by_external_id(&state.db, external_id)
+                    .await?
+                    .ok_or(ApiError::Unauthorized)?
+            }
+        };
 
         Ok(AuthUser {
             user_id: user.id,
             user_role: user.role,
         })
+    }
+}
+
+/// Try to extract an email from the `x-auth-claims` header (JSON-encoded JWT claims).
+fn extract_email_from_claims(parts: &Parts) -> Option<String> {
+    let claims_str = parts
+        .headers
+        .get("x-auth-claims")
+        .and_then(|v| v.to_str().ok())?;
+    let claims: serde_json::Value = serde_json::from_str(claims_str).ok()?;
+    claims
+        .get("email")
+        .and_then(|v| v.as_str())
+        .map(String::from)
+}
+
+/// Convert a username like "alice" to a display name like "Alice".
+fn humanize_username(username: &str) -> String {
+    let mut chars = username.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(c) => c.to_uppercase().to_string() + chars.as_str(),
     }
 }
 

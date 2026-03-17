@@ -1,4 +1,4 @@
-.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed check install
+.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed check e2e install
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
@@ -96,6 +96,9 @@ check: ## Run fmt, clippy, and tests
 	cargo fmt --all
 	cargo clippy --all-targets -- -D warnings
 	DATABASE_URL=$(DB_URL) cargo test
+
+e2e: ## Run Playwright E2E tests (requires: make all running in another terminal)
+	cd ui && npx playwright test
 
 # ── Tooling ────────────────────────────────────────────────────────────────────
 install: ## Install dev tooling (overmind)

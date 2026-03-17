@@ -28,10 +28,19 @@ services:
               "tokenExpiry": 3600,
               "requestMappings": [
                 {
+                  "requestParam": "username",
+                  "match": "alice",
+                  "claims": {
+                    "aud": "burst",
+                    "roles": ["admin"]
+                  }
+                },
+                {
                   "requestParam": "grant_type",
                   "match": "password",
                   "claims": {
-                    "aud": "burst"
+                    "aud": "burst",
+                    "roles": ["member"]
                   }
                 }
               ]

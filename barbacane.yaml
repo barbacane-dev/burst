@@ -8,3 +8,5 @@ plugins:
     path: ../Barbacane/plugins/ws-upstream/ws-upstream.wasm
   oidc-auth:
     path: ../Barbacane/plugins/oidc-auth/oidc-auth.wasm
+  acl:
+    path: ../Barbacane/plugins/acl/acl.wasm

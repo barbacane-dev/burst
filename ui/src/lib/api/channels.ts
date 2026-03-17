@@ -161,13 +161,6 @@ export async function unpinMessage(
   );
 }
 
-export interface PinnedMessage {
-  channelId: string;
-  messageId: string;
-  pinnedBy: string;
-  pinnedAt: string;
-}
-
-export async function listPins(channelId: string): Promise<PinnedMessage[]> {
-  return apiFetch<PinnedMessage[]>(`/channels/${channelId}/pins`);
+export async function listPins(channelId: string): Promise<Message[]> {
+  return apiFetch<Message[]>(`/channels/${channelId}/pins`);
 }

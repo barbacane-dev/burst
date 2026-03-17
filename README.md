@@ -27,7 +27,7 @@ make server     # Burst API on :3000
 make ui         # Vite on :5173
 ```
 
-Open http://localhost:5173 and sign in with `alice@example.com` (any password).
+Open http://localhost:5173 and sign in with `alice` (any password).
 
 ## OpenAPI linting
 
@@ -59,7 +59,7 @@ Browser (:5173) → Vite → Barbacane (:8080) → Burst (:3000)
                     ↘ Mock OIDC (:9099)          ↘ PostgreSQL (:5432)
 ```
 
-Barbacane validates JWTs (oidc-auth plugin) and sets `X-Auth-Consumer` before forwarding to Burst. WebSocket auth uses `?access_token=` query param (RFC 6750 §2.3).
+Barbacane validates JWTs (oidc-auth plugin) and sets `X-Auth-Consumer` / `X-Auth-Consumer-Groups` before forwarding to Burst. Admin routes are protected by the ACL plugin at the gateway level (`allow: [admin]`), with defense-in-depth via the `AdminUser` extractor on the backend. WebSocket auth uses `?access_token=` query param (RFC 6750 §2.3).
 
 ## Make targets
 
@@ -78,10 +78,11 @@ Run `make help` for the full list. Key targets:
 | `make stop` | Stop all overmind processes |
 | `make restart` | Recompile gateway and restart everything |
 | `make check` | Format, lint, and test |
+| `make e2e` | Run Playwright E2E tests (requires stack running) |
 
 ## Test users
 
-| Email | Role | Password |
-|-------|------|----------|
-| `alice@example.com` | admin | anything |
-| `bob@example.com` | member | anything |
+| Username | Role | Password |
+|----------|------|----------|
+| `alice` | admin | anything |
+| `bob` | member | anything |

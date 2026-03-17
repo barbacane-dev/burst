@@ -1,9 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pin, X } from "lucide-react";
-import { listPins, unpinMessage, type PinnedMessage } from "../../lib/api/channels";
+import { listPins, unpinMessage } from "../../lib/api/channels";
 import { Spinner } from "../ui/spinner";
 import { formatTime } from "../../lib/format";
-import type { Message, PaginatedResponse } from "../../lib/api/types";
+import type { Message } from "../../lib/api/types";
 
 export function PinnedMessagesPanel({
   channelId,
@@ -16,13 +16,10 @@ export function PinnedMessagesPanel({
 }) {
   const queryClient = useQueryClient();
 
-  const { data: pins, isLoading } = useQuery<PinnedMessage[]>({
+  const { data: pins, isLoading } = useQuery<Message[]>({
     queryKey: ["pins", channelId],
     queryFn: () => listPins(channelId),
   });
-
-  const messages = queryClient.getQueryData<PaginatedResponse<Message>>(["messages", channelId]);
-  const messagesById = new Map(messages?.items.map((m) => [m.id, m]) ?? []);
 
   const unpin = useMutation({
     mutationFn: (messageId: string) => unpinMessage(channelId, messageId),
@@ -55,15 +52,13 @@ export function PinnedMessagesPanel({
         ) : !pins || pins.length === 0 ? (
           <p className="py-4 text-center text-xs text-gray-400">No pinned messages</p>
         ) : (
-          pins.map((pin) => {
-            const msg = messagesById.get(pin.messageId);
-            const displayName = msg
-              ? usersById.get(msg.userId) ?? msg.userId.replace("usr_", "").slice(0, 8)
-              : "Unknown";
+          pins.map((msg) => {
+            const displayName =
+              usersById.get(msg.userId) ?? msg.userId.replace("usr_", "").slice(0, 8);
 
             return (
               <div
-                key={pin.messageId}
+                key={msg.id}
                 className="rounded-md border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/50"
               >
                 <div className="flex items-baseline justify-between gap-2">
@@ -71,7 +66,7 @@ export function PinnedMessagesPanel({
                     {displayName}
                   </span>
                   <button
-                    onClick={() => unpin.mutate(pin.messageId)}
+                    onClick={() => unpin.mutate(msg.id)}
                     className="text-xs text-gray-400 hover:text-red-500"
                     title="Unpin"
                   >
@@ -79,10 +74,10 @@ export function PinnedMessagesPanel({
                   </button>
                 </div>
                 <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
-                  {msg?.content ?? "Message not in view"}
+                  {msg.content}
                 </p>
                 <time className="mt-1 block text-[10px] text-gray-400">
-                  Pinned {formatTime(pin.pinnedAt)}
+                  {formatTime(msg.createdAt)}
                 </time>
               </div>
             );

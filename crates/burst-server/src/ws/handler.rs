@@ -31,10 +31,30 @@ pub async fn ws_handler(
         .and_then(|v| v.to_str().ok())
         .ok_or(ApiError::Unauthorized)?;
 
-    let user = db::users::find_by_external_id(&state.db, external_id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?
-        .ok_or(ApiError::Unauthorized)?;
+    let user = match db::users::find_by_external_id(&state.db, external_id).await? {
+        Some(user) => user,
+        None => {
+            // JIT provisioning for WebSocket connections.
+            let display_name = {
+                let mut chars = external_id.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+                }
+            };
+            crate::api::users::jit_provision(
+                &state.db,
+                external_id,
+                external_id,
+                &display_name,
+                None,
+            )
+            .await?;
+            db::users::find_by_external_id(&state.db, external_id)
+                .await?
+                .ok_or(ApiError::Unauthorized)?
+        }
+    };
 
     let last_event_id = query
         .last_event_id

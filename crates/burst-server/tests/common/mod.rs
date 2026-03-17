@@ -96,6 +96,16 @@ impl TestApp {
         self.request("POST", uri, None, Some(body)).await
     }
 
+    /// Send a request without authentication, with any HTTP method and optional body.
+    pub async fn request_no_auth(
+        &self,
+        method: &str,
+        uri: &str,
+        body: Option<serde_json::Value>,
+    ) -> (StatusCode, serde_json::Value) {
+        self.request(method, uri, None, body).await
+    }
+
     async fn request(
         &self,
         method: &str,
@@ -134,6 +144,11 @@ impl TestApp {
 /// The `external_id` is set to the email so tests can authenticate
 /// via the `X-Auth-Consumer` header using the same value.
 pub async fn seed_user(pool: &PgPool, username: &str) -> db::users::UserRow {
+    seed_user_with_role(pool, username, "member").await
+}
+
+/// Create a user with a specific role (e.g. "admin", "moderator", "member", "guest").
+pub async fn seed_user_with_role(pool: &PgPool, username: &str, role: &str) -> db::users::UserRow {
     let email = format!("{username}@test.example");
     db::users::create(
         pool,
@@ -144,7 +159,7 @@ pub async fn seed_user(pool: &PgPool, username: &str) -> db::users::UserRow {
             email: Some(email.clone()),
             password_hash: None,
             external_id: Some(email),
-            role: "member".into(),
+            role: role.into(),
         },
     )
     .await

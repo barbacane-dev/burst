@@ -25,6 +25,7 @@ x-barbacane-middlewares:
       issuer_override: "http://localhost:9099/burst"
       audience: "burst"
       allow_query_token: true
+      groups_claim: "roles"
 
 # ── Tags ──
 
