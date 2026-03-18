@@ -424,7 +424,7 @@ async fn list_members(
     auth: AuthUser,
     State(state): State<AppState>,
     Path(channel_id): Path<String>,
-) -> Result<Json<Vec<ChannelMemberResponse>>, ApiError> {
+) -> Result<Json<PaginatedResponse<ChannelMemberResponse>>, ApiError> {
     let id = parse_channel_id(&channel_id)?;
 
     if !db::channels::is_member(&state.db, id, auth.user_id).await? {
@@ -440,7 +440,10 @@ async fn list_members(
             joined_at: m.joined_at.to_rfc3339(),
         })
         .collect();
-    Ok(Json(items))
+    Ok(Json(PaginatedResponse {
+        items,
+        cursor: None,
+    }))
 }
 
 async fn mark_read(
@@ -1073,7 +1076,7 @@ async fn list_pins(
     auth: AuthUser,
     State(state): State<AppState>,
     Path(channel_id): Path<String>,
-) -> Result<Json<Vec<MessageResponse>>, ApiError> {
+) -> Result<Json<PaginatedResponse<MessageResponse>>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
 
     if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
@@ -1084,7 +1087,10 @@ async fn list_pins(
     let message_ids: Vec<Uuid> = pins.iter().map(|p| p.message_id).collect();
 
     if message_ids.is_empty() {
-        return Ok(Json(vec![]));
+        return Ok(Json(PaginatedResponse {
+            items: vec![],
+            cursor: None,
+        }));
     }
 
     // Batch-fetch all pinned message data.
@@ -1113,7 +1119,10 @@ async fn list_pins(
         })
         .collect();
 
-    Ok(Json(items))
+    Ok(Json(PaginatedResponse {
+        items,
+        cursor: None,
+    }))
 }
 
 // ── Archive handlers ──

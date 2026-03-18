@@ -3,7 +3,7 @@ import { Pin, X } from "lucide-react";
 import { listPins, unpinMessage } from "../../lib/api/channels";
 import { Spinner } from "../ui/spinner";
 import { formatTime } from "../../lib/format";
-import type { Message } from "../../lib/api/types";
+import type { Message, PaginatedResponse } from "../../lib/api/types";
 
 export function PinnedMessagesPanel({
   channelId,
@@ -16,10 +16,11 @@ export function PinnedMessagesPanel({
 }) {
   const queryClient = useQueryClient();
 
-  const { data: pins, isLoading } = useQuery<Message[]>({
+  const { data, isLoading } = useQuery<PaginatedResponse<Message>>({
     queryKey: ["pins", channelId],
     queryFn: () => listPins(channelId),
   });
+  const pins = data?.items;
 
   const unpin = useMutation({
     mutationFn: (messageId: string) => unpinMessage(channelId, messageId),

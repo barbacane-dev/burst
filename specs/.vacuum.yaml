@@ -61,6 +61,16 @@ rules:
       functionOptions:
         match: "^[a-z][a-zA-Z0-9]*$"
 
+  # ── ADR-005: List response format ──
+
+  # List operations must return { items: [...], cursor? }, never a bare array
+  burst-list-response-format:
+    description: "List operations must return object with items property (ADR-005)"
+    severity: error
+    given: $
+    then:
+      function: burst-list-response-format
+
   # ── ADR-005: Spec format ──
 
   # Must use OpenAPI 3.2+ (ADR-005 requires 3.2.x)

@@ -162,7 +162,7 @@ async fn list_pins_returns_pinned_messages(pool: sqlx::PgPool) {
     let (status, body) = app.get(&pins_url(&ch_id), &auth("alice")).await;
 
     assert_eq!(status, StatusCode::OK);
-    let items = body.as_array().unwrap();
+    let items = body["items"].as_array().unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["content"], "pin me!");
 }
@@ -177,7 +177,7 @@ async fn list_pins_empty_channel(pool: sqlx::PgPool) {
     let (status, body) = app.get(&pins_url(&ch_id), &auth("alice")).await;
 
     assert_eq!(status, StatusCode::OK);
-    let items = body.as_array().unwrap();
+    let items = body["items"].as_array().unwrap();
     assert!(items.is_empty());
 }
 
@@ -199,7 +199,7 @@ async fn unpin_removes_from_pin_list(pool: sqlx::PgPool) {
     app.delete(&pin_url(&ch_id, &msg_id), &auth("alice")).await;
 
     let (_, body) = app.get(&pins_url(&ch_id), &auth("alice")).await;
-    let items = body.as_array().unwrap();
+    let items = body["items"].as_array().unwrap();
     assert!(items.is_empty(), "pin list must be empty after unpin");
 }
 

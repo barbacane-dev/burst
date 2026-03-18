@@ -34,7 +34,8 @@ export async function createDm(userId: string): Promise<Channel> {
 }
 
 export async function listMembers(channelId: string): Promise<ChannelMember[]> {
-  return apiFetch<ChannelMember[]>(`/channels/${channelId}/members`);
+  const res = await apiFetch<PaginatedResponse<ChannelMember>>(`/channels/${channelId}/members`);
+  return res.items;
 }
 
 export async function joinChannel(channelId: string): Promise<void> {
@@ -161,6 +162,6 @@ export async function unpinMessage(
   );
 }
 
-export async function listPins(channelId: string): Promise<Message[]> {
-  return apiFetch<Message[]>(`/channels/${channelId}/pins`);
+export async function listPins(channelId: string): Promise<PaginatedResponse<Message>> {
+  return apiFetch<PaginatedResponse<Message>>(`/channels/${channelId}/pins`);
 }

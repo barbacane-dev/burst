@@ -604,10 +604,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                maxItems: 10000
-                items:
-                  $ref: "#/components/schemas/ChannelMember"
+                $ref: "#/components/schemas/ChannelMemberList"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1373,10 +1370,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                maxItems: 100
-                items:
-                  $ref: "#/components/schemas/PinnedMessage"
+                $ref: "#/components/schemas/MessageList"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -2405,6 +2399,22 @@ components:
           maxLength: 40
           pattern: "^msg_[0-9a-f-]{36}$"
           description: Cursor for next page (oldest message ID), absent if no more results.
+
+    ChannelMemberList:
+      type: object
+      description: List of channel members.
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 10000
+          items:
+            $ref: "#/components/schemas/ChannelMember"
+        cursor:
+          type: string
+          maxLength: 40
+          description: Cursor for next page, absent if no more results.
 
     SendMessageRequest:
       type: object

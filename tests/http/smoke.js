@@ -202,7 +202,7 @@ export default function () {
     );
     check(members, {
       "List members → 200": (r) => r.status === 200,
-      "At least 2 members": (r) => r.json().length >= 2,
+      "At least 2 members": (r) => r.json().items.length >= 2,
     });
   });
 
@@ -299,9 +299,46 @@ export default function () {
     check(rm, { "Remove reaction → 204": (r) => r.status === 204 });
   });
 
-  // ── 7. File Attachments ─────────────────────────────────────────────────
+  // ── 7. Pins ───────────────────────────────────────────────────────────
+  group("7. Pins", () => {
+    const pin = http.put(
+      `${GATEWAY}/channels/${channelId}/messages/${messageId}/pin`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(pin, { "Pin message → 204": (r) => r.status === 204 });
+
+    const list = http.get(
+      `${GATEWAY}/channels/${channelId}/pins`,
+      authHeaders(aliceToken),
+    );
+    check(list, {
+      "List pins → 200": (r) => r.status === 200,
+      "Pinned message in list": (r) =>
+        Array.isArray(r.json().items) &&
+        r.json().items.some((m) => m.id === messageId),
+    });
+
+    const unpin = http.del(
+      `${GATEWAY}/channels/${channelId}/messages/${messageId}/pin`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(unpin, { "Unpin message → 204": (r) => r.status === 204 });
+
+    const empty = http.get(
+      `${GATEWAY}/channels/${channelId}/pins`,
+      authHeaders(aliceToken),
+    );
+    check(empty, {
+      "Pins list empty after unpin": (r) =>
+        r.status === 200 && r.json().items.length === 0,
+    });
+  });
+
+  // ── 8. File Attachments ───────────────────────────────────────────────
   let attachmentId;
-  group("7. Attachments", () => {
+  group("8. Attachments", () => {
     // Text file upload
     const txtUpload = http.post(
       `${GATEWAY}/channels/${channelId}/messages`,
@@ -397,8 +434,8 @@ export default function () {
     });
   });
 
-  // ── 8. Search ───────────────────────────────────────────────────────────
-  group("8. Search", () => {
+  // ── 9. Search ────────────────────────────────────────────────────────
+  group("9. Search", () => {
     const search = http.get(
       `${GATEWAY}/search/messages?q=first%20message`,
       authHeaders(aliceToken),
@@ -423,8 +460,8 @@ export default function () {
     check(empty, { "Empty search → 400": (r) => r.status === 400 });
   });
 
-  // ── 9. Pagination ──────────────────────────────────────────────────────
-  group("9. Pagination", () => {
+  // ── 10. Pagination ─────────────────────────────────────────────────────
+  group("10. Pagination", () => {
     // Add messages for pagination
     http.post(
       `${GATEWAY}/channels/${channelId}/messages`,
@@ -456,8 +493,8 @@ export default function () {
     check(page2, { "Fetch page 2 → 200": (r) => r.status === 200 });
   });
 
-  // ── 10. Mark Read ──────────────────────────────────────────────────────
-  group("10. Mark Read", () => {
+  // ── 11. Mark Read ──────────────────────────────────────────────────────
+  group("11. Mark Read", () => {
     const mark = http.patch(
       `${GATEWAY}/channels/${channelId}/members/me/last-read`,
       null,
@@ -466,8 +503,168 @@ export default function () {
     check(mark, { "Mark channel as read → 204": (r) => r.status === 204 });
   });
 
-  // ── 11. Error Cases ────────────────────────────────────────────────────
-  group("11. Error Cases", () => {
+  // ── 12. User Profile ───────────────────────────────────────────────────
+  let bobId;
+  group("12. User Profile", () => {
+    const me = http.get(`${GATEWAY}/users/me`, authHeaders(aliceToken));
+    check(me, {
+      "Get /users/me → 200": (r) => r.status === 200,
+      "Has displayName": (r) => typeof r.json().displayName === "string",
+      "Has role": (r) => r.json().role !== undefined,
+    });
+    const bobMe = http.get(`${GATEWAY}/users/me`, authHeaders(bobToken));
+    bobId = bobMe.json().id;
+
+    const users = http.get(`${GATEWAY}/users`, authHeaders(aliceToken));
+    check(users, {
+      "List users → 200": (r) => r.status === 200,
+      "Users has items": (r) => Array.isArray(r.json().items),
+      "At least 2 users": (r) => r.json().items.length >= 2,
+    });
+
+    const getUser = http.get(
+      `${GATEWAY}/users/${bobId}`,
+      authHeaders(aliceToken),
+    );
+    check(getUser, {
+      "Get user by ID → 200": (r) => r.status === 200,
+      "User ID matches": (r) => r.json().id === bobId,
+    });
+  });
+
+  // ── 13. Direct Messages ───────────────────────────────────────────────
+  group("13. Direct Messages", () => {
+    const dm = http.post(
+      `${GATEWAY}/dms`,
+      JSON.stringify({ userId: bobId }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(dm, {
+      "Create DM → 200": (r) => r.status === 200,
+      "DM kind is dm": (r) => r.json().kind === "dm",
+    });
+    const dmId = dm.json().id;
+
+    // Idempotent: creating again returns the same DM
+    const dm2 = http.post(
+      `${GATEWAY}/dms`,
+      JSON.stringify({ userId: bobId }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(dm2, {
+      "DM is idempotent": (r) => r.json().id === dmId,
+    });
+
+    // Send a message in the DM
+    const msg = http.post(
+      `${GATEWAY}/channels/${dmId}/messages`,
+      JSON.stringify({ content: "Hey Bob, private message!" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(msg, {
+      "Send DM message → 201": (r) => r.status === 201,
+    });
+  });
+
+  // ── 14. Notify Preferences ────────────────────────────────────────────
+  group("14. Notify Preferences", () => {
+    const setMentions = http.patch(
+      `${GATEWAY}/channels/${channelId}/members/me/notify`,
+      JSON.stringify({ notify: "mentions" }),
+      jsonAuthHeaders(bobToken),
+    );
+    check(setMentions, { "Set notify to mentions → 204": (r) => r.status === 204 });
+
+    const setAll = http.patch(
+      `${GATEWAY}/channels/${channelId}/members/me/notify`,
+      JSON.stringify({ notify: "all" }),
+      jsonAuthHeaders(bobToken),
+    );
+    check(setAll, { "Set notify back to all → 204": (r) => r.status === 204 });
+  });
+
+  // ── 15. Archive / Unarchive ───────────────────────────────────────────
+  group("15. Archive / Unarchive", () => {
+    const archive = http.post(
+      `${GATEWAY}/channels/${channelId}/archive`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(archive, {
+      "Archive channel → 200": (r) => r.status === 200,
+      "isArchived is true": (r) => r.json().isArchived === true,
+    });
+
+    // Sending to archived channel should fail
+    const blocked = http.post(
+      `${GATEWAY}/channels/${channelId}/messages`,
+      JSON.stringify({ content: "Should be blocked" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(blocked, {
+      "Send to archived channel → 403": (r) => r.status === 403,
+    });
+
+    const unarchive = http.post(
+      `${GATEWAY}/channels/${channelId}/unarchive`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(unarchive, {
+      "Unarchive channel → 200": (r) => r.status === 200,
+      "isArchived is false": (r) => r.json().isArchived === false,
+    });
+  });
+
+  // ── 16. Admin Panel ───────────────────────────────────────────────────
+  group("16. Admin Panel", () => {
+    // Non-admin should be rejected
+    const forbidden = http.get(`${GATEWAY}/admin/users`, authHeaders(bobToken));
+    check(forbidden, { "Non-admin → admin/users 403": (r) => r.status === 403 });
+
+    const users = http.get(`${GATEWAY}/admin/users`, authHeaders(aliceToken));
+    check(users, {
+      "Admin list users → 200": (r) => r.status === 200,
+      "Admin users has items": (r) => Array.isArray(r.json().items),
+    });
+
+    const channels = http.get(`${GATEWAY}/admin/channels`, authHeaders(aliceToken));
+    check(channels, {
+      "Admin list channels → 200": (r) => r.status === 200,
+      "Admin channels has items": (r) => Array.isArray(r.json().items),
+    });
+
+    const audit = http.get(`${GATEWAY}/admin/audit-log`, authHeaders(aliceToken));
+    check(audit, {
+      "Admin audit log → 200": (r) => r.status === 200,
+      "Audit log has items": (r) => Array.isArray(r.json().items),
+      "Audit log not empty": (r) => r.json().items.length > 0,
+    });
+
+    // Update a user role (set bob to moderator, then back to member)
+    const promote = http.patch(
+      `${GATEWAY}/admin/users/${bobId}`,
+      JSON.stringify({ role: "moderator" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(promote, {
+      "Admin promote bob → 200": (r) => r.status === 200,
+      "Bob is now moderator": (r) => r.json().role === "moderator",
+    });
+
+    const demote = http.patch(
+      `${GATEWAY}/admin/users/${bobId}`,
+      JSON.stringify({ role: "member" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(demote, {
+      "Admin demote bob → 200": (r) => r.status === 200,
+      "Bob is back to member": (r) => r.json().role === "member",
+    });
+  });
+
+  // ── 17. Error Cases ────────────────────────────────────────────────────
+  group("17. Error Cases", () => {
     const fake = "ch_00000000-0000-7000-0000-000000000000";
 
     const notFound = http.get(
@@ -505,8 +702,8 @@ export default function () {
     });
   });
 
-  // ── 12. Cleanup ────────────────────────────────────────────────────────
-  group("12. Cleanup", () => {
+  // ── 18. Cleanup ────────────────────────────────────────────────────────
+  group("18. Cleanup", () => {
     const del = http.del(
       `${GATEWAY}/channels/${channelId}/messages/${replyId}`,
       null,
