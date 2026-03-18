@@ -1,12 +1,20 @@
 # Barbacane manifest for Burst
 # Declares the gateway plugins required by specs/burst-api.yaml
+# Plugins fetched from Barbacane v0.5.0 release (remote plugin loading, ADR-0029)
 
 plugins:
   http-upstream:
-    path: ../Barbacane/plugins/http-upstream/http-upstream.wasm
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/http-upstream.wasm
+    sha256: ff9905596d6146b3ddcd7c2c84118e32cee8445a221975e707ee91128166844e
   ws-upstream:
-    path: ../Barbacane/plugins/ws-upstream/ws-upstream.wasm
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/ws-upstream.wasm
+    sha256: f82c160d676ab41f036a3c1a52b8eb798ed41fc6602caf76e0ec22de20b1b77a
   oidc-auth:
-    path: ../Barbacane/plugins/oidc-auth/oidc-auth.wasm
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/oidc-auth.wasm
+    sha256: 6717e5bb2fdbaa58ef89965e117769a616e3072179293b40aff90f9a024a6d2d
   acl:
-    path: ../Barbacane/plugins/acl/acl.wasm
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/acl.wasm
+    sha256: 415673aaa32e030480300f83d4c75f9685b9d1035c1ea6b6e45a4300ec404126
+  rate-limit:
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/rate-limit.wasm
+    sha256: 03e150a716c3f9daa133bc0b471bc822732a4d5b1b5e7dee7f3b92121daad89d

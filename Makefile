@@ -3,9 +3,24 @@
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
 
-BARBACANE_DIR := ../Barbacane
-BARBACANE_BIN := $(BARBACANE_DIR)/target/release/barbacane
-BURST_BCA     := burst-api.bca
+BARBACANE_VERSION := 0.5.0
+BARBACANE_BIN     := .barbacane/bin/barbacane
+BURST_BCA         := burst-api.bca
+
+# Detect platform for binary download
+UNAME_S := $(shell uname -s)
+UNAME_M := $(shell uname -m)
+# macOS reports arm64, release assets use aarch64
+ifeq ($(UNAME_M),arm64)
+  ARCH := aarch64
+else
+  ARCH := $(UNAME_M)
+endif
+ifeq ($(UNAME_S),Darwin)
+  BARBACANE_TARGET := $(ARCH)-apple-darwin
+else
+  BARBACANE_TARGET := $(ARCH)-unknown-linux-gnu
+endif
 
 # ── Help ───────────────────────────────────────────────────────────────────────
 help: ## Show this help
@@ -50,7 +65,12 @@ dev: ## Print instructions for running the full stack
 
 # ── Gateway ───────────────────────────────────────────────────────────────────
 $(BARBACANE_BIN):
-	cargo build --release --manifest-path $(BARBACANE_DIR)/Cargo.toml
+	@mkdir -p .barbacane/bin
+	@echo "Downloading barbacane v$(BARBACANE_VERSION) ($(BARBACANE_TARGET))..."
+	@curl -fSL -o $(BARBACANE_BIN) \
+		https://github.com/barbacane-dev/barbacane/releases/download/v$(BARBACANE_VERSION)/barbacane-$(BARBACANE_TARGET)
+	@chmod +x $(BARBACANE_BIN)
+	@echo "Installed $(BARBACANE_BIN)"
 
 gateway-compile: $(BARBACANE_BIN) ## Compile the Burst OpenAPI spec into a Barbacane artifact
 	$(BARBACANE_BIN) compile \

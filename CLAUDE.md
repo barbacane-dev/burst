@@ -68,6 +68,6 @@ vacuum lint -f .barbacane/rulesets/functions specs/burst-api.yaml -r specs/.vacu
 ## Barbacane Integration
 
 - Gateway manifest: `barbacane.yaml` (plugin paths)
-- Plugins used: `oidc-auth`, `acl`, `ws-upstream`, `http-upstream`
+- Plugins used: `oidc-auth`, `acl`, `rate-limit`, `ws-upstream`, `http-upstream`
 - `groups_claim: "roles"` maps JWT roles to `x-auth-consumer-groups`
 - Admin routes have gateway-level ACL (`allow: [admin]`) + backend `AdminUser` extractor
