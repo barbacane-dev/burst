@@ -1,15 +1,19 @@
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./sidebar";
 import { MessageSquare } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "../../lib/ws/hooks";
 import { showBrowserNotification } from "../../lib/notifications";
 import type { Message } from "../../lib/api/types";
 
 export function MainLayout() {
+  const queryClient = useQueryClient();
+
   useWsEvent<{ type: string; channelId: string; message: Message }>(
     "message.created",
     (ev) => {
       showBrowserNotification("New message", ev.message.content);
+      queryClient.invalidateQueries({ queryKey: ["channels"] });
     },
   );
 
