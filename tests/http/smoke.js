@@ -27,9 +27,23 @@ const SMALL_PNG = open("./fixtures/Digital_punk_pirate_avatar_small.png", "b");
 const LARGE_PNG = open("./fixtures/Digital_punk_pirate_avatar.png", "b");
 
 export const options = {
-  // Smoke test: single user, single iteration, no ramping
-  vus: 1,
-  iterations: 1,
+  scenarios: {
+    smoke: {
+      executor: "per-vu-iterations",
+      vus: 1,
+      iterations: 1,
+      exec: "smoke",
+    },
+    rateLimit: {
+      executor: "per-vu-iterations",
+      vus: 1,
+      iterations: 1,
+      exec: "rateLimit",
+      // Start after the smoke scenario finishes to avoid polluting its
+      // rate-limit window (global quota is 100 req / 60 s per consumer).
+      startTime: "10s",
+    },
+  },
   thresholds: {
     checks: ["rate==1.0"], // All checks must pass
   },
@@ -73,7 +87,7 @@ function getToken(username) {
 
 // ── Main scenario ────────────────────────────────────────────────────────────
 
-export default function () {
+export function smoke() {
   // ── 0. Health Checks ─────────────────────────────────────────────────────
   group("0. Health Checks", () => {
     const oidc = http.get(
@@ -634,13 +648,6 @@ export default function () {
       "Admin channels has items": (r) => Array.isArray(r.json().items),
     });
 
-    const audit = http.get(`${GATEWAY}/admin/audit-log`, authHeaders(aliceToken));
-    check(audit, {
-      "Admin audit log → 200": (r) => r.status === 200,
-      "Audit log has items": (r) => Array.isArray(r.json().items),
-      "Audit log not empty": (r) => r.json().items.length > 0,
-    });
-
     // Update a user role (set bob to moderator, then back to member)
     const promote = http.patch(
       `${GATEWAY}/admin/users/${bobId}`,
@@ -660,6 +667,14 @@ export default function () {
     check(demote, {
       "Admin demote bob → 200": (r) => r.status === 200,
       "Bob is back to member": (r) => r.json().role === "member",
+    });
+
+    // Check audit log after role changes so it's guaranteed non-empty
+    const audit = http.get(`${GATEWAY}/admin/audit-log`, authHeaders(aliceToken));
+    check(audit, {
+      "Admin audit log → 200": (r) => r.status === 200,
+      "Audit log has items": (r) => Array.isArray(r.json().items),
+      "Audit log not empty": (r) => r.json().items.length > 0,
     });
   });
 
@@ -733,5 +748,32 @@ export default function () {
       authHeaders(aliceToken),
     );
     check(delChannel, { "Admin deletes channel → 204": (r) => r.status === 204 });
+  });
+}
+
+// ── Rate-limit scenario ──────────────────────────────────────────────────────
+// Fires requests beyond the gateway quota (100 req / 60 s) and verifies that
+// the gateway returns 429 with the expected headers.
+
+export function rateLimit() {
+  const token = getToken("bob");
+  const endpoint = `${GATEWAY}/channels`;
+
+  let got429 = false;
+  let hasRetryAfter = false;
+
+  // Exceed the 100 req / 60 s quota. Stop as soon as we see 429.
+  for (let i = 0; i < 120; i++) {
+    const res = http.get(endpoint, authHeaders(token));
+    if (res.status === 429) {
+      got429 = true;
+      hasRetryAfter = res.headers["Retry-After"] !== undefined;
+      break;
+    }
+  }
+
+  check(null, {
+    "Rate limit triggers 429": () => got429,
+    "429 includes Retry-After header": () => hasRetryAfter,
   });
 }

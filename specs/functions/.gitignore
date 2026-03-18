@@ -1,0 +1,4 @@
+# Barbacane functions are downloaded at CI time and locally via `make lint-spec`.
+# Only Burst-specific functions (burst-*.js) are tracked in git.
+barbacane-*.js
+.barbacane-fetched

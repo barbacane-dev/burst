@@ -1,4 +1,4 @@
-.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed check e2e install
+.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed lint-spec check e2e install
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
@@ -110,6 +110,21 @@ db: ## Open a psql shell on the burst database
 
 seed: ## Seed the database with sample users
 	cargo run --example seed -- $(DB_URL)
+
+BARBACANE_FUNCTIONS := barbacane-auth-opt-out barbacane-no-duplicate-middlewares \
+	barbacane-no-plaintext-upstream barbacane-no-unknown-extensions \
+	barbacane-valid-secret-refs barbacane-validate-dispatch-config \
+	barbacane-validate-middleware-config
+
+specs/functions/.barbacane-fetched:
+	@for f in $(BARBACANE_FUNCTIONS); do \
+		curl -fsSL "https://docs.barbacane.dev/rulesets/functions/$${f}.js" \
+			-o "specs/functions/$${f}.js"; \
+	done
+	@touch $@
+
+lint-spec: specs/functions/.barbacane-fetched ## Lint OpenAPI spec with vacuum
+	vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml
 
 # ── Quality ────────────────────────────────────────────────────────────────────
 check: ## Run fmt, clippy, and tests
