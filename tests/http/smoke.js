@@ -100,6 +100,23 @@ export default function () {
     bobToken = getToken("bob");
   });
 
+  // ── Setup: clean up leftover smoke-test channel from previous runs ──────
+  group("Setup: idempotent cleanup", () => {
+    const list = http.get(`${GATEWAY}/admin/channels`, authHeaders(aliceToken));
+    if (list.status === 200) {
+      const channels = list.json().items || [];
+      const stale = channels.find((ch) => ch.slug === "smoke-test");
+      if (stale) {
+        const del = http.del(
+          `${GATEWAY}/admin/channels/${stale.id}`,
+          null,
+          authHeaders(aliceToken),
+        );
+        check(del, { "Cleanup stale smoke-test channel → 204": (r) => r.status === 204 });
+      }
+    }
+  });
+
   // ── 2. Gateway Auth Validation ───────────────────────────────────────────
   group("2. Gateway Auth", () => {
     const noAuth = http.get(`${GATEWAY}/channels`, {
@@ -512,5 +529,12 @@ export default function () {
       authHeaders(bobToken),
     );
     check(leave, { "Bob leaves channel → 204": (r) => r.status === 204 });
+
+    const delChannel = http.del(
+      `${GATEWAY}/admin/channels/${channelId}`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(delChannel, { "Admin deletes channel → 204": (r) => r.status === 204 });
   });
 }
