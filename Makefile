@@ -1,4 +1,4 @@
-.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed lint-spec check e2e install
+.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed lint-spec check smoke e2e install
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
@@ -131,6 +131,9 @@ check: ## Run fmt, clippy, and tests
 	cargo fmt --all
 	cargo clippy --all-targets -- -D warnings
 	DATABASE_URL=$(DB_URL) cargo test
+
+smoke: ## Run k6 smoke tests (requires: make all running in another terminal)
+	k6 run tests/http/smoke.js
 
 e2e: ## Run Playwright E2E tests (requires: make all running in another terminal)
 	cd ui && npx playwright test
