@@ -415,7 +415,10 @@ async fn mark_read(
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateDmRequest {
-    pub user_id: String,
+    /// Single user ID (1-to-1 DM). Kept for backward compatibility.
+    pub user_id: Option<String>,
+    /// Multiple user IDs (group DM). If len == 1, treated as 1-to-1 DM.
+    pub user_ids: Option<Vec<String>>,
 }
 
 async fn create_or_get_dm(
@@ -423,25 +426,50 @@ async fn create_or_get_dm(
     State(state): State<AppState>,
     Json(body): Json<CreateDmRequest>,
 ) -> Result<(axum::http::StatusCode, Json<ChannelResponse>), ApiError> {
-    let target_id = parse_user_id(&body.user_id)?;
+    // Resolve target user IDs from either field
+    let raw_ids = match (body.user_ids, body.user_id) {
+        (Some(ids), _) => ids,
+        (None, Some(id)) => vec![id],
+        (None, None) => {
+            return Err(ApiError::BadRequest(
+                "either userId or userIds is required".into(),
+            ));
+        }
+    };
 
-    if target_id == auth.user_id {
-        return Err(ApiError::BadRequest("cannot DM yourself".into()));
+    let mut target_ids = Vec::with_capacity(raw_ids.len());
+    for raw in &raw_ids {
+        let id = parse_user_id(raw)?;
+        if id == auth.user_id {
+            return Err(ApiError::BadRequest("cannot DM yourself".into()));
+        }
+        // Verify user exists
+        db::users::find_by_id(&state.db, id)
+            .await?
+            .ok_or_else(|| ApiError::NotFound("User".into()))?;
+        target_ids.push(id);
     }
 
-    // Verify target user exists
-    db::users::find_by_id(&state.db, target_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("User".into()))?;
+    if target_ids.is_empty() {
+        return Err(ApiError::BadRequest("at least one user is required".into()));
+    }
 
     let new_id = burst_core::id::new_id();
-    let channel =
-        db::channels::find_or_create_dm(&state.db, auth.user_id, target_id, new_id).await?;
+    let channel = if target_ids.len() == 1 {
+        // 1-to-1 DM
+        db::channels::find_or_create_dm(&state.db, auth.user_id, target_ids[0], new_id).await?
+    } else {
+        // Group DM
+        let mut all_members = target_ids.clone();
+        all_members.push(auth.user_id);
+        db::channels::find_or_create_group_dm(&state.db, &all_members, auth.user_id, new_id).await?
+    };
 
-    // Notify both users' open WS connections so they update their channel membership
-    // set and can receive real-time events on this channel immediately.
+    // Notify all participants' open WS connections
     let ch_id_str = burst_core::id::format_channel_id(channel.id);
-    for uid in [auth.user_id, target_id] {
+    let mut all_users = target_ids;
+    all_users.push(auth.user_id);
+    for uid in all_users {
         let ev = crate::ws::ServerEvent::ChannelJoined {
             event_id: burst_core::id::new_id().to_string(),
             channel_id: ch_id_str.clone(),

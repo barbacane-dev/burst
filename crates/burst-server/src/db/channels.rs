@@ -347,6 +347,62 @@ pub async fn find_or_create_dm(
     Ok(ch)
 }
 
+/// Find or create a group DM channel for the given set of user IDs.
+/// Returns an existing group_dm if ALL users are members and the member count matches exactly.
+/// Otherwise creates a new group_dm channel with all users as members.
+pub async fn find_or_create_group_dm(
+    pool: &PgPool,
+    user_ids: &[Uuid],
+    created_by: Uuid,
+    new_id: Uuid,
+) -> Result<ChannelRow, sqlx::Error> {
+    // Find an existing group_dm that has exactly these members
+    let existing = sqlx::query_as::<_, ChannelRow>(
+        "SELECT c.id, c.kind, c.name, c.slug, c.topic, c.description, c.created_by, \
+         c.is_archived, c.is_readonly, c.created_at, c.updated_at \
+         FROM channels c \
+         WHERE c.kind = 'group_dm' \
+           AND (SELECT COUNT(*) FROM channel_members cm WHERE cm.channel_id = c.id) = $1 \
+           AND NOT EXISTS ( \
+               SELECT 1 FROM unnest($2::uuid[]) AS u(id) \
+               WHERE u.id NOT IN (SELECT cm.user_id FROM channel_members cm WHERE cm.channel_id = c.id) \
+           ) \
+         LIMIT 1",
+    )
+    .bind(user_ids.len() as i64)
+    .bind(user_ids)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(ch) = existing {
+        return Ok(ch);
+    }
+
+    let ch = sqlx::query_as::<_, ChannelRow>(
+        "INSERT INTO channels (id, kind, created_by) \
+         VALUES ($1, 'group_dm', $2) \
+         RETURNING id, kind, name, slug, topic, description, created_by, \
+         is_archived, is_readonly, created_at, updated_at",
+    )
+    .bind(new_id)
+    .bind(created_by)
+    .fetch_one(pool)
+    .await?;
+
+    for &uid in user_ids {
+        sqlx::query(
+            "INSERT INTO channel_members (channel_id, user_id, role) \
+             VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+        )
+        .bind(ch.id)
+        .bind(uid)
+        .execute(pool)
+        .await?;
+    }
+
+    Ok(ch)
+}
+
 /// Archives a channel (sets is_archived and is_readonly).
 pub async fn archive(pool: &PgPool, id: Uuid) -> Result<Option<ChannelRow>, sqlx::Error> {
     sqlx::query_as::<_, ChannelRow>(

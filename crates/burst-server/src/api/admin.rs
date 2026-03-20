@@ -1,12 +1,14 @@
 use axum::extract::{Path, Query, State};
-use axum::routing::{get, patch};
+use axum::http::HeaderMap;
+use axum::routing::{delete, get, patch};
 use axum::{Json, Router};
+use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 use crate::api::PaginatedResponse;
 use crate::api::channels::{ChannelResponse, channel_to_response};
-use crate::api::extractors::{AdminUser, PaginationParams};
+use crate::api::extractors::{AdminUser, AuthUser, PaginationParams};
 use crate::db;
 use crate::error::ApiError;
 
@@ -20,6 +22,9 @@ pub fn router() -> Router<AppState> {
             patch(update_channel).delete(delete_channel),
         )
         .route("/admin/audit-log", get(list_audit_log))
+        .route("/admin/emojis", get(list_emojis_admin).post(create_emoji))
+        .route("/admin/emojis/{emoji_id}", delete(delete_emoji))
+        .route("/emojis", get(list_emojis))
 }
 
 // ── Response types ──
@@ -265,6 +270,201 @@ async fn delete_channel(
         "channel.deleted",
         "channel",
         ch_id,
+        None,
+    )
+    .await?;
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+// ── Custom emoji management ──
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomEmojiResponse {
+    pub id: String,
+    pub shortcode: String,
+    pub image_url: String,
+    pub created_by: String,
+    pub created_at: String,
+}
+
+fn emoji_to_response(row: &db::custom_emojis::CustomEmojiRow) -> CustomEmojiResponse {
+    CustomEmojiResponse {
+        id: row.id.to_string(),
+        shortcode: row.shortcode.clone(),
+        image_url: row.image_url.clone(),
+        created_by: burst_core::id::format_user_id(row.created_by),
+        created_at: row.created_at.to_rfc3339(),
+    }
+}
+
+/// Public endpoint: list all custom emojis (for the emoji picker).
+async fn list_emojis(
+    _auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<PaginatedResponse<CustomEmojiResponse>>, ApiError> {
+    let emojis = db::custom_emojis::list(&state.db).await?;
+    let items = emojis.iter().map(emoji_to_response).collect();
+    Ok(Json(PaginatedResponse {
+        items,
+        cursor: None,
+    }))
+}
+
+/// Admin endpoint: list all custom emojis.
+async fn list_emojis_admin(
+    _admin: AdminUser,
+    State(state): State<AppState>,
+) -> Result<Json<PaginatedResponse<CustomEmojiResponse>>, ApiError> {
+    let emojis = db::custom_emojis::list(&state.db).await?;
+    let items = emojis.iter().map(emoji_to_response).collect();
+    Ok(Json(PaginatedResponse {
+        items,
+        cursor: None,
+    }))
+}
+
+async fn create_emoji(
+    admin: AdminUser,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Body,
+) -> Result<(axum::http::StatusCode, Json<CustomEmojiResponse>), ApiError> {
+    let content_type = headers
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if !content_type.starts_with("multipart/form-data") {
+        return Err(ApiError::BadRequest("expected multipart/form-data".into()));
+    }
+
+    let boundary = multer::parse_boundary(content_type)
+        .map_err(|_| ApiError::BadRequest("missing multipart boundary".into()))?;
+    let stream = body.into_data_stream();
+    let mut multipart = multer::Multipart::new(stream, boundary);
+
+    let mut shortcode = String::new();
+    let mut image_data: Option<Bytes> = None;
+    let mut image_ct = String::new();
+
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|e| ApiError::BadRequest(format!("multipart error: {e}")))?
+    {
+        let name = field.name().unwrap_or("").to_string();
+        match name.as_str() {
+            "shortcode" => {
+                shortcode = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::BadRequest(format!("invalid shortcode: {e}")))?;
+            }
+            "image" => {
+                image_ct = field
+                    .content_type()
+                    .map(|ct| ct.to_string())
+                    .unwrap_or_else(|| "image/png".into());
+                image_data = Some(
+                    field
+                        .bytes()
+                        .await
+                        .map_err(|e| ApiError::BadRequest(format!("failed to read image: {e}")))?,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    // Validate shortcode
+    let shortcode = shortcode.trim().to_lowercase();
+    if shortcode.len() < 2 || shortcode.len() > 32 {
+        return Err(ApiError::BadRequest(
+            "shortcode must be 2-32 characters".into(),
+        ));
+    }
+    if !shortcode
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return Err(ApiError::BadRequest(
+            "shortcode must contain only alphanumeric characters and underscores".into(),
+        ));
+    }
+
+    let data = image_data.ok_or_else(|| ApiError::BadRequest("image field is required".into()))?;
+
+    if !image_ct.starts_with("image/") {
+        return Err(ApiError::BadRequest(
+            "image must have an image/* content type".into(),
+        ));
+    }
+    if data.len() > 256 * 1024 {
+        return Err(ApiError::PayloadTooLarge(
+            "emoji image must be under 256 KB".into(),
+        ));
+    }
+
+    // Store image
+    let emoji_id = burst_core::id::new_id();
+    let ext = match image_ct.as_str() {
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/svg+xml" => "svg",
+        _ => "png",
+    };
+    let storage_key = format!("emojis/{emoji_id}.{ext}");
+    state
+        .storage
+        .put(&storage_key, data, &image_ct)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let emoji =
+        db::custom_emojis::create(&state.db, emoji_id, &shortcode, &storage_key, admin.user_id)
+            .await?;
+
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        admin.user_id,
+        "emoji.created",
+        "emoji",
+        emoji_id,
+        Some(serde_json::json!({ "shortcode": shortcode })),
+    )
+    .await?;
+
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(emoji_to_response(&emoji)),
+    ))
+}
+
+fn parse_emoji_id(s: &str) -> Result<uuid::Uuid, ApiError> {
+    uuid::Uuid::parse_str(s).map_err(|_| ApiError::BadRequest("invalid emoji ID".into()))
+}
+
+async fn delete_emoji(
+    admin: AdminUser,
+    State(state): State<AppState>,
+    Path(emoji_id): Path<String>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let id = parse_emoji_id(&emoji_id)?;
+    let removed = db::custom_emojis::delete(&state.db, id).await?;
+    if !removed {
+        return Err(ApiError::NotFound("Emoji".into()));
+    }
+
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        admin.user_id,
+        "emoji.deleted",
+        "emoji",
+        id,
         None,
     )
     .await?;

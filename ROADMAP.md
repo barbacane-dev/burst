@@ -104,9 +104,9 @@ Complete the core messaging experience.
 
 - [x] Threaded replies — `thread_id` on messages, thread listing endpoint (ADR-007)
 - [x] Reactions — add/remove reactions per message (ADR-007)
-- [ ] Custom emoji — `custom_emojis` table, upload endpoint, admin-only (ADR-007) — deferred to M6 Admin
+- [x] Custom emoji — `custom_emojis` table, upload endpoint, admin-only (ADR-007)
 - [x] Direct messages — DM channel creation via `POST /dms`, find-or-create (ADR-007)
-- [ ] Group DMs — multi-participant DM channels (ADR-007) — deferred to M6
+- [x] Group DMs — multi-participant DM channels (ADR-007)
 - [x] Mentions — `@username` parsing, mention persistence — completed in M6
 
 ### Frontend
