@@ -76,7 +76,7 @@ impl AppState {
 pub fn app_router(state: AppState) -> Router {
     use axum::middleware;
 
-    Router::new()
+    let api = Router::new()
         .merge(api::users::router())
         .merge(api::channels::router())
         .merge(api::search::router())
@@ -84,7 +84,18 @@ pub fn app_router(state: AppState) -> Router {
         .merge(api::admin::router())
         .route("/ws", axum::routing::get(ws::handler::ws_handler))
         .layer(middleware::from_fn(metrics::http_metrics))
-        .with_state(state)
+        .with_state(state.clone());
+
+    // If a static directory is configured, serve the built frontend at /static
+    // with SPA fallback (unmatched paths serve index.html for client-side routing).
+    if let Some(ref dir) = state.config.server_static_dir {
+        let serve = tower_http::services::ServeDir::new(dir).not_found_service(
+            tower_http::services::ServeFile::new(format!("{dir}/index.html")),
+        );
+        api.nest_service("/static", serve)
+    } else {
+        api
+    }
 }
 
 pub fn admin_router(state: AppState) -> Router {

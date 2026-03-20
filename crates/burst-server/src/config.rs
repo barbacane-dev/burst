@@ -24,6 +24,10 @@ pub struct ServerConfig {
     pub admin_listen: String,
     #[serde(default = "default_shutdown_timeout")]
     pub shutdown_timeout_secs: u64,
+    /// Path to the built frontend directory (e.g. "ui/dist").
+    /// When set, Burst serves the SPA with fallback to index.html.
+    #[serde(default)]
+    pub static_dir: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -32,6 +36,7 @@ impl Default for ServerConfig {
             listen: default_listen(),
             admin_listen: default_admin_listen(),
             shutdown_timeout_secs: default_shutdown_timeout(),
+            static_dir: None,
         }
     }
 }
@@ -64,6 +69,8 @@ fn default_max_connections() -> u32 {
 pub struct AppConfig {
     pub storage: StorageConfig,
     pub websocket: WebSocketConfig,
+    /// Path to built frontend directory for SPA serving.
+    pub server_static_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -252,6 +259,7 @@ impl Config {
         AppConfig {
             storage: self.storage.clone(),
             websocket: self.websocket.clone(),
+            server_static_dir: self.server.static_dir.clone(),
         }
     }
 }
@@ -262,6 +270,9 @@ fn apply_env(config: &mut Config) {
     }
     if let Ok(v) = std::env::var("BURST_SERVER_ADMIN_LISTEN") {
         config.server.admin_listen = v;
+    }
+    if let Ok(v) = std::env::var("BURST_SERVER_STATIC_DIR") {
+        config.server.static_dir = Some(v);
     }
     if let Ok(v) = std::env::var("BURST_DATABASE_URL") {
         config.database.url = v;

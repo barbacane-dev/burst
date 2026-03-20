@@ -48,6 +48,8 @@ tags:
     description: Full-text message search
   - name: Files
     description: File attachments
+  - name: Frontend
+    description: Static frontend files (SPA, no auth)
   - name: Pins
     description: Pinned messages
   - name: Admin
@@ -1788,6 +1790,36 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
+
+  # ── Frontend SPA (no auth — public static files) ──
+
+  /static/{path}:
+    get:
+      operationId: serveFrontendAsset
+      summary: Serve frontend static files
+      description: >-
+        Serves the built frontend SPA (HTML, JS, CSS, images).
+        No authentication — the login page must be accessible without a token.
+      tags:
+        - Frontend
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 1024
+      responses:
+        "200":
+          description: Static file or SPA HTML
+        "404":
+          description: File not found
+
 # ── Components ──
 
 components:
