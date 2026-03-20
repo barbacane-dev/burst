@@ -1793,13 +1793,14 @@ paths:
 
   # ── Frontend SPA (no auth — public static files) ──
 
-  /static/{path}:
+  /static/{path+}:
     get:
       operationId: serveFrontendAsset
       summary: Serve frontend static files
       description: >-
         Serves the built frontend SPA (HTML, JS, CSS, images).
         No authentication — the login page must be accessible without a token.
+        The {path+} wildcard captures nested paths (e.g. /static/assets/main.js).
       tags:
         - Frontend
       x-barbacane-dispatch:
@@ -1811,6 +1812,7 @@ paths:
         - name: path
           in: path
           required: true
+          allowReserved: true
           schema:
             type: string
             maxLength: 1024

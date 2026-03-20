@@ -89,9 +89,10 @@ pub fn app_router(state: AppState) -> Router {
     // If a static directory is configured, serve the built frontend at /static
     // with SPA fallback (unmatched paths serve index.html for client-side routing).
     if let Some(ref dir) = state.config.server_static_dir {
-        let serve = tower_http::services::ServeDir::new(dir).not_found_service(
-            tower_http::services::ServeFile::new(format!("{dir}/index.html")),
-        );
+        let index_path = format!("{dir}/index.html");
+        let serve = tower_http::services::ServeDir::new(dir)
+            .append_index_html_on_directories(true)
+            .fallback(tower_http::services::ServeFile::new(index_path));
         api.nest_service("/static", serve)
     } else {
         api

@@ -183,3 +183,26 @@ async fn nested_key_paths() {
     assert_eq!(data, Bytes::from("pdf-data"));
     assert_eq!(ct, "application/pdf");
 }
+
+#[tokio::test]
+async fn deeply_nested_key_roundtrip() {
+    let (base_url, _store) = start_mock_server().await;
+    let storage = GatewayStorage::new(&base_url, None);
+
+    // 5-level deep key — verifies that multi-segment paths work end-to-end
+    let key = "org/team/ch_abc/2026/03/15/att_xyz/image.png";
+    storage
+        .put(key, Bytes::from("deep-data"), "image/png")
+        .await
+        .unwrap();
+
+    let (data, ct) = storage.get(key).await.unwrap();
+    assert_eq!(data, Bytes::from("deep-data"));
+    assert_eq!(ct, "image/png");
+
+    storage.delete(key).await.unwrap();
+    assert!(matches!(
+        storage.get(key).await,
+        Err(StorageError::NotFound(_))
+    ));
+}

@@ -27,7 +27,7 @@ x-barbacane-middlewares:
           id: burst-server
 
 paths:
-  /storage/{key}:
+  /storage/{key+}:
     put:
       tags:
         - Storage
