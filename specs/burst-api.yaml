@@ -1793,6 +1793,21 @@ paths:
 
   # ── Frontend SPA (no auth — public static files) ──
 
+  /static:
+    get:
+      operationId: serveFrontendIndex
+      summary: Serve frontend index page
+      tags:
+        - Frontend
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares: []
+      responses:
+        "200":
+          description: SPA index page
+
   /static/{path+}:
     get:
       operationId: serveFrontendAsset

@@ -3,7 +3,7 @@
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
 
-BARBACANE_VERSION := 0.5.0
+BARBACANE_VERSION := 0.5.1
 BARBACANE_BIN     := .barbacane/bin/barbacane
 BURST_BCA         := burst-api.bca
 
@@ -119,8 +119,8 @@ seed: ## Seed the database with sample users
 
 BARBACANE_FUNCTIONS := barbacane-auth-opt-out barbacane-no-duplicate-middlewares \
 	barbacane-no-plaintext-upstream barbacane-no-unknown-extensions \
-	barbacane-valid-secret-refs barbacane-validate-dispatch-config \
-	barbacane-validate-middleware-config
+	barbacane-valid-path-params barbacane-valid-secret-refs \
+	barbacane-validate-dispatch-config barbacane-validate-middleware-config
 
 specs/functions/.barbacane-fetched:
 	@for f in $(BARBACANE_FUNCTIONS); do \

@@ -1,20 +1,20 @@
 # Barbacane manifest for Burst
 # Declares the gateway plugins required by specs/burst-api.yaml
-# Plugins fetched from Barbacane v0.5.0 release (remote plugin loading, ADR-0029)
+# Plugins fetched from Barbacane v0.5.1 release
 
 plugins:
   http-upstream:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/http-upstream.wasm
-    sha256: ff9905596d6146b3ddcd7c2c84118e32cee8445a221975e707ee91128166844e
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.1/http-upstream.wasm
+    sha256: caa42d448c6ad1f7ec72e437a4b5065346ae1b7b5cba50ebd082dfe15441d5e7
   ws-upstream:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/ws-upstream.wasm
-    sha256: f82c160d676ab41f036a3c1a52b8eb798ed41fc6602caf76e0ec22de20b1b77a
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.1/ws-upstream.wasm
+    sha256: c20e6047179a245cd868a49539e1af4c4ef9f3d666c800d5ac7b03415dc599bc
   oidc-auth:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/oidc-auth.wasm
-    sha256: 6717e5bb2fdbaa58ef89965e117769a616e3072179293b40aff90f9a024a6d2d
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.1/oidc-auth.wasm
+    sha256: a204a5c2729baba295cb4762049795271f973d148ab96efcd21491de06c2bca4
   acl:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/acl.wasm
-    sha256: 415673aaa32e030480300f83d4c75f9685b9d1035c1ea6b6e45a4300ec404126
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.1/acl.wasm
+    sha256: 6cf04b281dfb7d1b7e8cfd18d4bf73b79ecdfa6a8a47f3596c03b55dc05d84b0
   rate-limit:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.0/rate-limit.wasm
-    sha256: 03e150a716c3f9daa133bc0b471bc822732a4d5b1b5e7dee7f3b92121daad89d
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.1/rate-limit.wasm
+    sha256: 5e6413864cb325888c6915f3b58f6ca8d72664c34ef40d2a1b4cdcd725e257af

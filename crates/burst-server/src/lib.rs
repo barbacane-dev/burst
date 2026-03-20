@@ -93,7 +93,12 @@ pub fn app_router(state: AppState) -> Router {
         let serve = tower_http::services::ServeDir::new(dir)
             .append_index_html_on_directories(true)
             .fallback(tower_http::services::ServeFile::new(index_path));
-        api.nest_service("/static", serve)
+        api.nest_service("/static", serve).route(
+            "/",
+            axum::routing::get(|| async {
+                axum::response::Redirect::permanent("/static/index.html")
+            }),
+        )
     } else {
         api
     }

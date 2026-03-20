@@ -166,7 +166,7 @@ jobs:
             }
     env:
       DATABASE_URL: postgres://burst:burst@localhost:5432/burst
-      BARBACANE_VERSION: "0.5.0"
+      BARBACANE_VERSION: "0.5.1"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
