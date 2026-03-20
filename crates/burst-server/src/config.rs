@@ -267,6 +267,15 @@ fn apply_env(config: &mut Config) {
     {
         config.database.max_connections = n;
     }
+    if let Ok(v) = std::env::var("BURST_STORAGE_BACKEND") {
+        config.storage.backend = v;
+    }
+    if let Ok(v) = std::env::var("BURST_STORAGE_LOCAL_PATH") {
+        config.storage.local_path = v;
+    }
+    if let Ok(v) = std::env::var("BURST_STORAGE_GATEWAY_URL") {
+        config.storage.gateway_url = Some(v);
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

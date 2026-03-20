@@ -52,6 +52,7 @@ services:
       BURST_DATABASE_URL: postgres://burst:burst@postgres:5432/burst
       BURST_SERVER_LISTEN: "0.0.0.0:3000"
       BURST_SERVER_ADMIN_LISTEN: "0.0.0.0:3001"
+      BURST_STORAGE_LOCAL_PATH: /var/lib/burst/uploads
     depends_on:
       postgres:
         condition: service_healthy
