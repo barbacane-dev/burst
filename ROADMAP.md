@@ -174,20 +174,20 @@ Observability, S3 storage, multi-node hardening. **Completing this milestone = v
 
 ### Backend
 
-- [ ] Prometheus metrics — HTTP, DB, WebSocket, search metrics on admin port (ADR-010)
-- [ ] Distributed tracing — OpenTelemetry spans, OTLP export (ADR-010)
-- [ ] Structured logging — JSON to stdout with trace correlation (ADR-010)
-- [ ] S3 storage via Barbacane — gateway storage backend using S3 dispatcher (ADR-011)
-- [ ] PG LISTEN/NOTIFY broker — multi-node event synchronisation (ADR-004)
-- [ ] Graceful shutdown — SIGTERM handling, WebSocket close frames (ADR-009)
-- [ ] Deferred file cleanup — background job for soft-deleted attachment removal (ADR-011)
+- [x] Prometheus metrics — HTTP, DB, WebSocket, search metrics on admin port (ADR-010)
+- [x] Distributed tracing — OpenTelemetry spans, OTLP export (ADR-010)
+- [x] Structured logging — JSON to stdout with trace correlation (ADR-010)
+- [x] S3 storage via Barbacane — gateway storage backend using S3 dispatcher (ADR-011)
+- [x] PG LISTEN/NOTIFY broker — multi-node event synchronisation (ADR-004)
+- [x] Graceful shutdown — SIGTERM handling, WebSocket close frames (ADR-009)
+- [x] Deferred file cleanup — background job for soft-deleted attachment removal (ADR-011)
 
 ### Infrastructure
 
-- [ ] Docker image — multi-arch, minimal base (ADR-009)
-- [ ] GitHub Actions release workflow — build binaries, publish Docker image on tag
-- [ ] Barbacane spec for production — S3 dispatcher routes, OIDC auth, ACL rules (ADR-006, ADR-011)
-- [ ] Licensing ADR — write and commit before tagging v1.0, before making repo public
+- [x] Docker image — multi-arch, minimal base (ADR-009)
+- [x] GitHub Actions release workflow — build binaries, publish Docker image on tag
+- [x] Barbacane spec for production — S3 dispatcher routes, OIDC auth, ACL rules (ADR-006, ADR-011)
+- [x] Licensing — AGPL-3.0 dual-license (follows Barbacane pattern, LICENSE + LICENSING.md)
 
 ---
 
