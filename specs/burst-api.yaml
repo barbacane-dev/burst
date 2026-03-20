@@ -20,8 +20,8 @@ servers:
 x-barbacane-middlewares:
   - name: oidc-auth
     config:
-      issuer_url: "http://127.0.0.1:9099/burst"
-      issuer_override: "http://localhost:9099/burst"
+      issuer_url: "env://BURST_OIDC_ISSUER_URL"
+      issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
       audience: "burst"
       allow_query_token: true
       groups_claim: "roles"
@@ -73,7 +73,7 @@ paths:
       x-barbacane-dispatch:
         name: ws-upstream
         config:
-          url: "ws://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_WS_URL"
       parameters:
         - name: lastEventId
           in: query
@@ -104,7 +104,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - name: cursor
           in: query
@@ -173,7 +173,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       responses:
         "200":
           description: Current user profile
@@ -218,7 +218,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/users/{userId}"
       parameters:
         - name: userId
@@ -288,7 +288,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - name: joined
           in: query
@@ -356,7 +356,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       requestBody:
         description: Channel to create
         required: true
@@ -421,7 +421,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -475,7 +475,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -527,7 +527,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       requestBody:
         description: Target user for the DM
         required: true
@@ -587,7 +587,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -626,7 +626,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -678,7 +678,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/members/me"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -713,7 +713,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/members/me/last-read"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -752,7 +752,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -806,7 +806,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -863,7 +863,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -905,7 +905,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -956,7 +956,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -996,7 +996,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages/{messageId}/replies"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1054,7 +1054,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1100,7 +1100,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
@@ -1165,7 +1165,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/search/messages"
       parameters:
         - name: q
@@ -1253,7 +1253,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
           path: "/attachments/{attachmentId}"
       parameters:
         - name: attachmentId
@@ -1301,7 +1301,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1331,7 +1331,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1363,7 +1363,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -1396,7 +1396,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -1431,7 +1431,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -1465,7 +1465,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
@@ -1507,7 +1507,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       x-barbacane-middlewares:
         - name: acl
           config:
@@ -1560,7 +1560,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       x-barbacane-middlewares:
         - name: acl
           config:
@@ -1617,7 +1617,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       x-barbacane-middlewares:
         - name: acl
           config:
@@ -1665,7 +1665,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       x-barbacane-middlewares:
         - name: acl
           config:
@@ -1712,7 +1712,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       x-barbacane-middlewares:
         - name: acl
           config:
@@ -1748,7 +1748,7 @@ paths:
       x-barbacane-dispatch:
         name: http-upstream
         config:
-          url: "http://127.0.0.1:3000"
+          url: "env://BURST_UPSTREAM_URL"
       x-barbacane-middlewares:
         - name: acl
           config:

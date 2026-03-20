@@ -1,21 +1,20 @@
-# Full-stack Burst deployment (all services in containers).
+# Full-stack Burst deployment — zero-trust topology (ADR-009).
+#
+# Prerequisites:
+#   make gateway-compile    # Produces burst-api.bca
 #
 # Usage:
 #   docker compose -f docker/docker-compose.yaml up --build
 #
-# This starts:
-#   - PostgreSQL 17
-#   - RustFS (S3-compatible object storage)
-#   - Burst API server (built from Dockerfile)
+# Architecture (zero trust):
+#   Browser → Barbacane (:8080) → Burst (internal only)
+#                                    ↓
+#                              Barbacane S3 dispatcher → RustFS (internal only)
+#                                    ↓
+#                              PostgreSQL (internal only)
 #
-# Barbacane gateway is not included here — it runs as a separate process
-# or sidecar with its own compiled artifact (see README for details).
-#
-# Access:
-#   - Burst API:       http://localhost:3000
-#   - Burst admin:     http://localhost:3001  (health + metrics)
-#   - RustFS console:  http://localhost:9001
-#   - PostgreSQL:      localhost:5432
+# Only Barbacane (8080) and Burst admin (3001) are exposed to the host.
+# Burst API (3000) is internal — all traffic goes through the gateway.
 
 services:
   postgres:
@@ -45,8 +44,9 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+    expose:
+      - "3000"
     ports:
-      - "3000:3000"
       - "3001:3001"
     environment:
       BURST_DATABASE_URL: postgres://burst:burst@postgres:5432/burst
@@ -62,6 +62,37 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+  barbacane:
+    image: ghcr.io/barbacane-dev/barbacane-standalone
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../burst-api.bca:/config/burst-api.bca:ro
+    environment:
+      # Upstream URLs (Docker service names instead of localhost)
+      BURST_UPSTREAM_URL: http://burst:3000
+      BURST_UPSTREAM_WS_URL: ws://burst:3000
+      # OIDC — requires an OIDC provider (not included in this compose)
+      # Override these for your identity provider:
+      BURST_OIDC_ISSUER_URL: ${BURST_OIDC_ISSUER_URL:-http://host.docker.internal:9099/burst}
+      BURST_OIDC_ISSUER_OVERRIDE: ${BURST_OIDC_ISSUER_OVERRIDE:-http://localhost:9099/burst}
+      # S3 dispatcher → RustFS
+      BURST_S3_REGION: us-east-1
+      BURST_S3_BUCKET: burst-files
+      BURST_S3_ACCESS_KEY_ID: burst
+      BURST_S3_SECRET_ACCESS_KEY: burstpass
+      BURST_S3_ENDPOINT: http://rustfs:9000
+    command: >
+      serve
+      --artifact /config/burst-api.bca
+      --listen 0.0.0.0:8080
+      --dev
+      --allow-plaintext-upstream
+      --max-body-size 10485760
+    depends_on:
+      burst:
+        condition: service_healthy
 
 volumes:
   pgdata:

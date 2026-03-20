@@ -217,6 +217,12 @@ jobs:
 
       - name: Start Barbacane gateway
         env:
+          # Upstream URLs (localhost in CI — Burst runs on the same host)
+          BURST_UPSTREAM_URL: http://127.0.0.1:3000
+          BURST_UPSTREAM_WS_URL: ws://127.0.0.1:3000
+          # OIDC (mock OAuth on the same host)
+          BURST_OIDC_ISSUER_URL: http://127.0.0.1:9099/burst
+          BURST_OIDC_ISSUER_OVERRIDE: http://localhost:9099/burst
           # Dummy S3 env vars so Barbacane resolves env:// references in the spec.
           # The S3 routes are not exercised in the standard smoke test.
           BURST_S3_REGION: us-east-1
