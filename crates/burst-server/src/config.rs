@@ -138,10 +138,15 @@ fn default_broker_backend() -> String {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
+    /// Storage backend: "local" (default) or "gateway" (S3 via Barbacane).
     #[serde(default = "default_storage_backend")]
     pub backend: String,
     #[serde(default = "default_local_path")]
     pub local_path: String,
+    /// Barbacane gateway URL for S3 storage (e.g. "http://localhost:8080").
+    /// Required when backend = "gateway".
+    #[serde(default)]
+    pub gateway_url: Option<String>,
     #[serde(default = "default_max_file_size")]
     pub max_file_size: u64,
     #[serde(default = "default_max_files_per_message")]
@@ -155,6 +160,7 @@ impl Default for StorageConfig {
         Self {
             backend: default_storage_backend(),
             local_path: default_local_path(),
+            gateway_url: None,
             max_file_size: default_max_file_size(),
             max_files_per_message: default_max_files_per_message(),
             blocked_extensions: default_blocked_extensions(),

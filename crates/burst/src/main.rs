@@ -70,10 +70,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let shutdown_timeout = Duration::from_secs(config.server.shutdown_timeout_secs);
 
     let app_config = config.app_config();
-    let storage = Storage::Local(
-        LocalStorage::new(std::path::PathBuf::from(&app_config.storage.local_path))
-            .expect("failed to initialise local storage"),
-    );
+    let storage = match app_config.storage.backend.as_str() {
+        "gateway" => {
+            let url = app_config
+                .storage
+                .gateway_url
+                .as_deref()
+                .expect("storage.gateway_url is required when backend = \"gateway\"");
+            tracing::info!(
+                gateway_url = url,
+                "using gateway storage (S3 via Barbacane)"
+            );
+            Storage::Gateway(burst_server::storage::gateway::GatewayStorage::new(url))
+        }
+        _ => {
+            tracing::info!(path = %app_config.storage.local_path, "using local storage");
+            Storage::Local(
+                LocalStorage::new(std::path::PathBuf::from(&app_config.storage.local_path))
+                    .expect("failed to initialise local storage"),
+            )
+        }
+    };
     let state = if config.broker.backend == "pg_notify" {
         let broker = burst_server::ws::broker::PgNotifyBroker::new(
             pool.clone(),
