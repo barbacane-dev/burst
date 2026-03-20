@@ -7,6 +7,7 @@ import { MainLayout, WelcomeView } from "./components/layout/main-layout";
 import { ChannelPage } from "./pages/channel";
 import { SettingsPage } from "./pages/settings";
 import { AdminPage } from "./pages/admin";
+import { CallbackPage } from "./pages/callback";
 import { Spinner } from "./components/ui/spinner";
 import { queryClient } from "./lib/query-client";
 import type { ReactNode } from "react";
@@ -46,6 +47,7 @@ function AppRoutes() {
         path="/login"
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
+      <Route path="/callback" element={<CallbackPage />} />
       <Route
         path="/"
         element={

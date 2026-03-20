@@ -287,3 +287,38 @@ pub async fn update(
     .fetch_optional(pool)
     .await
 }
+
+/// Update avatar URL (used during JIT provisioning from OIDC picture claim).
+pub async fn update_avatar(pool: &PgPool, id: Uuid, avatar_url: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET avatar_url = $2, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .bind(avatar_url)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+/// Sync profile fields from OIDC claims. Only updates non-null values.
+pub async fn sync_profile(
+    pool: &PgPool,
+    id: Uuid,
+    display_name: Option<&str>,
+    email: Option<&str>,
+    avatar_url: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE users SET \
+         display_name = COALESCE($2, display_name), \
+         email = COALESCE($3, email), \
+         avatar_url = COALESCE($4, avatar_url), \
+         updated_at = now() \
+         WHERE id = $1",
+    )
+    .bind(id)
+    .bind(display_name)
+    .bind(email)
+    .bind(avatar_url)
+    .execute(pool)
+    .await?;
+    Ok(())
+}

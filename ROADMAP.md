@@ -215,8 +215,8 @@ Webhooks and bots multiply the value of a stable core — they are not the thing
 
 Production-grade SSO documentation and JIT provisioning refinement.
 
-- [ ] Barbacane OIDC configuration — document full OIDC setup with oidc-auth plugin (ADR-006)
-- [ ] JIT provisioning refinement — claim mapping, group sync, profile re-sync on login (ADR-006)
+- [x] Barbacane OIDC configuration — Google OIDC with oidc-auth plugin (ADR-006). GitHub deferred (requires OIDC bridge).
+- [x] JIT provisioning refinement — claim mapping (name, email, picture), profile re-sync on login (ADR-006)
 
 ---
 

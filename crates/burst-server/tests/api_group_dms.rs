@@ -5,7 +5,7 @@ use axum::http::StatusCode;
 #[sqlx::test(migrations = "../../migrations")]
 async fn create_group_dm(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool);
-    let _alice = common::seed_user(&app.state.db, "alice").await;
+    let alice = common::seed_user(&app.state.db, "alice").await;
     let bob = common::seed_user(&app.state.db, "bob").await;
     let charlie = common::seed_user(&app.state.db, "charlie").await;
 
@@ -28,7 +28,7 @@ async fn create_group_dm(pool: sqlx::PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn group_dm_is_idempotent(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool);
-    let _alice = common::seed_user(&app.state.db, "alice").await;
+    let alice = common::seed_user(&app.state.db, "alice").await;
     let bob = common::seed_user(&app.state.db, "bob").await;
     let charlie = common::seed_user(&app.state.db, "charlie").await;
 
@@ -57,7 +57,7 @@ async fn group_dm_is_idempotent(pool: sqlx::PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn single_user_id_array_creates_regular_dm(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool);
-    let _alice = common::seed_user(&app.state.db, "alice").await;
+    let alice = common::seed_user(&app.state.db, "alice").await;
     let bob = common::seed_user(&app.state.db, "bob").await;
 
     let bob_id = burst_core::id::format_user_id(bob.id);
@@ -77,7 +77,7 @@ async fn single_user_id_array_creates_regular_dm(pool: sqlx::PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn backward_compat_user_id_field(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool);
-    let _alice = common::seed_user(&app.state.db, "alice").await;
+    let alice = common::seed_user(&app.state.db, "alice").await;
     let bob = common::seed_user(&app.state.db, "bob").await;
 
     let bob_id = burst_core::id::format_user_id(bob.id);
@@ -98,7 +98,7 @@ async fn backward_compat_user_id_field(pool: sqlx::PgPool) {
 #[sqlx::test(migrations = "../../migrations")]
 async fn send_message_in_group_dm(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool);
-    let _alice = common::seed_user(&app.state.db, "alice").await;
+    let alice = common::seed_user(&app.state.db, "alice").await;
     let bob = common::seed_user(&app.state.db, "bob").await;
     let charlie = common::seed_user(&app.state.db, "charlie").await;
 
