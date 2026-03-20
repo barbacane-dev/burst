@@ -1,6 +1,25 @@
+# Full-stack Burst deployment (all services in containers).
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yaml up --build
+#
+# This starts:
+#   - PostgreSQL 17
+#   - RustFS (S3-compatible object storage)
+#   - Burst API server (built from Dockerfile)
+#
+# Barbacane gateway is not included here — it runs as a separate process
+# or sidecar with its own compiled artifact (see README for details).
+#
+# Access:
+#   - Burst API:       http://localhost:3000
+#   - Burst admin:     http://localhost:3001  (health + metrics)
+#   - RustFS console:  http://localhost:9001
+#   - PostgreSQL:      localhost:5432
+
 services:
   postgres:
-    image: postgres:16
+    image: postgres:17
     environment:
       POSTGRES_USER: burst
       POSTGRES_PASSWORD: burst
@@ -15,5 +34,39 @@ services:
       timeout: 5s
       retries: 5
 
+  rustfs:
+    image: rustfs/rustfs:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      RUSTFS_ROOT_USER: burst
+      RUSTFS_ROOT_PASSWORD: burstpass
+    command: server /data --console-address ":9001"
+    volumes:
+      - rustfsdata:/data
+
+  burst:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      BURST_DATABASE_URL: postgres://burst:burst@postgres:5432/burst
+      BURST_SERVER_LISTEN: "0.0.0.0:3000"
+      BURST_SERVER_ADMIN_LISTEN: "0.0.0.0:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3001/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 volumes:
   pgdata:
+  rustfsdata:
