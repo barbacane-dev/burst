@@ -14,9 +14,9 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use burst_server::{
-    AppState, app_router,
+    AppState, admin_router, app_router,
     config::{AppConfig, StorageConfig, WebSocketConfig},
-    db,
+    db, metrics,
     storage::{Storage, local::LocalStorage},
 };
 
@@ -25,6 +25,8 @@ use burst_server::{
 pub struct TestApp {
     /// The Axum router under test.  Clone it for each `oneshot` call.
     pub router: axum::Router,
+    /// The admin router (health + metrics endpoints).
+    pub admin: axum::Router,
     /// The full app state — useful for inspecting the broker, presence, etc.
     pub state: AppState,
     /// Temp dir backing the local storage (kept alive for the test lifetime).
@@ -42,10 +44,12 @@ impl TestApp {
             websocket: WebSocketConfig::default(),
         };
         let storage = Storage::Local(LocalStorage::new(storage_dir.path().to_path_buf()).unwrap());
-        let state = AppState::new(pool, config, storage);
+        let state = AppState::new(pool, config, storage, metrics::noop());
         let router = app_router(state.clone());
+        let admin = admin_router(state.clone());
         Self {
             router,
+            admin,
             state,
             _storage_dir: storage_dir,
         }

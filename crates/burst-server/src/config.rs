@@ -10,6 +10,8 @@ pub struct Config {
     pub storage: StorageConfig,
     #[serde(default)]
     pub websocket: WebSocketConfig,
+    #[serde(default)]
+    pub telemetry: TelemetryConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -83,6 +85,30 @@ fn default_event_buffer_capacity() -> usize {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct TelemetryConfig {
+    /// OpenTelemetry OTLP endpoint (e.g. "http://otel-collector:4317").
+    /// Empty or absent = tracing disabled.
+    #[serde(default)]
+    pub otlp_endpoint: Option<String>,
+    /// Trace sampling rate: 1.0 = all, 0.1 = 10%, 0.0 = disabled.
+    #[serde(default = "default_trace_sample_rate")]
+    pub trace_sample_rate: f64,
+}
+
+impl Default for TelemetryConfig {
+    fn default() -> Self {
+        Self {
+            otlp_endpoint: None,
+            trace_sample_rate: default_trace_sample_rate(),
+        }
+    }
+}
+
+fn default_trace_sample_rate() -> f64 {
+    1.0
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
     #[serde(default = "default_storage_backend")]
     pub backend: String,
@@ -149,6 +175,7 @@ impl Config {
                     },
                     storage: StorageConfig::default(),
                     websocket: WebSocketConfig::default(),
+                    telemetry: TelemetryConfig::default(),
                 },
             }
         };

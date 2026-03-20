@@ -580,6 +580,7 @@ async fn send_message(
         message: response.clone(),
     };
     services::broadcast(&state, ev).await;
+    crate::metrics::message_created();
 
     Ok((axum::http::StatusCode::CREATED, Json(response)))
 }

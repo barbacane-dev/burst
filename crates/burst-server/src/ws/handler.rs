@@ -70,6 +70,8 @@ async fn handle_socket(
     user_id: Uuid,
     last_event_id: Option<Uuid>,
 ) {
+    crate::metrics::ws_connection_opened();
+
     // ── Load channel memberships for filtering ────────────────────────────────
     let mut channel_ids: HashSet<Uuid> =
         match db::channels::channel_ids_for_user(&state.db, user_id).await {
@@ -158,11 +160,13 @@ async fn handle_socket(
     }
 
     // ── Cleanup: mark offline ─────────────────────────────────────────────────
+    crate::metrics::ws_connection_closed();
     let just_went_offline = state.presence.disconnect(user_id).await;
     if just_went_offline {
         let ev = presence_event(user_id, "offline");
         push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
     }
+    crate::metrics::set_active_users(state.presence.online_count().await as f64);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

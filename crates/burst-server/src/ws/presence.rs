@@ -42,4 +42,9 @@ impl PresenceState {
     pub async fn is_online(&self, user_id: Uuid) -> bool {
         self.connections.read().await.contains_key(&user_id)
     }
+
+    /// Returns the number of distinct online users.
+    pub async fn online_count(&self) -> usize {
+        self.connections.read().await.len()
+    }
 }

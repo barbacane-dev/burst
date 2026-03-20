@@ -2,8 +2,10 @@ pub mod api;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod metrics;
 pub mod services;
 pub mod storage;
+pub mod telemetry;
 pub mod ws;
 
 use std::sync::Arc;
@@ -21,10 +23,16 @@ pub struct AppState {
     pub event_buffer: Arc<EventBuffer>,
     pub presence: Arc<PresenceState>,
     pub storage: storage::Storage,
+    pub metrics_handle: metrics::MetricsHandle,
 }
 
 impl AppState {
-    pub fn new(db: PgPool, config: config::AppConfig, storage: storage::Storage) -> Self {
+    pub fn new(
+        db: PgPool,
+        config: config::AppConfig,
+        storage: storage::Storage,
+        metrics_handle: metrics::MetricsHandle,
+    ) -> Self {
         let ws_config = &config.websocket;
         Self {
             db,
@@ -32,12 +40,15 @@ impl AppState {
             event_buffer: EventBuffer::new(ws_config.event_buffer_capacity),
             presence: PresenceState::new(),
             storage,
+            metrics_handle,
             config,
         }
     }
 }
 
 pub fn app_router(state: AppState) -> Router {
+    use axum::middleware;
+
     Router::new()
         .merge(api::users::router())
         .merge(api::channels::router())
@@ -45,9 +56,16 @@ pub fn app_router(state: AppState) -> Router {
         .merge(api::attachments::router())
         .merge(api::admin::router())
         .route("/ws", axum::routing::get(ws::handler::ws_handler))
+        .layer(middleware::from_fn(metrics::http_metrics))
         .with_state(state)
 }
 
 pub fn admin_router(state: AppState) -> Router {
-    Router::new().merge(api::health::router()).with_state(state)
+    Router::new()
+        .merge(api::health::router())
+        .route(
+            "/metrics",
+            axum::routing::get(metrics::metrics_handler).with_state(state.metrics_handle.clone()),
+        )
+        .with_state(state)
 }

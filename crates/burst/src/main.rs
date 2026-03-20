@@ -2,23 +2,16 @@ use std::path::PathBuf;
 
 use burst_server::config::Config;
 use burst_server::storage::{Storage, local::LocalStorage};
-use burst_server::{AppState, admin_router, app_router};
+use burst_server::{AppState, admin_router, app_router, metrics, telemetry};
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Logging
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::try_from_env("BURST_LOG")
-                .unwrap_or_else(|_| EnvFilter::new("info,burst=debug,burst_server=debug")),
-        )
-        .json()
-        .init();
-
-    // Config
+    // Config (loaded first so telemetry config is available for subscriber init)
     let config_path = std::env::args()
         .nth(1)
         .filter(|a| !a.starts_with('-'))
@@ -31,7 +24,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::load(config_path.as_deref())?;
 
+    // Telemetry: OpenTelemetry tracer (optional, based on config)
+    let tracer_provider = telemetry::init_tracer(&config.telemetry);
+
+    // Logging: layered subscriber — JSON formatter + optional OTel layer
+    let env_filter = EnvFilter::try_from_env("BURST_LOG")
+        .unwrap_or_else(|_| EnvFilter::new("info,burst=debug,burst_server=debug"));
+    let fmt_layer = tracing_subscriber::fmt::layer().json();
+
+    let registry = tracing_subscriber::registry()
+        .with(env_filter)
+        .with(fmt_layer);
+
+    if let Some(ref provider) = tracer_provider {
+        use opentelemetry::trace::TracerProvider;
+        let otel_layer = tracing_opentelemetry::layer().with_tracer(provider.tracer("burst"));
+        registry.with(otel_layer).init();
+    } else {
+        registry.init();
+    }
+
     tracing::info!(listen = %config.server.listen, admin = %config.server.admin_listen, "starting burst");
+
+    // Metrics: Prometheus recorder
+    let metrics_handle = metrics::install();
 
     // Database
     let pool = PgPoolOptions::new()
@@ -45,12 +61,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     sqlx::migrate!("../../migrations").run(&pool).await?;
     tracing::info!("migrations applied");
 
+    // DB pool metrics (periodic gauge update)
+    metrics::spawn_db_pool_metrics(pool.clone());
+
     let app_config = config.app_config();
     let storage = Storage::Local(
         LocalStorage::new(std::path::PathBuf::from(&app_config.storage.local_path))
             .expect("failed to initialise local storage"),
     );
-    let state = AppState::new(pool, app_config, storage);
+    let state = AppState::new(pool, app_config, storage, metrics_handle);
 
     // Main server
     let app = app_router(state.clone());
@@ -83,6 +102,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         () = shutdown => {}
     }
+
+    // Flush OTel spans before exit
+    telemetry::shutdown(tracer_provider);
 
     Ok(())
 }
