@@ -1,7 +1,7 @@
 mod common;
 
-use burst_server::ws::broker::{EventBroker, InProcessBroker, PgNotifyBroker};
 use burst_server::ws::ServerEvent;
+use burst_server::ws::broker::{EventBroker, InProcessBroker, PgNotifyBroker};
 
 // ── InProcessBroker integration tests ────────────────────────────────────────
 
@@ -98,9 +98,18 @@ async fn pg_notify_broker_serializes_events_to_pg(pool: sqlx::PgPool) {
         .expect("PG listener error");
 
     let payload = notification.payload();
-    assert!(payload.contains("evt_pg_notify"), "payload should contain event_id");
-    assert!(payload.contains("ch_123"), "payload should contain channel_id");
-    assert!(payload.contains("msg_456"), "payload should contain message_id");
+    assert!(
+        payload.contains("evt_pg_notify"),
+        "payload should contain event_id"
+    );
+    assert!(
+        payload.contains("ch_123"),
+        "payload should contain channel_id"
+    );
+    assert!(
+        payload.contains("msg_456"),
+        "payload should contain message_id"
+    );
 }
 
 #[sqlx::test(migrations = "../../migrations")]
@@ -108,6 +117,9 @@ async fn pg_notify_broker_cross_node_delivery(pool: sqlx::PgPool) {
     // Simulate two nodes: broker A publishes, broker B should receive via PG NOTIFY.
     let broker_a = PgNotifyBroker::new(pool.clone(), 64).await.unwrap();
     let broker_b = PgNotifyBroker::new(pool.clone(), 64).await.unwrap();
+
+    // Give the PG LISTEN tasks time to establish their connections.
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
     let mut rx_b = broker_b.subscribe();
 
