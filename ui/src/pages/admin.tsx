@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Shield, Users, Hash, FileText } from "lucide-react";
+import { Shield, Users, Hash, FileText, Smile } from "lucide-react";
 import {
   listAdminUsers,
   listAdminChannels,
@@ -12,10 +12,17 @@ import {
   type AdminChannel,
   type AuditLogEntry,
 } from "../lib/api/admin";
+import {
+  listAdminEmojis,
+  createEmoji,
+  deleteEmoji,
+  type CustomEmoji,
+} from "../lib/api/emojis";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import type { PaginatedResponse } from "../lib/api/types";
 
-type Tab = "users" | "channels" | "audit";
+type Tab = "users" | "channels" | "emojis" | "audit";
 
 export function AdminPage() {
   const [tab, setTab] = useState<Tab>("users");
@@ -23,6 +30,7 @@ export function AdminPage() {
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: "users", label: "Users", icon: <Users className="h-4 w-4" /> },
     { key: "channels", label: "Channels", icon: <Hash className="h-4 w-4" /> },
+    { key: "emojis", label: "Emojis", icon: <Smile className="h-4 w-4" /> },
     { key: "audit", label: "Audit Log", icon: <FileText className="h-4 w-4" /> },
   ];
 
@@ -53,6 +61,7 @@ export function AdminPage() {
 
         {tab === "users" && <UsersTab />}
         {tab === "channels" && <ChannelsTab />}
+        {tab === "emojis" && <EmojisTab />}
         {tab === "audit" && <AuditTab />}
       </div>
     </div>
@@ -242,6 +251,118 @@ function AuditTab() {
           </time>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Emojis Tab ──
+
+function EmojisTab() {
+  const queryClient = useQueryClient();
+  const [shortcode, setShortcode] = useState("");
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const { data, isLoading } = useQuery<PaginatedResponse<CustomEmoji>>({
+    queryKey: ["admin-emojis"],
+    queryFn: () => listAdminEmojis(),
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: ({ sc, file }: { sc: string; file: File }) => createEmoji(sc, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-emojis"] });
+      queryClient.invalidateQueries({ queryKey: ["emojis"] });
+      setShortcode("");
+      setError("");
+      if (fileRef.current) fileRef.current.value = "";
+    },
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteEmoji(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-emojis"] });
+      queryClient.invalidateQueries({ queryKey: ["emojis"] });
+    },
+  });
+
+  function handleUpload() {
+    const file = fileRef.current?.files?.[0];
+    if (!file || !shortcode.trim()) return;
+    setError("");
+    uploadMutation.mutate({ sc: shortcode.trim(), file });
+  }
+
+  const emojis = data?.items ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+        <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Upload Custom Emoji
+        </h3>
+        {error && (
+          <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
+            {error}
+          </div>
+        )}
+        <div className="flex items-end gap-3">
+          <Input
+            id="shortcode"
+            label="Shortcode"
+            value={shortcode}
+            onChange={(e) => setShortcode(e.target.value)}
+            placeholder="partyparrot"
+          />
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Image
+            </label>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="text-sm text-gray-500 file:mr-2 file:rounded file:border-0 file:bg-indigo-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-indigo-600 dark:text-gray-400 dark:file:bg-indigo-900/30 dark:file:text-indigo-400"
+            />
+          </div>
+          <Button onClick={handleUpload} disabled={uploadMutation.isPending}>
+            Upload
+          </Button>
+        </div>
+      </div>
+
+      {isLoading && <p className="text-sm text-gray-400">Loading emojis...</p>}
+
+      {emojis.length === 0 && !isLoading && (
+        <p className="text-sm text-gray-400">No custom emojis yet.</p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+        {emojis.map((emoji) => (
+          <div
+            key={emoji.id}
+            className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
+          >
+            <img
+              src={`/api/attachments/${emoji.imageUrl}`}
+              alt={emoji.shortcode}
+              className="h-6 w-6 object-contain"
+            />
+            <span className="flex-1 truncate text-sm text-gray-900 dark:text-gray-100">
+              :{emoji.shortcode}:
+            </span>
+            <button
+              onClick={() => deleteMutation.mutate(emoji.id)}
+              disabled={deleteMutation.isPending}
+              className="text-xs text-red-500 hover:text-red-700 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

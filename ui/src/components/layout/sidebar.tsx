@@ -5,7 +5,7 @@ import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/rea
 import { useWsEvent } from "../../lib/ws/hooks";
 import { useAuth } from "../../lib/auth/context";
 import { useTheme } from "../../lib/theme";
-import { listChannels, listMembers, createChannel, createDm, browseChannels, joinChannel } from "../../lib/api/channels";
+import { listChannels, listMembers, createChannel, createDm, createGroupDm, browseChannels, joinChannel } from "../../lib/api/channels";
 import { listUsers } from "../../lib/api/users";
 import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
@@ -437,6 +437,7 @@ function NewDmDialog({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data: usersData, isLoading } = useQuery<PaginatedResponse<User>>({
     queryKey: ["users"],
@@ -446,16 +447,30 @@ function NewDmDialog({
   const users = (usersData?.items ?? []).filter((u) => u.id !== currentUserId);
 
   const mutation = useMutation({
-    mutationFn: (userId: string) => createDm(userId),
+    mutationFn: (userIds: string[]) =>
+      userIds.length === 1 ? createDm(userIds[0]) : createGroupDm(userIds),
     onSuccess: (channel) => {
       queryClient.invalidateQueries({ queryKey: ["channels"] });
       navigate(`/channels/${channel.id}`);
       onClose();
     },
-    onError: (err: Error) => {
-      setError(err.message);
-    },
+    onError: (err: Error) => setError(err.message),
   });
+
+  function toggleUser(userId: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
+  function handleStart() {
+    if (selected.size === 0) return;
+    setError("");
+    mutation.mutate([...selected]);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
@@ -472,6 +487,13 @@ function NewDmDialog({
           </button>
         </div>
 
+        {selected.size > 0 && (
+          <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+            {selected.size} user{selected.size > 1 ? "s" : ""} selected
+            {selected.size > 1 && " (group DM)"}
+          </p>
+        )}
+
         {error && (
           <div className="mb-3 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/30 dark:text-red-400">
             {error}
@@ -483,23 +505,39 @@ function NewDmDialog({
         ) : users.length === 0 ? (
           <p className="text-sm text-gray-400">No other users found.</p>
         ) : (
-          <ul className="max-h-64 overflow-y-auto space-y-1">
-            {users.map((u) => (
-              <li key={u.id}>
-                <button
-                  onClick={() => { setError(""); mutation.mutate(u.id); }}
-                  disabled={mutation.isPending}
-                  className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-left hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
-                >
-                  <Avatar name={u.displayName} src={u.avatarUrl} size="sm" />
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">{u.displayName}</p>
-                    <p className="text-xs text-gray-500">@{u.username}</p>
-                  </div>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="max-h-64 overflow-y-auto space-y-1">
+              {users.map((u) => (
+                <li key={u.id}>
+                  <button
+                    onClick={() => toggleUser(u.id)}
+                    className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-left transition-colors ${
+                      selected.has(u.id)
+                        ? "bg-indigo-50 ring-1 ring-indigo-300 dark:bg-indigo-900/20 dark:ring-indigo-700"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    <Avatar name={u.displayName} src={u.avatarUrl} size="sm" />
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900 dark:text-gray-100">{u.displayName}</p>
+                      <p className="text-xs text-gray-500">@{u.username}</p>
+                    </div>
+                    {selected.has(u.id) && (
+                      <span className="text-indigo-600 dark:text-indigo-400">&#10003;</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex justify-end">
+              <Button
+                onClick={handleStart}
+                disabled={selected.size === 0 || mutation.isPending}
+              >
+                {selected.size <= 1 ? "Start DM" : "Start Group DM"}
+              </Button>
+            </div>
+          </>
         )}
       </div>
     </div>

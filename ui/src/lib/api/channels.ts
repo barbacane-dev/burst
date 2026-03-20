@@ -33,6 +33,13 @@ export async function createDm(userId: string): Promise<Channel> {
   });
 }
 
+export async function createGroupDm(userIds: string[]): Promise<Channel> {
+  return apiFetch<Channel>("/dms", {
+    method: "POST",
+    body: JSON.stringify({ userIds }),
+  });
+}
+
 export async function listMembers(channelId: string): Promise<ChannelMember[]> {
   const res = await apiFetch<PaginatedResponse<ChannelMember>>(`/channels/${channelId}/members`);
   return res.items;
