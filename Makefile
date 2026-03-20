@@ -1,4 +1,4 @@
-.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed lint-spec check smoke e2e install
+.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed lint-spec check smoke smoke-s3 e2e install
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
@@ -134,6 +134,9 @@ check: ## Run fmt, clippy, and tests
 
 smoke: ## Run k6 smoke tests (requires: make all running in another terminal)
 	k6 run tests/http/smoke.js
+
+smoke-s3: ## Run k6 S3 storage smoke test (requires: RustFS + Barbacane S3 dispatcher)
+	k6 run tests/http/smoke-s3.js
 
 e2e: ## Run Playwright E2E tests (requires: make all running in another terminal)
 	cd ui && npx playwright test

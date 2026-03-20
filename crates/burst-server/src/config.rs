@@ -153,6 +153,12 @@ pub struct StorageConfig {
     pub max_files_per_message: usize,
     #[serde(default = "default_blocked_extensions")]
     pub blocked_extensions: Vec<String>,
+    /// Interval in seconds between cleanup runs for soft-deleted attachments.
+    #[serde(default = "default_cleanup_interval")]
+    pub cleanup_interval_secs: u64,
+    /// Number of days after soft-delete before attachment files are removed.
+    #[serde(default = "default_cleanup_retention")]
+    pub cleanup_retention_days: i64,
 }
 
 impl Default for StorageConfig {
@@ -164,8 +170,18 @@ impl Default for StorageConfig {
             max_file_size: default_max_file_size(),
             max_files_per_message: default_max_files_per_message(),
             blocked_extensions: default_blocked_extensions(),
+            cleanup_interval_secs: default_cleanup_interval(),
+            cleanup_retention_days: default_cleanup_retention(),
         }
     }
+}
+
+fn default_cleanup_interval() -> u64 {
+    3600 // 1 hour
+}
+
+fn default_cleanup_retention() -> i64 {
+    30 // 30 days
 }
 
 fn default_storage_backend() -> String {

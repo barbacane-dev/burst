@@ -40,4 +40,5 @@ tower.workspace = true
 uuid.workspace = true
 urlencoding.workspace = true
 sqlx = { workspace = true }
+reqwest.workspace = true
 tempfile = "3"

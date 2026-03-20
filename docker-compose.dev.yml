@@ -48,5 +48,18 @@ services:
           ]
         }
 
+  rustfs:
+    image: rustfs/rustfs:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      RUSTFS_ROOT_USER: burst
+      RUSTFS_ROOT_PASSWORD: burstpass
+    command: server /data --console-address ":9001"
+    volumes:
+      - rustfsdata:/data
+
 volumes:
   pgdata:
+  rustfsdata:

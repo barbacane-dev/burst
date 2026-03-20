@@ -116,6 +116,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     };
 
+    // Background cleanup task for soft-deleted attachment files (ADR-011)
+    let _cleanup_handle = burst_server::services::cleanup::spawn(
+        pool.clone(),
+        state.storage.clone(),
+        Duration::from_secs(state.config.storage.cleanup_interval_secs),
+        state.config.storage.cleanup_retention_days,
+        shutdown_token.clone(),
+    );
+
     // Main server
     let app = app_router(state.clone());
     let main_listener = TcpListener::bind(&config.server.listen).await?;

@@ -7,7 +7,7 @@ Open-source team messaging built on [Barbacane](https://github.com/barbacane-dev
 - Rust (stable)
 - Node.js 20+
 - Docker
-- [Barbacane](https://github.com/barbacane-dev/barbacane) cloned at `../Barbacane` with plugins built (`make plugins && make release`)
+- [k6](https://grafana.com/docs/k6/) (for smoke tests)
 
 ## Quick start
 
@@ -55,8 +55,11 @@ CI downloads the ruleset automatically on each run.
 ## Architecture
 
 ```
-Browser (:5173) → Vite → Barbacane (:8080) → Burst (:3000)
-                    ↘ Mock OIDC (:9099)          ↘ PostgreSQL (:5432)
+Browser (:5173) → Vite → Barbacane (:8080) → Burst (:3000) → PostgreSQL (:5432)
+                    ↘ Mock OIDC (:9099)   ↑        ↓
+                                          ↑   Barbacane (:8080)  [S3 dispatcher]
+                                          ↑        ↓
+                                          ↑   RustFS (:9000)     [optional]
 ```
 
 Barbacane validates JWTs (oidc-auth plugin) and sets `X-Auth-Consumer` / `X-Auth-Consumer-Groups` before forwarding to Burst. Admin routes are protected by the ACL plugin at the gateway level (`allow: [admin]`), with defense-in-depth via the `AdminUser` extractor on the backend. WebSocket auth uses `?access_token=` query param (RFC 6750 §2.3).
@@ -67,7 +70,7 @@ Run `make help` for the full list. Key targets:
 
 | Target | Description |
 |--------|-------------|
-| `make services` | PostgreSQL + mock OIDC (Docker) |
+| `make services` | PostgreSQL + mock OIDC + RustFS (Docker) |
 | `make gateway-compile` | Compile OpenAPI spec into Barbacane artifact |
 | `make gateway` | Run Barbacane gateway |
 | `make server` | Run Burst API server |
@@ -78,6 +81,8 @@ Run `make help` for the full list. Key targets:
 | `make stop` | Stop all overmind processes |
 | `make restart` | Recompile gateway and restart everything |
 | `make check` | Format, lint, and test |
+| `make smoke` | Run k6 smoke tests (106 checks) |
+| `make smoke-s3` | Run S3 storage smoke test (Burst → Barbacane → RustFS) |
 | `make e2e` | Run Playwright E2E tests (requires stack running) |
 
 ## Test users

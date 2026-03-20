@@ -1,42 +1,48 @@
 mod common;
 
+use axum::Router;
 use axum::body::Body;
 use axum::extract::Path;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{delete, get, put};
-use axum::Router;
 use bytes::Bytes;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 
-use burst_server::storage::gateway::GatewayStorage;
 use burst_server::storage::StorageError;
+use burst_server::storage::gateway::GatewayStorage;
+
+// ── Mock S3 tests (always run, no external deps) ────────────────────────────
+
+type FileStore = Arc<RwLock<HashMap<String, (Bytes, String)>>>;
 
 /// In-memory mock of the Barbacane S3 dispatcher.
 /// Stores files in a HashMap, mimicking PUT/GET/DELETE on /storage/{key}.
-fn mock_s3_router() -> (Router, Arc<RwLock<HashMap<String, (Bytes, String)>>>) {
-    let store: Arc<RwLock<HashMap<String, (Bytes, String)>>> = Arc::new(RwLock::new(HashMap::new()));
+fn mock_s3_router() -> (Router, FileStore) {
+    let store: FileStore = Arc::new(RwLock::new(HashMap::new()));
 
     let s = store.clone();
-    let put_handler = put(move |Path(key): Path<String>, req: axum::extract::Request| {
-        let store = s.clone();
-        async move {
-            let content_type = req
-                .headers()
-                .get("content-type")
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or("application/octet-stream")
-                .to_string();
-            let data = axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024)
-                .await
-                .unwrap();
-            store.write().await.insert(key, (data, content_type));
-            StatusCode::OK
-        }
-    });
+    let put_handler = put(
+        move |Path(key): Path<String>, req: axum::extract::Request| {
+            let store = s.clone();
+            async move {
+                let content_type = req
+                    .headers()
+                    .get("content-type")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("application/octet-stream")
+                    .to_string();
+                let data = axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024)
+                    .await
+                    .unwrap();
+                store.write().await.insert(key, (data, content_type));
+                StatusCode::OK
+            }
+        },
+    );
 
     let s = store.clone();
     let get_handler = get(move |Path(key): Path<String>| {
@@ -71,7 +77,7 @@ fn mock_s3_router() -> (Router, Arc<RwLock<HashMap<String, (Bytes, String)>>>) {
     (router, store)
 }
 
-async fn start_mock_server() -> (String, Arc<RwLock<HashMap<String, (Bytes, String)>>>) {
+async fn start_mock_server() -> (String, FileStore) {
     let (router, store) = mock_s3_router();
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
