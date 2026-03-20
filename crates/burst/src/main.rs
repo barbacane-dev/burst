@@ -81,7 +81,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 gateway_url = url,
                 "using gateway storage (S3 via Barbacane)"
             );
-            Storage::Gateway(burst_server::storage::gateway::GatewayStorage::new(url))
+            let api_key = app_config.storage.gateway_api_key.clone();
+            Storage::Gateway(burst_server::storage::gateway::GatewayStorage::new(
+                url, api_key,
+            ))
         }
         _ => {
             tracing::info!(path = %app_config.storage.local_path, "using local storage");

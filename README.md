@@ -56,11 +56,15 @@ CI downloads the ruleset automatically on each run.
 
 ```
 Browser (:5173) → Vite → Barbacane (:8080) → Burst (:3000) → PostgreSQL (:5432)
-                    ↘ Mock OIDC (:9099)   ↑        ↓
-                                          ↑   Barbacane (:8080)  [S3 dispatcher]
-                                          ↑        ↓
-                                          ↑   RustFS (:9000)     [optional]
+                    ↘ Mock OIDC (:9099)              ↓
+                                            Barbacane-S3 (:8081) → RustFS (:9000)
+                                             [internal sidecar]     [optional]
 ```
+
+Two Barbacane instances (zero-trust, minimal attack surface):
+
+- **Public gateway** (`:8080`) — oidc-auth, acl, rate-limit, http-upstream, ws-upstream. Handles all browser traffic.
+- **S3 sidecar** (`:8081`) — s3, apikey-auth only. Internal, serves Burst's file storage operations.
 
 Barbacane validates JWTs (oidc-auth plugin) and sets `X-Auth-Consumer` / `X-Auth-Consumer-Groups` before forwarding to Burst. Admin routes are protected by the ACL plugin at the gateway level (`allow: [admin]`), with defense-in-depth via the `AdminUser` extractor on the backend. WebSocket auth uses `?access_token=` query param (RFC 6750 §2.3).
 
@@ -71,7 +75,7 @@ Run `make help` for the full list. Key targets:
 | Target | Description |
 |--------|-------------|
 | `make services` | PostgreSQL + mock OIDC + RustFS (Docker) |
-| `make gateway-compile` | Compile OpenAPI spec into Barbacane artifact |
+| `make gateway-compile` | Compile both Barbacane artifacts (API + S3 sidecar) |
 | `make gateway` | Run Barbacane gateway |
 | `make server` | Run Burst API server |
 | `make ui` | Run Vite dev server |

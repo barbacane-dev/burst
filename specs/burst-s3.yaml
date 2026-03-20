@@ -1,0 +1,118 @@
+openapi: 3.2.0
+info:
+  title: Burst S3 Storage Sidecar
+  version: 0.1.0
+  description: >-
+    Internal S3 storage proxy for Burst. Runs as a Barbacane sidecar alongside
+    the Burst API server. Only reachable on the internal Docker network.
+
+    Authenticated via API key (defense-in-depth — Burst is the sole consumer).
+    Carries only the s3 dispatcher and apikey-auth plugins for minimal attack surface.
+
+servers:
+  - url: https://localhost:8081
+    description: Internal S3 sidecar
+
+tags:
+  - name: Storage
+    description: S3-compatible object storage (internal sidecar)
+
+x-barbacane-middlewares:
+  - name: apikey-auth
+    config:
+      key_location: header
+      header_name: X-Storage-Key
+      keys:
+        env://BURST_S3_API_KEY:
+          id: burst-server
+
+paths:
+  /storage/{key}:
+    put:
+      tags:
+        - Storage
+      operationId: putStorageObject
+      summary: Upload a file to S3-compatible storage
+      x-barbacane-dispatch:
+        name: s3
+        config:
+          region: env://BURST_S3_REGION
+          bucket: env://BURST_S3_BUCKET
+          access_key_id: env://BURST_S3_ACCESS_KEY_ID
+          secret_access_key: env://BURST_S3_SECRET_ACCESS_KEY
+          endpoint: env://BURST_S3_ENDPOINT
+          force_path_style: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 1024
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+              maxLength: 104857600
+      responses:
+        "200":
+          description: Object stored successfully
+    get:
+      tags:
+        - Storage
+      operationId: getStorageObject
+      summary: Download a file from S3-compatible storage
+      x-barbacane-dispatch:
+        name: s3
+        config:
+          region: env://BURST_S3_REGION
+          bucket: env://BURST_S3_BUCKET
+          access_key_id: env://BURST_S3_ACCESS_KEY_ID
+          secret_access_key: env://BURST_S3_SECRET_ACCESS_KEY
+          endpoint: env://BURST_S3_ENDPOINT
+          force_path_style: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 1024
+      responses:
+        "200":
+          description: File data
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+                maxLength: 104857600
+        "404":
+          description: Object not found
+    delete:
+      tags:
+        - Storage
+      operationId: deleteStorageObject
+      summary: Delete a file from S3-compatible storage
+      x-barbacane-dispatch:
+        name: s3
+        config:
+          region: env://BURST_S3_REGION
+          bucket: env://BURST_S3_BUCKET
+          access_key_id: env://BURST_S3_ACCESS_KEY_ID
+          secret_access_key: env://BURST_S3_SECRET_ACCESS_KEY
+          endpoint: env://BURST_S3_ENDPOINT
+          force_path_style: true
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 1024
+      responses:
+        "204":
+          description: Object deleted

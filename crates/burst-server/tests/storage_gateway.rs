@@ -88,7 +88,7 @@ async fn start_mock_server() -> (String, FileStore) {
 #[tokio::test]
 async fn put_and_get_roundtrip() {
     let (base_url, _store) = start_mock_server().await;
-    let storage = GatewayStorage::new(&base_url);
+    let storage = GatewayStorage::new(&base_url, None);
 
     storage
         .put("test/file.txt", Bytes::from("hello gateway"), "text/plain")
@@ -103,7 +103,7 @@ async fn put_and_get_roundtrip() {
 #[tokio::test]
 async fn get_nonexistent_returns_not_found() {
     let (base_url, _store) = start_mock_server().await;
-    let storage = GatewayStorage::new(&base_url);
+    let storage = GatewayStorage::new(&base_url, None);
 
     match storage.get("does/not/exist.txt").await {
         Err(StorageError::NotFound(_)) => {} // expected
@@ -114,7 +114,7 @@ async fn get_nonexistent_returns_not_found() {
 #[tokio::test]
 async fn delete_removes_object() {
     let (base_url, _store) = start_mock_server().await;
-    let storage = GatewayStorage::new(&base_url);
+    let storage = GatewayStorage::new(&base_url, None);
 
     storage
         .put("delete-me.txt", Bytes::from("data"), "text/plain")
@@ -132,7 +132,7 @@ async fn delete_removes_object() {
 #[tokio::test]
 async fn delete_nonexistent_is_idempotent() {
     let (base_url, _store) = start_mock_server().await;
-    let storage = GatewayStorage::new(&base_url);
+    let storage = GatewayStorage::new(&base_url, None);
 
     // Deleting something that doesn't exist should not error.
     storage.delete("never-existed.txt").await.unwrap();
@@ -141,7 +141,7 @@ async fn delete_nonexistent_is_idempotent() {
 #[tokio::test]
 async fn put_preserves_content_type() {
     let (base_url, store) = start_mock_server().await;
-    let storage = GatewayStorage::new(&base_url);
+    let storage = GatewayStorage::new(&base_url, None);
 
     storage
         .put("image.png", Bytes::from("fake-png"), "image/png")
@@ -156,7 +156,7 @@ async fn put_preserves_content_type() {
 #[tokio::test]
 async fn put_large_file() {
     let (base_url, _store) = start_mock_server().await;
-    let storage = GatewayStorage::new(&base_url);
+    let storage = GatewayStorage::new(&base_url, None);
 
     let big = Bytes::from(vec![0u8; 5 * 1024 * 1024]); // 5 MB
     storage
@@ -171,7 +171,7 @@ async fn put_large_file() {
 #[tokio::test]
 async fn nested_key_paths() {
     let (base_url, _store) = start_mock_server().await;
-    let storage = GatewayStorage::new(&base_url);
+    let storage = GatewayStorage::new(&base_url, None);
 
     let key = "ch_abc123/2026/03/att_def456/report.pdf";
     storage

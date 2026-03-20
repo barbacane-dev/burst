@@ -72,13 +72,19 @@ $(BARBACANE_BIN):
 	@chmod +x $(BARBACANE_BIN)
 	@echo "Installed $(BARBACANE_BIN)"
 
-gateway-compile: $(BARBACANE_BIN) ## Compile the Burst OpenAPI spec into a Barbacane artifact
+gateway-compile: $(BARBACANE_BIN) ## Compile the Burst OpenAPI spec into Barbacane artifacts
 	$(BARBACANE_BIN) compile \
 		--spec specs/burst-api.yaml \
 		--manifest barbacane.yaml \
 		--output $(BURST_BCA) \
 		--allow-plaintext
 	@echo "Compiled $(BURST_BCA)"
+	$(BARBACANE_BIN) compile \
+		--spec specs/burst-s3.yaml \
+		--manifest barbacane-s3.yaml \
+		--output burst-s3.bca \
+		--allow-plaintext
+	@echo "Compiled burst-s3.bca"
 
 gateway: $(BURST_BCA) ## Run the Barbacane gateway (requires: make gateway-compile)
 	$(BARBACANE_BIN) serve \

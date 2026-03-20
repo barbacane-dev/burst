@@ -143,10 +143,13 @@ pub struct StorageConfig {
     pub backend: String,
     #[serde(default = "default_local_path")]
     pub local_path: String,
-    /// Barbacane gateway URL for S3 storage (e.g. "http://localhost:8080").
+    /// Barbacane S3 sidecar URL (e.g. "http://localhost:8081").
     /// Required when backend = "gateway".
     #[serde(default)]
     pub gateway_url: Option<String>,
+    /// API key for authenticating to the S3 sidecar (X-Storage-Key header).
+    #[serde(default)]
+    pub gateway_api_key: Option<String>,
     #[serde(default = "default_max_file_size")]
     pub max_file_size: u64,
     #[serde(default = "default_max_files_per_message")]
@@ -167,6 +170,7 @@ impl Default for StorageConfig {
             backend: default_storage_backend(),
             local_path: default_local_path(),
             gateway_url: None,
+            gateway_api_key: None,
             max_file_size: default_max_file_size(),
             max_files_per_message: default_max_files_per_message(),
             blocked_extensions: default_blocked_extensions(),
@@ -275,6 +279,9 @@ fn apply_env(config: &mut Config) {
     }
     if let Ok(v) = std::env::var("BURST_STORAGE_GATEWAY_URL") {
         config.storage.gateway_url = Some(v);
+    }
+    if let Ok(v) = std::env::var("BURST_STORAGE_GATEWAY_API_KEY") {
+        config.storage.gateway_api_key = Some(v);
     }
 }
 
