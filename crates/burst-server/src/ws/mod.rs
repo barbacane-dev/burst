@@ -1,3 +1,4 @@
+pub mod broker;
 pub mod handler;
 pub mod presence;
 
@@ -5,13 +6,15 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::{RwLock, broadcast};
+use tokio::sync::RwLock;
 use uuid::Uuid;
+
+pub use broker::{Broker, EventBroker, InProcessBroker};
 
 // ── Event types ──────────────────────────────────────────────────────────────
 
 /// Events sent from server to clients over WebSocket.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum ServerEvent {
     #[serde(rename = "message.created", rename_all = "camelCase")]
@@ -147,15 +150,6 @@ pub enum ClientEvent {
         #[serde(rename = "channelId")]
         channel_id: String,
     },
-}
-
-// ── Broker ────────────────────────────────────────────────────────────────────
-
-pub type Broker = Arc<broadcast::Sender<ServerEvent>>;
-
-pub fn new_broker_with_capacity(capacity: usize) -> Broker {
-    let (tx, _rx) = broadcast::channel(capacity);
-    Arc::new(tx)
 }
 
 // ── Event ring buffer (gap-fill) ──────────────────────────────────────────────

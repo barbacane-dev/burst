@@ -3,7 +3,7 @@ use axum::extract::{Path, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -16,7 +16,7 @@ pub fn router() -> Router<AppState> {
     Router::new().route("/attachments/{attachment_id}", get(download_attachment))
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AttachmentResponse {
     pub id: String,

@@ -12,6 +12,8 @@ pub struct Config {
     pub websocket: WebSocketConfig,
     #[serde(default)]
     pub telemetry: TelemetryConfig,
+    #[serde(default)]
+    pub broker: BrokerConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -116,6 +118,25 @@ fn default_trace_sample_rate() -> f64 {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct BrokerConfig {
+    /// Broker backend: "in_process" (default, single-node) or "pg_notify" (multi-node).
+    #[serde(default = "default_broker_backend")]
+    pub backend: String,
+}
+
+impl Default for BrokerConfig {
+    fn default() -> Self {
+        Self {
+            backend: default_broker_backend(),
+        }
+    }
+}
+
+fn default_broker_backend() -> String {
+    "in_process".into()
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct StorageConfig {
     #[serde(default = "default_storage_backend")]
     pub backend: String,
@@ -183,6 +204,7 @@ impl Config {
                     storage: StorageConfig::default(),
                     websocket: WebSocketConfig::default(),
                     telemetry: TelemetryConfig::default(),
+                    broker: BrokerConfig::default(),
                 },
             }
         };

@@ -131,7 +131,7 @@ pub fn channel_to_response(row: &db::channels::ChannelRow) -> ChannelResponse {
 
 // ── Message types ──
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReactionResponse {
     pub emoji: String,
@@ -139,7 +139,7 @@ pub struct ReactionResponse {
     pub user_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageResponse {
     pub id: String,

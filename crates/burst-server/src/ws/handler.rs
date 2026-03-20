@@ -286,7 +286,7 @@ pub async fn push_and_broadcast(
 ) {
     let key = Uuid::parse_str(event.event_id()).unwrap_or_else(|_| burst_core::id::new_id());
     buffer.push(key, event.clone()).await;
-    let _ = broker.send(event);
+    broker.publish(event);
 }
 
 fn presence_event(user_id: Uuid, status: &str) -> ServerEvent {

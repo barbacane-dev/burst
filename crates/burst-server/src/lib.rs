@@ -14,7 +14,7 @@ use axum::Router;
 use sqlx::PgPool;
 
 use tokio_util::sync::CancellationToken;
-use ws::{Broker, EventBuffer, new_broker_with_capacity, presence::PresenceState};
+use ws::{Broker, EventBuffer, InProcessBroker, presence::PresenceState};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -40,7 +40,29 @@ impl AppState {
         let ws_config = &config.websocket;
         Self {
             db,
-            broker: new_broker_with_capacity(ws_config.broadcast_capacity),
+            broker: InProcessBroker::new(ws_config.broadcast_capacity),
+            event_buffer: EventBuffer::new(ws_config.event_buffer_capacity),
+            presence: PresenceState::new(),
+            storage,
+            metrics_handle,
+            shutdown,
+            config,
+        }
+    }
+
+    /// Create an AppState with a custom broker (e.g. PgNotifyBroker).
+    pub fn with_broker(
+        db: PgPool,
+        config: config::AppConfig,
+        storage: storage::Storage,
+        metrics_handle: metrics::MetricsHandle,
+        shutdown: CancellationToken,
+        broker: Broker,
+    ) -> Self {
+        let ws_config = &config.websocket;
+        Self {
+            db,
+            broker,
             event_buffer: EventBuffer::new(ws_config.event_buffer_capacity),
             presence: PresenceState::new(),
             storage,

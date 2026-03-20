@@ -74,13 +74,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         LocalStorage::new(std::path::PathBuf::from(&app_config.storage.local_path))
             .expect("failed to initialise local storage"),
     );
-    let state = AppState::new(
-        pool.clone(),
-        app_config,
-        storage,
-        metrics_handle,
-        shutdown_token.clone(),
-    );
+    let state = if config.broker.backend == "pg_notify" {
+        let broker = burst_server::ws::broker::PgNotifyBroker::new(
+            pool.clone(),
+            app_config.websocket.broadcast_capacity,
+        )
+        .await?;
+        tracing::info!("using PG LISTEN/NOTIFY broker");
+        AppState::with_broker(
+            pool.clone(),
+            app_config,
+            storage,
+            metrics_handle,
+            shutdown_token.clone(),
+            broker,
+        )
+    } else {
+        AppState::new(
+            pool.clone(),
+            app_config,
+            storage,
+            metrics_handle,
+            shutdown_token.clone(),
+        )
+    };
 
     // Main server
     let app = app_router(state.clone());
