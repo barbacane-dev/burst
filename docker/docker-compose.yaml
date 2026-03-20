@@ -24,8 +24,6 @@ services:
       POSTGRES_USER: burst
       POSTGRES_PASSWORD: burst
       POSTGRES_DB: burst
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -36,9 +34,6 @@ services:
 
   rustfs:
     image: rustfs/rustfs:latest
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     environment:
       RUSTFS_ROOT_USER: burst
       RUSTFS_ROOT_PASSWORD: burstpass
