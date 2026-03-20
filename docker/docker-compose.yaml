@@ -67,7 +67,7 @@ services:
   # Public gateway — handles browser traffic with full middleware stack
   # Plugins: oidc-auth, acl, rate-limit, http-upstream, ws-upstream
   barbacane:
-    image: ghcr.io/barbacane-dev/barbacane-standalone
+    image: ghcr.io/barbacane-dev/barbacane-standalone:0.5.1
     ports:
       - "8080:8080"
     volumes:
@@ -91,7 +91,7 @@ services:
   # S3 storage sidecar — internal only, minimal attack surface
   # Plugins: s3, apikey-auth
   barbacane-s3:
-    image: ghcr.io/barbacane-dev/barbacane-standalone
+    image: ghcr.io/barbacane-dev/barbacane-standalone:0.5.1
     expose:
       - "8081"
     volumes:
