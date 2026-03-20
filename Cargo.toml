@@ -53,5 +53,6 @@ mime_guess = "2"
 bytes = "1"
 multer = "3"
 
-# Misc
+# Utilities
+tokio-util = { version = "0.7", features = ["rt"] }
 urlencoding = "2"

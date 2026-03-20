@@ -44,7 +44,13 @@ impl TestApp {
             websocket: WebSocketConfig::default(),
         };
         let storage = Storage::Local(LocalStorage::new(storage_dir.path().to_path_buf()).unwrap());
-        let state = AppState::new(pool, config, storage, metrics::noop());
+        let state = AppState::new(
+            pool,
+            config,
+            storage,
+            metrics::noop(),
+            tokio_util::sync::CancellationToken::new(),
+        );
         let router = app_router(state.clone());
         let admin = admin_router(state.clone());
         Self {

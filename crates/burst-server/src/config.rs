@@ -20,6 +20,8 @@ pub struct ServerConfig {
     pub listen: String,
     #[serde(default = "default_admin_listen")]
     pub admin_listen: String,
+    #[serde(default = "default_shutdown_timeout")]
+    pub shutdown_timeout_secs: u64,
 }
 
 impl Default for ServerConfig {
@@ -27,8 +29,13 @@ impl Default for ServerConfig {
         Self {
             listen: default_listen(),
             admin_listen: default_admin_listen(),
+            shutdown_timeout_secs: default_shutdown_timeout(),
         }
     }
+}
+
+fn default_shutdown_timeout() -> u64 {
+    30
 }
 
 fn default_listen() -> String {

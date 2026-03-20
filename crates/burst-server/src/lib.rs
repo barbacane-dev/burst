@@ -13,6 +13,7 @@ use std::sync::Arc;
 use axum::Router;
 use sqlx::PgPool;
 
+use tokio_util::sync::CancellationToken;
 use ws::{Broker, EventBuffer, new_broker_with_capacity, presence::PresenceState};
 
 #[derive(Clone)]
@@ -24,6 +25,8 @@ pub struct AppState {
     pub presence: Arc<PresenceState>,
     pub storage: storage::Storage,
     pub metrics_handle: metrics::MetricsHandle,
+    /// Triggered during graceful shutdown so WS handlers can send Close frames.
+    pub shutdown: CancellationToken,
 }
 
 impl AppState {
@@ -32,6 +35,7 @@ impl AppState {
         config: config::AppConfig,
         storage: storage::Storage,
         metrics_handle: metrics::MetricsHandle,
+        shutdown: CancellationToken,
     ) -> Self {
         let ws_config = &config.websocket;
         Self {
@@ -41,6 +45,7 @@ impl AppState {
             presence: PresenceState::new(),
             storage,
             metrics_handle,
+            shutdown,
             config,
         }
     }

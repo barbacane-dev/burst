@@ -156,6 +156,15 @@ async fn handle_socket(
                     Err(_) => break,
                 }
             }
+            // Graceful shutdown: send Close(1001) and exit the loop.
+            () = state.shutdown.cancelled() => {
+                let close_frame = axum::extract::ws::CloseFrame {
+                    code: 1001,
+                    reason: "server shutting down".into(),
+                };
+                let _ = socket.send(Message::Close(Some(close_frame))).await;
+                break;
+            }
         }
     }
 
