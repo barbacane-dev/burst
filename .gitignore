@@ -15,6 +15,9 @@ ui/node_modules/
 ui/dist/
 uploads/
 
+# mdBook build output
+book/
+
 # Playwright
 ui/test-results/
 ui/playwright-report/
