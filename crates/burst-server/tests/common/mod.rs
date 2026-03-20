@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use burst_server::{
     AppState, app_router,
-    config::{AppConfig, StorageConfig},
+    config::{AppConfig, StorageConfig, WebSocketConfig},
     db,
     storage::{Storage, local::LocalStorage},
 };
@@ -39,6 +39,7 @@ impl TestApp {
                 local_path: storage_dir.path().to_string_lossy().into_owned(),
                 ..StorageConfig::default()
             },
+            websocket: WebSocketConfig::default(),
         };
         let storage = Storage::Local(LocalStorage::new(storage_dir.path().to_path_buf()).unwrap());
         let state = AppState::new(pool, config, storage);

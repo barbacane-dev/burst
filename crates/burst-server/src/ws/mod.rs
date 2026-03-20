@@ -151,18 +151,14 @@ pub enum ClientEvent {
 
 // ── Broker ────────────────────────────────────────────────────────────────────
 
-pub const BROADCAST_CAPACITY: usize = 1024;
-
 pub type Broker = Arc<broadcast::Sender<ServerEvent>>;
 
-pub fn new_broker() -> Broker {
-    let (tx, _rx) = broadcast::channel(BROADCAST_CAPACITY);
+pub fn new_broker_with_capacity(capacity: usize) -> Broker {
+    let (tx, _rx) = broadcast::channel(capacity);
     Arc::new(tx)
 }
 
 // ── Event ring buffer (gap-fill) ──────────────────────────────────────────────
-
-pub const BUFFER_CAPACITY: usize = 500;
 
 pub struct EventBuffer {
     inner: RwLock<VecDeque<(Uuid, ServerEvent)>>,

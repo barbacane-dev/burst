@@ -49,11 +49,22 @@ pub enum ApiError {
 
 impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
-        if let sqlx::Error::Database(ref db_err) = err
-            && db_err.code().as_deref() == Some("23505")
-        {
-            return ApiError::Conflict("resource already exists".into());
+        if let sqlx::Error::Database(ref db_err) = err {
+            match db_err.code().as_deref() {
+                // Unique constraint violation
+                Some("23505") => return ApiError::Conflict("resource already exists".into()),
+                // Foreign key violation
+                Some("23503") => {
+                    return ApiError::BadRequest("referenced resource does not exist".into());
+                }
+                // Check constraint violation
+                Some("23514") => return ApiError::BadRequest("value violates constraint".into()),
+                // Not-null violation
+                Some("23502") => return ApiError::BadRequest("required field is missing".into()),
+                _ => {}
+            }
         }
-        ApiError::Internal(err.to_string())
+        tracing::error!(error = %err, "unhandled database error");
+        ApiError::Internal("database error".into())
     }
 }

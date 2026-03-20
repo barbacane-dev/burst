@@ -48,6 +48,21 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<MessageRow>, s
     .await
 }
 
+/// Fetches multiple messages by ID in a single query.
+pub async fn find_by_ids(pool: &PgPool, ids: &[Uuid]) -> Result<Vec<MessageRow>, sqlx::Error> {
+    if ids.is_empty() {
+        return Ok(vec![]);
+    }
+    sqlx::query_as::<_, MessageRow>(
+        "SELECT id, channel_id, user_id, thread_id, content, \
+         edited_at, deleted_at, created_at \
+         FROM messages WHERE id = ANY($1)",
+    )
+    .bind(ids)
+    .fetch_all(pool)
+    .await
+}
+
 /// Lists top-level messages in a channel (thread replies excluded).
 pub async fn list_in_channel(
     pool: &PgPool,

@@ -10,6 +10,7 @@ use crate::AppState;
 use crate::api::extractors::AuthUser;
 use crate::db;
 use crate::error::ApiError;
+use crate::services;
 
 pub fn router() -> Router<AppState> {
     Router::new().route("/attachments/{attachment_id}", get(download_attachment))
@@ -38,9 +39,7 @@ pub fn attachment_to_response(row: &db::attachments::AttachmentRow) -> Attachmen
 }
 
 fn parse_attachment_id(s: &str) -> Result<Uuid, ApiError> {
-    burst_core::id::parse_prefixed_id(s, "att_")
-        .or_else(|| Uuid::parse_str(s).ok())
-        .ok_or_else(|| ApiError::BadRequest("invalid attachment ID".into()))
+    services::parse_id(s, "att_", "attachment")
 }
 
 async fn download_attachment(

@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Search, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { searchMessages } from "../lib/api/search";
-import { listUsers } from "../lib/api/users";
 import { Spinner } from "./ui/spinner";
-import type { PaginatedResponse, SearchResult, User } from "../lib/api/types";
+import { useUsersById } from "../lib/hooks/use-users-by-id";
+import type { SearchResult } from "../lib/api/types";
 
 export function SearchDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
@@ -39,15 +39,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
     enabled: debouncedQuery.length > 0,
   });
 
-  const { data: usersData } = useQuery<PaginatedResponse<User>>({
-    queryKey: ["users"],
-    queryFn: () => listUsers(),
-    staleTime: 60_000,
-  });
-
-  const usersById = new Map(
-    usersData?.items.map((u) => [u.id, u]) ?? [],
-  );
+  const { usersById } = useUsersById();
 
   function handleResultClick(result: SearchResult) {
     navigate(`/channels/${result.channelId}`);
@@ -102,7 +94,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           ) : (
             <ul>
               {items.map((result) => {
-                const author = usersById.get(result.userId);
+                const authorName = usersById.get(result.userId);
                 return (
                   <li key={result.id}>
                     <button
@@ -111,7 +103,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                     >
                       <div className="mb-1 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                         <span className="font-medium">
-                          {author?.displayName ?? "Unknown"}
+                          {authorName ?? "Unknown"}
                         </span>
                         <span>&middot;</span>
                         <time>

@@ -2,6 +2,7 @@ pub mod api;
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod services;
 pub mod storage;
 pub mod ws;
 
@@ -10,7 +11,7 @@ use std::sync::Arc;
 use axum::Router;
 use sqlx::PgPool;
 
-use ws::{BUFFER_CAPACITY, Broker, EventBuffer, new_broker, presence::PresenceState};
+use ws::{Broker, EventBuffer, new_broker_with_capacity, presence::PresenceState};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,13 +25,14 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(db: PgPool, config: config::AppConfig, storage: storage::Storage) -> Self {
+        let ws_config = &config.websocket;
         Self {
             db,
-            config,
-            broker: new_broker(),
-            event_buffer: EventBuffer::new(BUFFER_CAPACITY),
+            broker: new_broker_with_capacity(ws_config.broadcast_capacity),
+            event_buffer: EventBuffer::new(ws_config.event_buffer_capacity),
             presence: PresenceState::new(),
             storage,
+            config,
         }
     }
 }

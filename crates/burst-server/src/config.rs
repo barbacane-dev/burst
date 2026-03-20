@@ -8,6 +8,8 @@ pub struct Config {
     pub database: DatabaseConfig,
     #[serde(default)]
     pub storage: StorageConfig,
+    #[serde(default)]
+    pub websocket: WebSocketConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -50,6 +52,34 @@ fn default_max_connections() -> u32 {
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     pub storage: StorageConfig,
+    pub websocket: WebSocketConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WebSocketConfig {
+    /// Capacity of the broadcast channel (events in-flight to all connections).
+    #[serde(default = "default_broadcast_capacity")]
+    pub broadcast_capacity: usize,
+    /// Size of the ring buffer used for gap-fill on reconnect.
+    #[serde(default = "default_event_buffer_capacity")]
+    pub event_buffer_capacity: usize,
+}
+
+impl Default for WebSocketConfig {
+    fn default() -> Self {
+        Self {
+            broadcast_capacity: default_broadcast_capacity(),
+            event_buffer_capacity: default_event_buffer_capacity(),
+        }
+    }
+}
+
+fn default_broadcast_capacity() -> usize {
+    1024
+}
+
+fn default_event_buffer_capacity() -> usize {
+    500
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -118,6 +148,7 @@ impl Config {
                         max_connections: default_max_connections(),
                     },
                     storage: StorageConfig::default(),
+                    websocket: WebSocketConfig::default(),
                 },
             }
         };
@@ -138,6 +169,7 @@ impl Config {
     pub fn app_config(&self) -> AppConfig {
         AppConfig {
             storage: self.storage.clone(),
+            websocket: self.websocket.clone(),
         }
     }
 }

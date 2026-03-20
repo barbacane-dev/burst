@@ -14,17 +14,18 @@ import {
   listMessages,
   markChannelRead,
 } from "../lib/api/channels";
-import { listUsers } from "../lib/api/users";
 import { useAuth } from "../lib/auth/context";
 import { Spinner } from "../components/ui/spinner";
 import { MessageBubble } from "../components/message/message-bubble";
 import { MessageComposer } from "../components/message/message-composer";
 import { ThreadPanel } from "../components/channel/thread-panel";
 import { PinnedMessagesPanel } from "../components/channel/pinned-messages-panel";
-import { addReactionLocally, removeReactionLocally } from "../lib/reactions";
-import type { Channel, ChannelMember, Message, PaginatedResponse, User } from "../lib/api/types";
+import { useUsersById } from "../lib/hooks/use-users-by-id";
+import { useChannelWsSync } from "../lib/hooks/use-channel-ws-sync";
+import { resolveDmPartnerName } from "../lib/hooks/use-dm-label";
+import type { Channel, ChannelMember, Message, PaginatedResponse } from "../lib/api/types";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import { useWsEvent, useTypingIndicator } from "../lib/ws/hooks";
+import { useTypingIndicator } from "../lib/ws/hooks";
 
 export function ChannelPage() {
   const { channelId } = useParams<{ channelId: string }>();
@@ -48,12 +49,7 @@ export function ChannelPage() {
 
   // ── User display-name lookup ───────────────────────────────────────────────
 
-  const { data: usersData } = useQuery<PaginatedResponse<User>>({
-    queryKey: ["users"],
-    queryFn: () => listUsers(),
-    staleTime: 60_000,
-  });
-  const usersById = new Map(usersData?.items.map((u) => [u.id, u.displayName]) ?? []);
+  const { usersById, users } = useUsersById();
 
   // ── DM title: resolve the other participant's display name ─────────────────
 
@@ -66,11 +62,7 @@ export function ChannelPage() {
 
   function channelTitle(): string {
     if (!channel) return "Loading...";
-    if (isDm) {
-      const partner = members?.find((m) => m.userId !== user?.id);
-      if (partner) return usersById.get(partner.userId) ?? partner.userId.replace("usr_", "").slice(0, 8);
-      return "Direct Message";
-    }
+    if (isDm) return resolveDmPartnerName(members, user?.id, usersById);
     return channel.name ?? "#unnamed";
   }
 
@@ -103,122 +95,9 @@ export function ChannelPage() {
     });
   }, [channelId, queryClient]);
 
-  // ── Live message delivery ─────────────────────────────────────────────────
+  // ── Live message & reaction sync via WebSocket ──────────────────────────
 
-  useWsEvent<{ type: string; channelId: string; message: Message }>(
-    "message.created",
-    (ev) => {
-      if (ev.channelId !== channelId) return;
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) => {
-          const hydrated: Message = { ...ev.message, reactions: ev.message.reactions ?? [], attachments: ev.message.attachments ?? [], replyCount: ev.message.replyCount ?? 0 };
-          if (!old) return { items: [hydrated], cursor: undefined };
-          if (ev.message.threadId) {
-            return {
-              ...old,
-              items: old.items.map((m) =>
-                m.id === ev.message.threadId ? { ...m, replyCount: m.replyCount + 1 } : m,
-              ),
-            };
-          }
-          const exists = old.items.some((m) => m.id === ev.message.id);
-          if (exists) {
-            return { ...old, items: old.items.map((m) => m.id === ev.message.id ? hydrated : m) };
-          }
-          return { ...old, items: [hydrated, ...old.items] };
-        },
-      );
-      if (ev.message.threadId && ev.message.threadId === threadMessageId) {
-        queryClient.setQueryData<PaginatedResponse<Message>>(
-          ["thread", threadMessageId],
-          (old) => {
-            const hydratedReply: Message = { ...ev.message, reactions: ev.message.reactions ?? [], attachments: ev.message.attachments ?? [], replyCount: ev.message.replyCount ?? 0 };
-            if (!old) return { items: [hydratedReply], cursor: undefined };
-            if (old.items.some((m) => m.id === ev.message.id)) return old;
-            return { ...old, items: [...old.items, hydratedReply] };
-          },
-        );
-      }
-    },
-  );
-
-  useWsEvent<{ type: string; channelId: string; message: Message }>(
-    "message.updated",
-    (ev) => {
-      if (ev.channelId !== channelId) return;
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) =>
-          old
-            ? { ...old, items: old.items.map((m) => m.id === ev.message.id ? ev.message : m) }
-            : old,
-      );
-    },
-  );
-
-  useWsEvent<{ type: string; channelId: string; messageId: string }>(
-    "message.deleted",
-    (ev) => {
-      if (ev.channelId !== channelId) return;
-      queryClient.setQueryData<PaginatedResponse<Message>>(
-        ["messages", channelId],
-        (old) =>
-          old
-            ? {
-                ...old,
-                items: old.items.map((m) =>
-                  m.id === ev.messageId
-                    ? { ...m, deletedAt: new Date().toISOString(), content: "" }
-                    : m,
-                ),
-              }
-            : old,
-      );
-    },
-  );
-
-  // ── Reaction events ───────────────────────────────────────────────────────
-
-  useWsEvent<{ type: string; channelId: string; messageId: string; emoji: string; userId: string }>(
-    "reaction.added",
-    (ev) => {
-      if (ev.channelId !== channelId) return;
-      const updater = (old: PaginatedResponse<Message> | undefined) =>
-        old
-          ? {
-              ...old,
-              items: old.items.map((m) =>
-                m.id === ev.messageId ? addReactionLocally(m, ev.emoji, ev.userId) : m,
-              ),
-            }
-          : old;
-      queryClient.setQueryData<PaginatedResponse<Message>>(["messages", channelId], updater);
-      if (threadMessageId) {
-        queryClient.setQueryData<PaginatedResponse<Message>>(["thread", threadMessageId], updater);
-      }
-    },
-  );
-
-  useWsEvent<{ type: string; channelId: string; messageId: string; emoji: string; userId: string }>(
-    "reaction.removed",
-    (ev) => {
-      if (ev.channelId !== channelId) return;
-      const updater = (old: PaginatedResponse<Message> | undefined) =>
-        old
-          ? {
-              ...old,
-              items: old.items.map((m) =>
-                m.id === ev.messageId ? removeReactionLocally(m, ev.emoji, ev.userId) : m,
-              ),
-            }
-          : old;
-      queryClient.setQueryData<PaginatedResponse<Message>>(["messages", channelId], updater);
-      if (threadMessageId) {
-        queryClient.setQueryData<PaginatedResponse<Message>>(["thread", threadMessageId], updater);
-      }
-    },
-  );
+  useChannelWsSync(channelId, threadMessageId);
 
   // ── Typing indicator ──────────────────────────────────────────────────────
 
@@ -307,7 +186,7 @@ export function ChannelPage() {
             channelId={channelId}
             onTypingStart={sendTypingStart}
             onTypingStop={sendTypingStop}
-            users={usersData?.items ?? []}
+            users={users}
           />
         )}
       </div>

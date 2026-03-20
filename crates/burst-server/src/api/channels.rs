@@ -14,6 +14,7 @@ use crate::api::attachments::{AttachmentResponse, attachment_to_response};
 use crate::api::extractors::{AuthUser, PaginationParams};
 use crate::db;
 use crate::error::ApiError;
+use crate::services;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -157,10 +158,10 @@ pub struct MessageResponse {
     pub created_at: String,
 }
 
-fn build_message_response(
+/// Builds a single `MessageResponse` with no reactions/attachments/replies.
+/// Used for freshly created or edited messages where metadata is already known.
+fn build_message_response_simple(
     row: &db::messages::MessageRow,
-    reply_count: i64,
-    reactions: Vec<ReactionResponse>,
     attachments: Vec<AttachmentResponse>,
 ) -> MessageResponse {
     MessageResponse {
@@ -171,46 +172,11 @@ fn build_message_response(
         content: row.content.clone(),
         edited_at: row.edited_at.map(|t| t.to_rfc3339()),
         deleted_at: row.deleted_at.map(|t| t.to_rfc3339()),
-        reply_count,
-        reactions,
+        reply_count: 0,
+        reactions: vec![],
         attachments,
         created_at: row.created_at.to_rfc3339(),
     }
-}
-
-/// Groups attachment rows by message ID for batch response building.
-fn group_attachments(
-    rows: &[db::attachments::AttachmentRow],
-    message_id: Uuid,
-) -> Vec<AttachmentResponse> {
-    rows.iter()
-        .filter(|a| a.message_id == message_id)
-        .map(attachment_to_response)
-        .collect()
-}
-
-/// Aggregates reaction rows into per-emoji summaries.
-fn aggregate_reactions(
-    rows: &[db::reactions::ReactionRow],
-    message_id: Uuid,
-) -> Vec<ReactionResponse> {
-    use std::collections::HashMap;
-    let mut map: HashMap<&str, (i64, Vec<String>)> = HashMap::new();
-    for r in rows.iter().filter(|r| r.message_id == message_id) {
-        let entry = map.entry(r.emoji.as_str()).or_default();
-        entry.0 += 1;
-        entry.1.push(burst_core::id::format_user_id(r.user_id));
-    }
-    let mut out: Vec<ReactionResponse> = map
-        .into_iter()
-        .map(|(emoji, (count, user_ids))| ReactionResponse {
-            emoji: emoji.to_string(),
-            count,
-            user_ids,
-        })
-        .collect();
-    out.sort_by(|a, b| a.emoji.cmp(&b.emoji));
-    out
 }
 
 // ── Channel handlers ──
@@ -318,22 +284,16 @@ async fn list_channels(
     }
 }
 
-fn parse_channel_id(channel_id: &str) -> Result<Uuid, ApiError> {
-    burst_core::id::parse_prefixed_id(channel_id, "ch_")
-        .or_else(|| Uuid::parse_str(channel_id).ok())
-        .ok_or_else(|| ApiError::BadRequest("invalid channel ID".into()))
+fn parse_channel_id(s: &str) -> Result<Uuid, ApiError> {
+    services::parse_id(s, "ch_", "channel")
 }
 
-fn parse_message_id(message_id: &str) -> Result<Uuid, ApiError> {
-    burst_core::id::parse_prefixed_id(message_id, "msg_")
-        .or_else(|| Uuid::parse_str(message_id).ok())
-        .ok_or_else(|| ApiError::BadRequest("invalid message ID".into()))
+fn parse_message_id(s: &str) -> Result<Uuid, ApiError> {
+    services::parse_id(s, "msg_", "message")
 }
 
-fn parse_user_id(user_id: &str) -> Result<Uuid, ApiError> {
-    burst_core::id::parse_prefixed_id(user_id, "usr_")
-        .or_else(|| Uuid::parse_str(user_id).ok())
-        .ok_or_else(|| ApiError::BadRequest("invalid user ID".into()))
+fn parse_user_id(s: &str) -> Result<Uuid, ApiError> {
+    services::parse_id(s, "usr_", "user")
 }
 
 async fn get_channel(
@@ -369,10 +329,7 @@ async fn update_channel(
     Json(body): Json<UpdateChannelRequest>,
 ) -> Result<Json<ChannelResponse>, ApiError> {
     let id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, id, auth.user_id).await?;
 
     let channel = db::channels::update(
         &state.db,
@@ -426,10 +383,7 @@ async fn list_members(
     Path(channel_id): Path<String>,
 ) -> Result<Json<PaginatedResponse<ChannelMemberResponse>>, ApiError> {
     let id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, id, auth.user_id).await?;
 
     let members = db::channels::list_members(&state.db, id).await?;
     let items = members
@@ -493,7 +447,7 @@ async fn create_or_get_dm(
             channel_id: ch_id_str.clone(),
             user_id: burst_core::id::format_user_id(uid),
         };
-        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+        services::broadcast(&state, ev).await;
     }
 
     Ok((
@@ -519,10 +473,7 @@ async fn send_message(
     body: axum::body::Body,
 ) -> Result<(axum::http::StatusCode, Json<MessageResponse>), ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     // Reject writes to archived/readonly channels.
     let channel = db::channels::find_by_id(&state.db, ch_id)
@@ -622,13 +573,13 @@ async fn send_message(
         db::mentions::insert_mentions(&state.db, id, &mention_ids).await?;
     }
 
-    let response = build_message_response(&message, 0, vec![], attachment_responses);
+    let response = build_message_response_simple(&message, attachment_responses);
     let ev = crate::ws::ServerEvent::MessageCreated {
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),
         message: response.clone(),
     };
-    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    services::broadcast(&state, ev).await;
 
     Ok((axum::http::StatusCode::CREATED, Json(response)))
 }
@@ -745,10 +696,7 @@ async fn list_messages(
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<MessageResponse>>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let limit = params.clamped_limit();
     let messages =
@@ -756,25 +704,7 @@ async fn list_messages(
 
     let has_more = messages.len() as i64 > limit;
     let messages: Vec<_> = messages.into_iter().take(limit as usize).collect();
-
-    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
-    let reply_count_map: std::collections::HashMap<Uuid, i64> =
-        db::messages::reply_counts(&state.db, &message_ids)
-            .await?
-            .into_iter()
-            .collect();
-    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
-    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
-
-    let items: Vec<_> = messages
-        .iter()
-        .map(|m| {
-            let rc = *reply_count_map.get(&m.id).unwrap_or(&0);
-            let reactions = aggregate_reactions(&reaction_rows, m.id);
-            let attachments = group_attachments(&attachment_rows, m.id);
-            build_message_response(m, rc, reactions, attachments)
-        })
-        .collect();
+    let items = services::messages::enrich(&state.db, &messages).await?;
 
     let cursor = if has_more {
         items.last().map(|m| m.id.clone())
@@ -791,10 +721,7 @@ async fn get_message(
     Path((channel_id, message_id)): Path<(String, String)>,
 ) -> Result<Json<MessageResponse>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let msg_id = parse_message_id(&message_id)?;
     let message = db::messages::find_by_id(&state.db, msg_id)
@@ -805,24 +732,9 @@ async fn get_message(
         return Err(ApiError::NotFound("Message".into()));
     }
 
-    let message_ids = [message.id];
-    let reply_count_map: std::collections::HashMap<Uuid, i64> =
-        db::messages::reply_counts(&state.db, &message_ids)
-            .await?
-            .into_iter()
-            .collect();
-    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
-    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
-    let rc = *reply_count_map.get(&message.id).unwrap_or(&0);
-    let reactions = aggregate_reactions(&reaction_rows, message.id);
-    let attachments = group_attachments(&attachment_rows, message.id);
-
-    Ok(Json(build_message_response(
-        &message,
-        rc,
-        reactions,
-        attachments,
-    )))
+    Ok(Json(
+        services::messages::enrich_one(&state.db, &message).await?,
+    ))
 }
 
 async fn list_thread_replies(
@@ -832,10 +744,7 @@ async fn list_thread_replies(
     Query(params): Query<PaginationParams>,
 ) -> Result<Json<PaginatedResponse<MessageResponse>>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let thread_id = parse_message_id(&message_id)?;
     let limit = params.clamped_limit();
@@ -844,19 +753,7 @@ async fn list_thread_replies(
 
     let has_more = messages.len() as i64 > limit;
     let messages: Vec<_> = messages.into_iter().take(limit as usize).collect();
-
-    let message_ids: Vec<Uuid> = messages.iter().map(|m| m.id).collect();
-    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
-    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
-
-    let items: Vec<_> = messages
-        .iter()
-        .map(|m| {
-            let reactions = aggregate_reactions(&reaction_rows, m.id);
-            let attachments = group_attachments(&attachment_rows, m.id);
-            build_message_response(m, 0, reactions, attachments)
-        })
-        .collect();
+    let items = services::messages::enrich(&state.db, &messages).await?;
 
     let cursor = if has_more {
         items.last().map(|m| m.id.clone())
@@ -880,10 +777,7 @@ async fn edit_message(
     Json(body): Json<EditMessageRequest>,
 ) -> Result<Json<MessageResponse>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let channel = db::channels::find_by_id(&state.db, ch_id)
         .await?
@@ -908,15 +802,13 @@ async fn edit_message(
         return Err(ApiError::NotFound("Message".into()));
     }
 
-    let attachment_rows = db::attachments::list_for_messages(&state.db, &[message.id]).await?;
-    let attachments = group_attachments(&attachment_rows, message.id);
-    let response = build_message_response(&message, 0, vec![], attachments);
+    let response = services::messages::enrich_one(&state.db, &message).await?;
     let ev = crate::ws::ServerEvent::MessageUpdated {
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),
         message: response.clone(),
     };
-    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    services::broadcast(&state, ev).await;
 
     Ok(Json(response))
 }
@@ -927,10 +819,7 @@ async fn delete_message(
     Path((channel_id, message_id)): Path<(String, String)>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let msg_id = parse_message_id(&message_id)?;
     let deleted_msg = db::messages::soft_delete(&state.db, msg_id, auth.user_id)
@@ -942,7 +831,7 @@ async fn delete_message(
         channel_id: burst_core::id::format_channel_id(ch_id),
         message_id: burst_core::id::format_message_id(deleted_msg.id),
     };
-    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    services::broadcast(&state, ev).await;
 
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
@@ -955,10 +844,7 @@ async fn add_reaction(
     Path((channel_id, message_id, emoji)): Path<(String, String, String)>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let msg_id = parse_message_id(&message_id)?;
 
@@ -979,7 +865,7 @@ async fn add_reaction(
             emoji,
             user_id: burst_core::id::format_user_id(auth.user_id),
         };
-        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+        services::broadcast(&state, ev).await;
     }
 
     Ok(axum::http::StatusCode::NO_CONTENT)
@@ -991,10 +877,7 @@ async fn remove_reaction(
     Path((channel_id, message_id, emoji)): Path<(String, String, String)>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let msg_id = parse_message_id(&message_id)?;
     let removed = db::reactions::remove(&state.db, msg_id, auth.user_id, &emoji).await?;
@@ -1006,7 +889,7 @@ async fn remove_reaction(
             emoji,
             user_id: burst_core::id::format_user_id(auth.user_id),
         };
-        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+        services::broadcast(&state, ev).await;
     }
 
     Ok(axum::http::StatusCode::NO_CONTENT)
@@ -1020,10 +903,7 @@ async fn pin_message(
     Path((channel_id, message_id)): Path<(String, String)>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let msg_id = parse_message_id(&message_id)?;
     let message = db::messages::find_by_id(&state.db, msg_id)
@@ -1041,7 +921,7 @@ async fn pin_message(
             message_id: burst_core::id::format_message_id(msg_id),
             user_id: burst_core::id::format_user_id(auth.user_id),
         };
-        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+        services::broadcast(&state, ev).await;
     }
 
     Ok(axum::http::StatusCode::NO_CONTENT)
@@ -1053,10 +933,7 @@ async fn unpin_message(
     Path((channel_id, message_id)): Path<(String, String)>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let msg_id = parse_message_id(&message_id)?;
     let removed = db::pinned_messages::unpin(&state.db, ch_id, msg_id).await?;
@@ -1066,7 +943,7 @@ async fn unpin_message(
             channel_id: burst_core::id::format_channel_id(ch_id),
             message_id: burst_core::id::format_message_id(msg_id),
         };
-        crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+        services::broadcast(&state, ev).await;
     }
 
     Ok(axum::http::StatusCode::NO_CONTENT)
@@ -1078,10 +955,7 @@ async fn list_pins(
     Path(channel_id): Path<String>,
 ) -> Result<Json<PaginatedResponse<MessageResponse>>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
-
-    if !db::channels::is_member(&state.db, ch_id, auth.user_id).await? {
-        return Err(ApiError::Forbidden);
-    }
+    services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let pins = db::pinned_messages::list_for_channel(&state.db, ch_id).await?;
     let message_ids: Vec<Uuid> = pins.iter().map(|p| p.message_id).collect();
@@ -1093,31 +967,8 @@ async fn list_pins(
         }));
     }
 
-    // Batch-fetch all pinned message data.
-    let mut messages = Vec::new();
-    for &mid in &message_ids {
-        if let Some(msg) = db::messages::find_by_id(&state.db, mid).await? {
-            messages.push(msg);
-        }
-    }
-
-    let reaction_rows = db::reactions::list_for_messages(&state.db, &message_ids).await?;
-    let attachment_rows = db::attachments::list_for_messages(&state.db, &message_ids).await?;
-    let reply_counts: std::collections::HashMap<Uuid, i64> =
-        db::messages::reply_counts(&state.db, &message_ids)
-            .await?
-            .into_iter()
-            .collect();
-
-    let items: Vec<_> = messages
-        .iter()
-        .map(|m| {
-            let rc = *reply_counts.get(&m.id).unwrap_or(&0);
-            let reactions = aggregate_reactions(&reaction_rows, m.id);
-            let attachments = group_attachments(&attachment_rows, m.id);
-            build_message_response(m, rc, reactions, attachments)
-        })
-        .collect();
+    let messages = db::messages::find_by_ids(&state.db, &message_ids).await?;
+    let items = services::messages::enrich(&state.db, &messages).await?;
 
     Ok(Json(PaginatedResponse {
         items,
@@ -1154,7 +1005,7 @@ async fn archive_channel(
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),
     };
-    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    services::broadcast(&state, ev).await;
 
     Ok(Json(channel_to_response(&channel)))
 }
@@ -1185,7 +1036,7 @@ async fn unarchive_channel(
         event_id: burst_core::id::new_id().to_string(),
         channel_id: burst_core::id::format_channel_id(ch_id),
     };
-    crate::ws::handler::push_and_broadcast(&state.broker, &state.event_buffer, ev).await;
+    services::broadcast(&state, ev).await;
 
     Ok(Json(channel_to_response(&channel)))
 }

@@ -11,6 +11,8 @@ import { Avatar } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { SearchDialog } from "../search-dialog";
+import { useUsersById } from "../../lib/hooks/use-users-by-id";
+import { resolveDmPartnerName } from "../../lib/hooks/use-dm-label";
 import type { Channel, ChannelMember, PaginatedResponse, User } from "../../lib/api/types";
 
 export function Sidebar() {
@@ -50,12 +52,7 @@ export function Sidebar() {
   const publicChannels = data?.items.filter((ch) => ch.kind === "public" || ch.kind === "private") ?? [];
   const dmChannels = data?.items.filter((ch) => ch.kind === "dm" || ch.kind === "group_dm") ?? [];
 
-  const { data: usersData } = useQuery<PaginatedResponse<User>>({
-    queryKey: ["users"],
-    queryFn: () => listUsers(),
-    staleTime: 60_000,
-  });
-  const usersById = new Map(usersData?.items.map((u) => [u.id, u.displayName]) ?? []);
+  const { usersById } = useUsersById();
 
   const dmMembersQueries = useQueries({
     queries: dmChannels.map((ch) => ({
@@ -68,9 +65,8 @@ export function Sidebar() {
   const dmLabels = new Map<string, string>(
     dmChannels.flatMap((ch, i) => {
       const members: ChannelMember[] = dmMembersQueries[i]?.data ?? [];
-      const partner = members.find((m) => m.userId !== user?.id);
-      if (!partner) return [];
-      const name = usersById.get(partner.userId) ?? partner.userId.replace("usr_", "").slice(0, 8);
+      const name = resolveDmPartnerName(members, user?.id, usersById);
+      if (name === "Direct Message") return [];
       return [[ch.id, name]];
     }),
   );
