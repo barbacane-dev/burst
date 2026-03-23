@@ -15,9 +15,11 @@ export class ApiError extends Error {
   }
 }
 
+import { STORAGE_KEY_ACCESS_TOKEN } from "../constants";
+
 // In-memory access token (JWT from the OIDC provider).
 // Also persisted to sessionStorage so page reloads don't require re-login.
-const SESSION_KEY = "burst_access_token";
+const SESSION_KEY = STORAGE_KEY_ACCESS_TOKEN;
 let _accessToken: string | null = sessionStorage.getItem(SESSION_KEY);
 
 export function setAccessToken(token: string | null): void {

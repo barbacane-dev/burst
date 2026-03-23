@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { STORAGE_KEY_THEME } from "./constants";
 
 type Theme = "light" | "dark" | "system";
 
@@ -24,7 +25,7 @@ function resolve(theme: Theme): "light" | "dark" {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(() => {
-    const stored = localStorage.getItem("burst-theme");
+    const stored = localStorage.getItem(STORAGE_KEY_THEME);
     return stored === "light" || stored === "dark" || stored === "system" ? stored : "system";
   });
 
@@ -38,7 +39,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
-    localStorage.setItem("burst-theme", t);
+    localStorage.setItem(STORAGE_KEY_THEME, t);
     applyTheme(t);
   }, [applyTheme]);
 

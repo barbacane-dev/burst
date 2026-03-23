@@ -8,6 +8,7 @@ import { ChannelPage } from "./pages/channel";
 import { SettingsPage } from "./pages/settings";
 import { AdminPage } from "./pages/admin";
 import { CallbackPage } from "./pages/callback";
+import { ErrorBoundary } from "./components/error-boundary";
 import { Spinner } from "./components/ui/spinner";
 import { queryClient } from "./lib/query-client";
 import type { ReactNode } from "react";
@@ -67,14 +68,16 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <AuthProvider>
+              <AppRoutes />
+            </AuthProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

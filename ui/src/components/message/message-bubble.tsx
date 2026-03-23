@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Smile, MessageSquare, Pin } from "lucide-react";
 import { addReaction, removeReaction, pinMessage } from "../../lib/api/channels";
@@ -39,6 +39,11 @@ export function MessageBubble({
       hasReacted
         ? removeReaction(channelId, message.id, emoji)
         : addReaction(channelId, message.id, emoji),
+    onError: () => {
+      // Roll back optimistic update on failure
+      const cacheKey: unknown[] = threadId ? ["thread", threadId] : ["messages", channelId];
+      queryClient.invalidateQueries({ queryKey: cacheKey });
+    },
   });
 
   const pinMutation = useMutation({
@@ -46,7 +51,7 @@ export function MessageBubble({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pins", channelId] }),
   });
 
-  function toggleReaction(emoji: string) {
+  const toggleReaction = useCallback(function toggleReaction(emoji: string) {
     const existing = message.reactions.find((r) => r.emoji === emoji);
     const hasReacted = existing?.userIds.includes(currentUserId) ?? false;
     const cacheKey: unknown[] = threadId ? ["thread", threadId] : ["messages", channelId];
@@ -68,7 +73,7 @@ export function MessageBubble({
     );
     reactionMutation.mutate({ emoji, hasReacted });
     setShowPicker(false);
-  }
+  }, [message, currentUserId, channelId, threadId, queryClient, reactionMutation]);
 
   const displayName = usersById.get(message.userId) ?? message.userId.replace("usr_", "").slice(0, 8);
 

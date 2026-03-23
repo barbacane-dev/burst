@@ -39,9 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let stopHeartbeat: (() => void) | null = null;
+
     fetchMe()
       .then(() => {
         wsClient.connect();
+        stopHeartbeat = wsClient.startHeartbeat();
       })
       .catch(() => {
         setAccessToken(null);
@@ -49,21 +52,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .finally(() => setIsLoading(false));
 
-    const stopHeartbeat = wsClient.startHeartbeat();
     return () => {
-      stopHeartbeat();
+      stopHeartbeat?.();
     };
   }, [fetchMe]);
 
   const login = useCallback(
     async (username: string, password: string) => {
       // Exchange credentials for a JWT via the mock OIDC server's password grant.
+      // This flow is dev-only (mock OIDC). Production uses the OIDC redirect flow.
       const params = new URLSearchParams({
         grant_type: "password",
         username,
         password,
         client_id: "burst",
-        client_secret: "secret",
         scope: "openid",
       });
 

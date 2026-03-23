@@ -1,4 +1,5 @@
 import { getAccessToken } from "../api/client";
+import { WS_HEARTBEAT_INTERVAL_MS } from "../constants";
 
 type EventHandler = (event: unknown) => void;
 
@@ -73,7 +74,7 @@ class WsClient {
   }
 
   startHeartbeat(): () => void {
-    const id = setInterval(() => this.send({ type: "heartbeat" }), 20_000);
+    const id = setInterval(() => this.send({ type: "heartbeat" }), WS_HEARTBEAT_INTERVAL_MS);
     return () => clearInterval(id);
   }
 

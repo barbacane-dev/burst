@@ -8,6 +8,7 @@ import {
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, X, Paperclip } from "lucide-react";
 import { sendMessage } from "../../lib/api/channels";
+import { MAX_FILE_SIZE_BYTES, MAX_FILES_PER_MESSAGE } from "../../lib/constants";
 import { MentionAutocomplete } from "./mention-autocomplete";
 import type { Message, PaginatedResponse, User } from "../../lib/api/types";
 
@@ -130,10 +131,29 @@ export function MessageComposer({
     textareaRef.current?.focus();
   }
 
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  function validateAndAddFiles(incoming: File[]) {
+    setFileError(null);
+    const tooLarge = incoming.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
+    if (tooLarge.length > 0) {
+      setFileError(`File exceeds 10 MB limit: ${tooLarge.map((f) => f.name).join(", ")}`);
+      return;
+    }
+    setFiles((prev) => {
+      const combined = [...prev, ...incoming];
+      if (combined.length > MAX_FILES_PER_MESSAGE) {
+        setFileError(`Maximum ${MAX_FILES_PER_MESSAGE} files per message`);
+        return prev;
+      }
+      return combined;
+    });
+  }
+
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files;
     if (!selected) return;
-    setFiles((prev) => [...prev, ...Array.from(selected)]);
+    validateAndAddFiles(Array.from(selected));
     e.target.value = "";
   }
 
@@ -145,7 +165,7 @@ export function MessageComposer({
     e.preventDefault();
     const dropped = e.dataTransfer.files;
     if (dropped.length > 0) {
-      setFiles((prev) => [...prev, ...Array.from(dropped)]);
+      validateAndAddFiles(Array.from(dropped));
     }
   }
 
@@ -160,6 +180,11 @@ export function MessageComposer({
       onDragOver={handleDragOver}
       className="border-t border-gray-200 px-4 py-3 dark:border-gray-700"
     >
+      {fileError && (
+        <div className="mb-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
+          {fileError}
+        </div>
+      )}
       {/* File pills */}
       {files.length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1">
