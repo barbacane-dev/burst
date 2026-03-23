@@ -1,7 +1,7 @@
 use axum::extract::{Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -14,7 +14,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/users", get(list_users))
         .route("/users/{user_id}", get(get_user))
-        .route("/users/me", get(get_me))
+        .route("/users/me", get(get_me).patch(update_me))
 }
 
 #[derive(Debug, Serialize)]
@@ -91,6 +91,33 @@ async fn get_me(
     State(state): State<AppState>,
 ) -> Result<Json<UserResponse>, ApiError> {
     let user = db::users::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User".into()))?;
+
+    Ok(Json(user_to_response(&user)))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateMeRequest {
+    display_name: Option<String>,
+    email: Option<String>,
+    status_text: Option<String>,
+}
+
+async fn update_me(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Json(body): Json<UpdateMeRequest>,
+) -> Result<Json<UserResponse>, ApiError> {
+    let update = db::users::UpdateUser {
+        display_name: body.display_name,
+        email: body.email,
+        avatar_url: None,
+        status_text: body.status_text,
+    };
+
+    let user = db::users::update(&state.db, auth.user_id, &update)
         .await?
         .ok_or_else(|| ApiError::NotFound("User".into()))?;
 

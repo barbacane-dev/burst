@@ -65,8 +65,9 @@ impl FromRequestParts<AppState> for AuthUser {
                     .ok_or(ApiError::Unauthorized)?;
                 if let Some(ref c) = claims
                     && let Some(picture) = extract_claim_string(c, "picture")
+                    && let Err(e) = db::users::update_avatar(&state.db, user.id, &picture).await
                 {
-                    let _ = db::users::update_avatar(&state.db, user.id, &picture).await;
+                    tracing::warn!(user_id = %user.id, error = %e, "failed to set avatar from OIDC claims");
                 }
                 db::users::find_by_external_id(&state.db, external_id)
                     .await?
@@ -125,15 +126,17 @@ async fn sync_profile_from_claims(
     let email_changed = new_email.is_some() && new_email != user.email;
     let avatar_changed = new_avatar.is_some() && new_avatar != user.avatar_url;
 
-    if name_changed || email_changed || avatar_changed {
-        let _ = db::users::sync_profile(
+    if (name_changed || email_changed || avatar_changed)
+        && let Err(e) = db::users::sync_profile(
             pool,
             user.id,
             new_name.as_deref(),
             new_email.as_deref(),
             new_avatar.as_deref(),
         )
-        .await;
+        .await
+    {
+        tracing::warn!(user_id = %user.id, error = %e, "failed to sync profile from OIDC claims");
     }
 }
 
