@@ -7,11 +7,13 @@
 #   docker compose -f docker/docker-compose.yaml up --build
 #
 # Architecture (zero trust):
-#   Browser → Barbacane (:8080) → Burst (internal only) → PostgreSQL
-#                                     ↓
-#                               Barbacane-S3 (:8081, internal) → RustFS
+#   Browser → nginx (:8080) ─┬─ SPA static files (served directly)
+#                             ├─ /api/* → Barbacane (internal) → Burst → PostgreSQL
+#                             └─ /ws   → Barbacane (internal) → Burst
+#                                            ↓
+#                                      Barbacane-S3 (:8081, internal) → RustFS
 #
-# Only Barbacane (8080) and Burst admin (3001) are exposed to the host.
+# Only nginx (8080) and Burst admin (3001) are exposed to the host.
 # Two Barbacane instances: public gateway (full middleware) + S3 sidecar (minimal).
 
 services:
@@ -64,12 +66,12 @@ services:
       retries: 5
       start_period: 10s
 
-  # Public gateway — handles browser traffic with full middleware stack
+  # Public gateway — handles API + WebSocket traffic with full middleware stack
   # Plugins: oidc-auth, acl, rate-limit, http-upstream, ws-upstream
   barbacane:
     image: ghcr.io/barbacane-dev/barbacane-standalone:0.5.1
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     volumes:
       - ../burst-api.bca:/config/burst-api.bca:ro
     environment:
@@ -87,6 +89,16 @@ services:
     depends_on:
       burst:
         condition: service_healthy
+
+  # nginx — serves SPA static files, proxies /api and /ws to Barbacane
+  nginx:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.nginx
+    ports:
+      - "8080:8080"
+    depends_on:
+      - barbacane
 
   # S3 storage sidecar — internal only, minimal attack surface
   # Plugins: s3, apikey-auth

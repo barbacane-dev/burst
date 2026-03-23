@@ -1,0 +1,16 @@
+# ── Frontend build stage ──────────────────────────────────────────────────────
+FROM node:20-slim AS frontend
+
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ ./
+RUN npx vite build
+
+# ── nginx stage ───────────────────────────────────────────────────────────────
+FROM nginx:alpine
+
+COPY --from=frontend /ui/dist /usr/share/nginx/html
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 8080

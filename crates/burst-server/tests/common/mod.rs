@@ -42,7 +42,6 @@ impl TestApp {
                 ..StorageConfig::default()
             },
             websocket: WebSocketConfig::default(),
-            server_static_dir: None,
         };
         let storage = Storage::Local(LocalStorage::new(storage_dir.path().to_path_buf()).unwrap());
         let state = AppState::new(
