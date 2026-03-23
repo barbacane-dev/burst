@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { setAccessToken } from "../lib/api/client";
+import { useAuth } from "../lib/auth/context";
 import { getOidcConfig, exchangeCodeForToken } from "../lib/auth/oidc";
 import { Spinner } from "../components/ui/spinner";
 
@@ -10,6 +10,7 @@ import { Spinner } from "../components/ui/spinner";
  */
 export function CallbackPage() {
   const navigate = useNavigate();
+  const { loginWithToken } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,7 +41,7 @@ export function CallbackPage() {
 
       try {
         const token = await exchangeCodeForToken(config, code);
-        setAccessToken(token);
+        await loginWithToken(token);
         navigate("/", { replace: true });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Token exchange failed");
@@ -48,7 +49,7 @@ export function CallbackPage() {
     }
 
     handleCallback();
-  }, [navigate]);
+  }, [navigate, loginWithToken]);
 
   if (error) {
     return (

@@ -42,6 +42,15 @@ services:
                     "aud": "burst",
                     "roles": ["member"]
                   }
+                },
+                {
+                  "requestParam": "grant_type",
+                  "match": "authorization_code",
+                  "claims": {
+                    "sub": "oidc-user@burst.local",
+                    "aud": "burst",
+                    "roles": ["member"]
+                  }
                 }
               ]
             }

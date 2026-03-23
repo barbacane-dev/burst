@@ -15,6 +15,7 @@ interface AuthState {
   user: User | null;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
+  loginWithToken: (token: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -84,6 +85,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [fetchMe],
   );
 
+  const loginWithToken = useCallback(
+    async (token: string) => {
+      setAccessToken(token);
+      wsClient.connect();
+      await fetchMe();
+    },
+    [fetchMe],
+  );
+
   const logout = useCallback(() => {
     wsClient.disconnect();
     wsClient.reset();
@@ -93,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, loginWithToken, logout }}>
       {children}
     </AuthContext.Provider>
   );
