@@ -50,10 +50,10 @@ Alternatives considered:
 
 ### Infrastructure & Deployment
 
-- **Single binary:** The Burst server compiles to a single binary embedding the frontend assets and database migrations. Download, configure, run.
-- **Container image:** Official Docker image for containerised deployments.
+- **Single binary:** The Burst API server compiles to a single binary with embedded database migrations. The React frontend is served separately by nginx.
+- **Container images:** Burst API (`Dockerfile`) and nginx SPA (`docker/Dockerfile.nginx`) for containerised deployments.
 - **Barbacane gateway:** Deployed as a sidecar or reverse proxy in front of the Burst API, configured via the Burst OpenAPI spec.
-- **Minimum deployment:** One Burst binary + one PostgreSQL instance. No Redis, no Elasticsearch, no message broker required for single-node setups.
+- **Minimum deployment:** Burst API + nginx + Barbacane + PostgreSQL. No Redis, no Elasticsearch, no message broker required for single-node setups. `docker compose -f docker/docker-compose.yaml up` runs the full stack.
 
 ## Consequences
 

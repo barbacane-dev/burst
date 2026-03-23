@@ -54,19 +54,39 @@ CI downloads the ruleset automatically on each run.
 
 ## Architecture
 
+**Development** (Vite proxies API + WS to Barbacane):
+
 ```
-Browser (:5173) → Vite → Barbacane (:8080) → Burst (:3000) → PostgreSQL (:5432)
-                    ↘ Mock OIDC (:9099)              ↓
-                                            Barbacane-S3 (:8081) → RustFS (:9000)
-                                             [internal sidecar]     [optional]
+Browser (:5173) → Vite ─┬─ /api/* → Barbacane (:8080) → Burst (:3000) → PostgreSQL (:5432)
+                         ├─ /ws   → Barbacane (:8080) → Burst
+                         └─ /*    → SPA (HMR)                    ↓
+                                    Mock OIDC (:9099)    Barbacane-S3 (:8081) → RustFS (:9000)
+```
+
+**Production** (nginx serves SPA, proxies to Barbacane):
+
+```
+Browser → nginx (:8080) ─┬─ /*    → SPA static files (served directly)
+                          ├─ /api/* → Barbacane (internal) → Burst → PostgreSQL
+                          └─ /ws   → Barbacane (internal) → Burst
+                                          ↓
+                                   Barbacane-S3 (internal) → RustFS
 ```
 
 Two Barbacane instances (zero-trust, minimal attack surface):
 
-- **Public gateway** (`:8080`) — oidc-auth, acl, rate-limit, http-upstream, ws-upstream. Handles all browser traffic.
-- **S3 sidecar** (`:8081`) — s3, apikey-auth only. Internal, serves Burst's file storage operations.
+- **Public gateway** — oidc-auth, acl, rate-limit, http-upstream, ws-upstream. Handles all API + WebSocket traffic.
+- **S3 sidecar** — s3, apikey-auth only. Internal, serves Burst's file storage operations.
 
 Barbacane validates JWTs (oidc-auth plugin) and sets `X-Auth-Consumer` / `X-Auth-Consumer-Groups` before forwarding to Burst. Admin routes are protected by the ACL plugin at the gateway level (`allow: [admin]`), with defense-in-depth via the `AdminUser` extractor on the backend. WebSocket auth uses `?access_token=` query param (RFC 6750 §2.3).
+
+### Production deployment
+
+```bash
+cp docker/.env.example docker/.env   # Configure secrets
+make gateway-compile                  # Compile Barbacane artifacts
+docker compose -f docker/docker-compose.yaml up --build
+```
 
 ## Make targets
 

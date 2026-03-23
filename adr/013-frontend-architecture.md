@@ -5,7 +5,7 @@
 
 ## Context
 
-Per [ADR-003](003-technology-stack.md), Burst's frontend uses React, TypeScript, Vite, and Tailwind CSS — the same stack as Barbacane's control plane UI. Per [ADR-004](004-real-time-architecture.md), the frontend maintains a persistent WebSocket connection for real-time events. Per [ADR-008](008-crate-architecture.md), the frontend is a standard Vite project in `ui/`, built separately and embedded in the Burst binary.
+Per [ADR-003](003-technology-stack.md), Burst's frontend uses React, TypeScript, Vite, and Tailwind CSS — the same stack as Barbacane's control plane UI. Per [ADR-004](004-real-time-architecture.md), the frontend maintains a persistent WebSocket connection for real-time events. Per [ADR-008](008-crate-architecture.md), the frontend is a standard Vite project in `ui/`, built separately and served by nginx (`docker/Dockerfile.nginx`).
 
 Barbacane's UI is an admin dashboard — CRUD forms, tables, and status pages. Burst's UI is a messaging application — fundamentally different in interaction patterns:
 
@@ -254,16 +254,17 @@ Raw HTML passthrough in the Markdown parser must be disabled (`allowDangerousHtm
 - Theme preference stored in `localStorage`, respects system preference by default.
 - Same approach as Barbacane's UI (`use-theme.ts` hook).
 
-### Build and embedding
+### Build and serving
 
 Per [ADR-008](008-crate-architecture.md), the frontend is built separately:
 
 ```bash
 cd ui && npm run build    # produces ui/dist/
-cargo build               # embeds ui/dist/ into the binary
 ```
 
-The `burst` binary serves `ui/dist/` at the root path. API routes are prefixed (`/api/`). The Vite dev server proxies `/api/` and `/ws` to the Burst backend during development for hot reload.
+In production, nginx serves `ui/dist/` at the root path and proxies `/api/*` and `/ws` to Barbacane (see `docker/Dockerfile.nginx` and `docker/nginx.conf`). The Burst binary is a pure API server — it does not serve static files.
+
+In development, the Vite dev server proxies `/api/` and `/ws` to Barbacane for hot reload.
 
 ### What we deliberately avoided
 

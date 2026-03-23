@@ -5,7 +5,7 @@
 
 ## Context
 
-Per [ADR-001](001-project-vision-and-scope.md), Burst must be simple to operate — a small team should be able to install, configure, and maintain it without dedicated infrastructure expertise. Per [ADR-003](003-technology-stack.md), Burst compiles to a single binary embedding frontend assets and database migrations. Per [ADR-006](006-authentication-and-authorization.md), Burst sits behind a Barbacane API gateway.
+Per [ADR-001](001-project-vision-and-scope.md), Burst must be simple to operate — a small team should be able to install, configure, and maintain it without dedicated infrastructure expertise. Per [ADR-003](003-technology-stack.md), Burst compiles to a single API binary with embedded database migrations; the frontend is served separately by nginx. Per [ADR-006](006-authentication-and-authorization.md), Burst sits behind a Barbacane API gateway.
 
 We need to define how Burst is distributed, configured, started, and kept running in production.
 
@@ -17,24 +17,27 @@ We need to define how Burst is distributed, configured, started, and kept runnin
 
 The primary distribution is a statically linked binary for Linux (x86_64, aarch64) and macOS (aarch64). The binary includes:
 
-- The compiled Rust server.
-- The React frontend (`ui/dist/`), embedded at compile time via `rust-embed` or `include_dir`.
+- The compiled Rust API server.
 - Database migration files, embedded and applied on startup.
 
-No runtime dependencies beyond PostgreSQL and a filesystem (or S3-compatible store for attachments).
+The React frontend is served separately by nginx (see `docker/Dockerfile.nginx`). Burst is a pure API server — it does not serve static files. No runtime dependencies beyond PostgreSQL and a filesystem (or S3-compatible store for attachments).
 
 #### Docker image
 
 An official Docker image is published for containerised deployments:
 
-```dockerfile
-FROM debian:bookworm-slim
-COPY burst /usr/local/bin/burst
-EXPOSE 3000
-ENTRYPOINT ["burst"]
-```
+Two Docker images:
 
-Minimal base image. No build tools, no Node.js, no frontend build step — the binary is self-contained. The image is multi-arch (amd64, arm64).
+- **Burst API** (`Dockerfile`) — Rust binary only, no frontend:
+  ```dockerfile
+  FROM debian:bookworm-slim
+  COPY burst /usr/local/bin/burst
+  EXPOSE 3000 3001
+  ENTRYPOINT ["burst"]
+  ```
+- **nginx SPA** (`docker/Dockerfile.nginx`) — builds the React frontend and serves it via nginx, proxying `/api/*` and `/ws` to Barbacane.
+
+Minimal base images. No build tools at runtime. Both are multi-arch (amd64, arm64).
 
 #### GitHub Releases
 
@@ -91,7 +94,7 @@ On `burst serve` (or just `burst` with no subcommand):
 2. **Connect to PostgreSQL** — establish the connection pool, fail fast if unreachable.
 3. **Run migrations** — apply any pending sqlx migrations. All migrations are embedded in the binary. This ensures the schema is always up to date without a separate migration step.
 4. **Initialise services** — storage backend, search backend (sync index if Typesense), in-process broker.
-5. **Assemble Axum router** — mount API routes from `burst-server`, mount frontend asset handler.
+5. **Assemble Axum router** — mount API routes from `burst-server`.
 6. **Start listening** — bind to the configured address, log the startup banner.
 
 If any step fails, Burst exits with a clear error message and non-zero exit code. No partial startup, no degraded mode.
@@ -180,7 +183,7 @@ Burst does not write log files — log aggregation is delegated to the operator'
 ## Consequences
 
 - **Automatic migrations on startup** means operators never run a separate migration step. The trade-off is that a bad migration can block startup — mitigated by testing migrations in CI and staging environments.
-- **Single binary + PostgreSQL** is the minimum deployment. A team can go from download to running instance with `burst --config burst.toml`. This is the simplest deployment story among open-source messaging tools.
+- **Burst API + nginx + Barbacane + PostgreSQL** is the minimum deployment. `docker compose -f docker/docker-compose.yaml up` runs the full stack. For teams that already run a reverse proxy, nginx can be replaced.
 - **The Barbacane sidecar topology** adds one more process but zero auth code in Burst. For teams that already run Barbacane, the gateway is shared. For Burst-only deployments, the sidecar is a lightweight addition that brings production-grade auth and rate limiting out of the box.
 - **No clustering coordination** beyond PostgreSQL. No Raft, no gossip protocol, no distributed consensus. PG LISTEN/NOTIFY handles cross-node events. This limits throughput to what PostgreSQL can handle, which is more than enough at team scale.
 - **Health endpoints outside Barbacane** means the orchestrator can probe Burst directly. If Barbacane is down, the readiness probe still tells the orchestrator whether Burst itself is healthy — useful for debugging which component is failing.
