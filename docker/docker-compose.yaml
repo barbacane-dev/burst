@@ -2,6 +2,7 @@
 #
 # Prerequisites:
 #   make gateway-compile    # Produces burst-api.bca + burst-s3.bca
+#   cp .env.example .env    # Fill in secrets before first run
 #
 # Usage:
 #   docker compose -f docker/docker-compose.yaml up --build
@@ -21,7 +22,7 @@ services:
     image: postgres:17
     environment:
       POSTGRES_USER: burst
-      POSTGRES_PASSWORD: burst
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: burst
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -35,7 +36,7 @@ services:
     image: rustfs/rustfs:latest
     environment:
       RUSTFS_ROOT_USER: burst
-      RUSTFS_ROOT_PASSWORD: burstpass
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_ROOT_PASSWORD:?Set RUSTFS_ROOT_PASSWORD in .env}
     command: server /data --console-address ":9001"
     volumes:
       - rustfsdata:/data
@@ -49,12 +50,12 @@ services:
     ports:
       - "3001:3001"
     environment:
-      BURST_DATABASE_URL: postgres://burst:burst@postgres:5432/burst
+      BURST_DATABASE_URL: postgres://burst:${POSTGRES_PASSWORD}@postgres:5432/burst
       BURST_SERVER_LISTEN: "0.0.0.0:3000"
       BURST_SERVER_ADMIN_LISTEN: "0.0.0.0:3001"
       BURST_STORAGE_BACKEND: gateway
       BURST_STORAGE_GATEWAY_URL: http://barbacane-s3:8081
-      BURST_STORAGE_GATEWAY_API_KEY: burst-s3-internal-key
+      BURST_STORAGE_GATEWAY_API_KEY: ${S3_API_KEY:?Set S3_API_KEY in .env}
       BURST_STORAGE_LOCAL_PATH: /var/lib/burst/uploads
     depends_on:
       postgres:
@@ -77,13 +78,12 @@ services:
     environment:
       BURST_UPSTREAM_URL: http://burst:3000
       BURST_UPSTREAM_WS_URL: ws://burst:3000
-      BURST_OIDC_ISSUER_URL: ${BURST_OIDC_ISSUER_URL:-http://host.docker.internal:9099/burst}
-      BURST_OIDC_ISSUER_OVERRIDE: ${BURST_OIDC_ISSUER_OVERRIDE:-http://localhost:9099/burst}
+      BURST_OIDC_ISSUER_URL: ${BURST_OIDC_ISSUER_URL:?Set BURST_OIDC_ISSUER_URL in .env}
+      BURST_OIDC_ISSUER_OVERRIDE: ${BURST_OIDC_ISSUER_OVERRIDE:-}
     command: >
       serve
       --artifact /config/burst-api.bca
       --listen 0.0.0.0:8080
-      --dev
       --allow-plaintext-upstream
       --max-body-size 10485760
     depends_on:
@@ -112,14 +112,13 @@ services:
       BURST_S3_REGION: us-east-1
       BURST_S3_BUCKET: burst-files
       BURST_S3_ACCESS_KEY_ID: burst
-      BURST_S3_SECRET_ACCESS_KEY: burstpass
+      BURST_S3_SECRET_ACCESS_KEY: ${RUSTFS_ROOT_PASSWORD}
       BURST_S3_ENDPOINT: http://rustfs:9000
-      BURST_S3_API_KEY: burst-s3-internal-key
+      BURST_S3_API_KEY: ${S3_API_KEY}
     command: >
       serve
       --artifact /config/burst-s3.bca
       --listen 0.0.0.0:8081
-      --dev
       --allow-plaintext-upstream
       --max-body-size 104857600
 
