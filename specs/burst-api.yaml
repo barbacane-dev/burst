@@ -23,7 +23,6 @@ x-barbacane-middlewares:
       issuer_url: "env://BURST_OIDC_ISSUER_URL"
       issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
       audience: "burst"
-      allow_query_token: true
       groups_claim: "roles"
   - name: rate-limit
     config:
@@ -72,6 +71,19 @@ paths:
         name: ws-upstream
         config:
           url: "env://BURST_UPSTREAM_WS_URL"
+      x-barbacane-middlewares:
+        - name: oidc-auth
+          config:
+            issuer_url: "env://BURST_OIDC_ISSUER_URL"
+            issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
+            audience: "burst"
+            allow_query_token: true
+            groups_claim: "roles"
+        - name: rate-limit
+          config:
+            quota: 100
+            window: 60
+            partition_key: "context:auth.sub"
       parameters:
         - name: lastEventId
           in: query
@@ -81,6 +93,7 @@ paths:
           schema:
             type: string
             format: uuid
+            pattern: "^[0-9a-f-]{36}$"
             maxLength: 36
       responses:
         "101":
@@ -204,6 +217,40 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+    patch:
+      operationId: updateMe
+      summary: Update current user profile
+      description: >-
+        Updates the authenticated user's profile fields. Only provided fields
+        are updated; omitted fields are left unchanged.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /users/{userId}:
     get:
       operationId: getUser
@@ -300,6 +347,7 @@ paths:
           description: Pagination cursor (opaque token from previous response)
           schema:
             type: string
+            pattern: "^ch_[0-9a-f-]{36}$"
             maxLength: 40
         - name: limit
           in: query
@@ -1004,6 +1052,7 @@ paths:
           description: Pagination cursor (message ID)
           schema:
             type: string
+            pattern: "^msg_[0-9a-f-]{36}$"
             maxLength: 40
         - name: limit
           in: query
@@ -1063,6 +1112,8 @@ paths:
           description: Emoji character or shortcode
           schema:
             type: string
+            pattern: "^.+$"
+            minLength: 1
             maxLength: 64
             example: "👍"
       responses:
@@ -1109,6 +1160,8 @@ paths:
           description: Emoji character or shortcode
           schema:
             type: string
+            pattern: "^.+$"
+            minLength: 1
             maxLength: 64
             example: "👍"
       responses:
@@ -1236,6 +1289,42 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /emojis:
+    get:
+      operationId: listCustomEmojis
+      summary: List custom emojis
+      description: >-
+        Returns all custom emojis available to the current user (for the emoji picker).
+      tags:
+        - Reactions
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      responses:
+        "200":
+          description: Paginated list of custom emojis
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 1000
+                    items:
+                      $ref: "#/components/schemas/CustomEmoji"
+                  cursor:
+                    type: ["string", "null"]
+                    maxLength: 40
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
   /attachments/{attachmentId}:
     get:
       operationId: downloadAttachment
@@ -1253,6 +1342,19 @@ paths:
         config:
           url: "env://BURST_UPSTREAM_URL"
           path: "/attachments/{attachmentId}"
+      x-barbacane-middlewares:
+        - name: oidc-auth
+          config:
+            issuer_url: "env://BURST_OIDC_ISSUER_URL"
+            issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
+            audience: "burst"
+            allow_query_token: true
+            groups_claim: "roles"
+        - name: rate-limit
+          config:
+            quota: 100
+            window: 60
+            partition_key: "context:auth.sub"
       parameters:
         - name: attachmentId
           in: path
@@ -1517,6 +1619,7 @@ paths:
           description: Opaque pagination cursor returned by a previous request.
           schema:
             type: string
+            pattern: "^usr_[0-9a-f-]{36}$"
             maxLength: 40
         - name: limit
           in: query
@@ -1578,6 +1681,7 @@ paths:
           application/json:
             schema:
               type: object
+              minProperties: 1
               properties:
                 role:
                   type: string
@@ -1627,6 +1731,7 @@ paths:
           description: Opaque pagination cursor returned by a previous request.
           schema:
             type: string
+            pattern: "^ch_[0-9a-f-]{36}$"
             maxLength: 40
         - name: limit
           in: query
@@ -1758,6 +1863,7 @@ paths:
           description: Opaque pagination cursor returned by a previous request.
           schema:
             type: string
+            pattern: "^[0-9a-f-]{36}$"
             maxLength: 40
         - name: limit
           in: query
@@ -2027,7 +2133,7 @@ components:
           example: "alice"
         displayName:
           type: string
-          pattern: "^.+$"
+          pattern: "^[^\\x00-\\x1f]+$"
           maxLength: 128
           example: "Alice Martin"
         email:
@@ -2417,6 +2523,51 @@ components:
           maxLength: 40
           description: Cursor for next page, absent if no more results.
 
+    CustomEmoji:
+      type: object
+      required: [id, shortcode, imageUrl, createdBy, createdAt]
+      properties:
+        id:
+          type: string
+          maxLength: 40
+          description: Emoji unique identifier.
+        shortcode:
+          type: string
+          maxLength: 64
+          description: Shortcode used to insert the emoji (e.g. "party_parrot").
+        imageUrl:
+          type: string
+          maxLength: 2048
+          format: uri
+          description: URL to the emoji image.
+        createdBy:
+          type: string
+          maxLength: 40
+          description: User ID of the emoji creator.
+        createdAt:
+          type: string
+          maxLength: 40
+          format: date-time
+
+    UpdateProfileRequest:
+      type: object
+      minProperties: 1
+      properties:
+        displayName:
+          type: string
+          pattern: "^[^\\x00-\\x1f]+$"
+          maxLength: 128
+          description: Display name shown in messages and sidebar.
+        email:
+          type: string
+          format: email
+          maxLength: 320
+          description: Email address.
+        statusText:
+          type: string
+          maxLength: 128
+          description: Short status text (e.g. "On vacation").
+
     SendMessageRequest:
       type: object
       description: Request body for sending a new message.
@@ -2444,6 +2595,7 @@ components:
       properties:
         content:
           type: string
+          pattern: "^.+$"
           maxLength: 4000
           description: Message text content.
         threadId:
