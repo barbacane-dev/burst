@@ -1,5 +1,6 @@
 tmp
 /target
+/bin
 burst.toml
 .env
 *.swp
