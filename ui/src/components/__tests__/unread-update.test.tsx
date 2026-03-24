@@ -13,8 +13,8 @@ vi.spyOn(wsClient, "on").mockImplementation((type: string, handler: (e: unknown)
   return () => registeredHandlers.get(type)?.delete(handler);
 });
 
-// Mock auth context to avoid network calls
-vi.mock("../../lib/auth/context", () => ({
+// Mock auth hook to avoid network calls
+vi.mock("../../lib/auth/use-auth", () => ({
   useAuth: () => ({
     user: { id: "usr_bob", displayName: "Bob", username: "bob", role: "member" },
     logout: vi.fn(),
@@ -55,7 +55,7 @@ vi.mock("../../lib/api/users", () => ({
 }));
 
 // Mock theme
-vi.mock("../../lib/theme", () => ({
+vi.mock("../../lib/use-theme", () => ({
   useTheme: () => ({ resolved: "light", setTheme: vi.fn() }),
 }));
 

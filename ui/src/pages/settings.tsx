@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../lib/auth/context";
-import { useTheme } from "../lib/theme";
+import { useAuth } from "../lib/auth/use-auth";
+import { useTheme } from "../lib/use-theme";
 import { updateMe } from "../lib/api/users";
 import { Avatar } from "../components/ui/avatar";
 import { Button } from "../components/ui/button";

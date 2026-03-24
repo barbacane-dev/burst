@@ -16,12 +16,12 @@ export function useUsersById(): { usersById: Map<string, string>; users: User[] 
     staleTime: 60_000,
   });
 
-  const users = data?.items ?? [];
+  const users = data?.items;
 
   const usersById = useMemo(
-    () => new Map(users.map((u) => [u.id, u.displayName])),
+    () => new Map((users ?? []).map((u) => [u.id, u.displayName])),
     [users],
   );
 
-  return { usersById, users };
+  return { usersById, users: users ?? [] };
 }

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { AuthProvider, useAuth } from "./lib/auth/context";
+import { AuthProvider } from "./lib/auth/context";
+import { useAuth } from "./lib/auth/use-auth";
 import { ThemeProvider } from "./lib/theme";
 import { LoginPage } from "./pages/login";
 import { MainLayout, WelcomeView } from "./components/layout/main-layout";

@@ -14,7 +14,7 @@ import {
   listMessages,
   markChannelRead,
 } from "../lib/api/channels";
-import { useAuth } from "../lib/auth/context";
+import { useAuth } from "../lib/auth/use-auth";
 import { Spinner } from "../components/ui/spinner";
 import { MessageBubble } from "../components/message/message-bubble";
 import { MessageComposer } from "../components/message/message-composer";
@@ -75,8 +75,7 @@ export function ChannelPage() {
     staleTime: Infinity,
   });
 
-  const messages = data?.items ?? [];
-  const sorted = useMemo(() => [...messages].reverse(), [messages]);
+  const sorted = useMemo(() => [...(data?.items ?? [])].reverse(), [data?.items]);
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const prevCountRef = useRef(0);

@@ -7,7 +7,9 @@ import { wsClient } from "./client";
  */
 export function useWsEvent<T>(type: string, handler: (event: T) => void): void {
   const ref = useRef(handler);
-  ref.current = handler;
+  useEffect(() => {
+    ref.current = handler;
+  });
 
   useEffect(() => {
     return wsClient.on(type, (e) => ref.current(e as T));
@@ -27,6 +29,7 @@ export function useTypingIndicator(channelId: string, currentUserId?: string): {
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
   useEffect(() => {
+    const timerMap = timers.current;
     const offStart = wsClient.on("typing.start", (e) => {
       const ev = e as { type: string; channelId: string; userId: string };
       if (ev.channelId !== channelId) return;
@@ -39,9 +42,9 @@ export function useTypingIndicator(channelId: string, currentUserId?: string): {
       });
 
       // Auto-clear after 5s in case stop is missed
-      const existing = timers.current.get(ev.userId);
+      const existing = timerMap.get(ev.userId);
       if (existing) clearTimeout(existing);
-      timers.current.set(
+      timerMap.set(
         ev.userId,
         setTimeout(() => {
           setTypingUsers((prev) => {
@@ -49,7 +52,7 @@ export function useTypingIndicator(channelId: string, currentUserId?: string): {
             next.delete(ev.userId);
             return next;
           });
-          timers.current.delete(ev.userId);
+          timerMap.delete(ev.userId);
         }, 5_000),
       );
     });
@@ -58,10 +61,10 @@ export function useTypingIndicator(channelId: string, currentUserId?: string): {
       const ev = e as { type: string; channelId: string; userId: string };
       if (ev.channelId !== channelId) return;
 
-      const existing = timers.current.get(ev.userId);
+      const existing = timerMap.get(ev.userId);
       if (existing) {
         clearTimeout(existing);
-        timers.current.delete(ev.userId);
+        timerMap.delete(ev.userId);
       }
       setTypingUsers((prev) => {
         const next = new Set(prev);
@@ -73,10 +76,10 @@ export function useTypingIndicator(channelId: string, currentUserId?: string): {
     return () => {
       offStart();
       offStop();
-      timers.current.forEach(clearTimeout);
-      timers.current.clear();
+      timerMap.forEach(clearTimeout);
+      timerMap.clear();
     };
-  }, [channelId]);
+  }, [channelId, currentUserId]);
 
   const sendTypingStart = () => wsClient.send({ type: "typing.start", channelId });
   const sendTypingStop = () => wsClient.send({ type: "typing.stop", channelId });
