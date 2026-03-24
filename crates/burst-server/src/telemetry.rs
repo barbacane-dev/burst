@@ -1,5 +1,4 @@
 use crate::config::TelemetryConfig;
-use opentelemetry::KeyValue;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::trace::Sampler;
@@ -9,7 +8,9 @@ use opentelemetry_sdk::trace::Sampler;
 /// Returns `None` when `otlp_endpoint` is absent or empty (tracing disabled).
 /// The caller must hold the returned provider alive for the process lifetime
 /// and call [`shutdown`] during graceful shutdown to flush buffered spans.
-pub fn init_tracer(config: &TelemetryConfig) -> Option<opentelemetry_sdk::trace::TracerProvider> {
+pub fn init_tracer(
+    config: &TelemetryConfig,
+) -> Option<opentelemetry_sdk::trace::SdkTracerProvider> {
     let endpoint = config.otlp_endpoint.as_deref().filter(|s| !s.is_empty())?;
 
     let exporter = opentelemetry_otlp::SpanExporter::builder()
@@ -26,10 +27,10 @@ pub fn init_tracer(config: &TelemetryConfig) -> Option<opentelemetry_sdk::trace:
         Sampler::TraceIdRatioBased(config.trace_sample_rate)
     };
 
-    let resource = Resource::new(vec![KeyValue::new("service.name", "burst")]);
+    let resource = Resource::builder_empty().with_service_name("burst").build();
 
-    let provider = opentelemetry_sdk::trace::TracerProvider::builder()
-        .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+    let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
         .with_sampler(sampler)
         .with_resource(resource)
         .build();
@@ -38,7 +39,7 @@ pub fn init_tracer(config: &TelemetryConfig) -> Option<opentelemetry_sdk::trace:
 }
 
 /// Flush buffered spans and shut down the tracer provider.
-pub fn shutdown(provider: Option<opentelemetry_sdk::trace::TracerProvider>) {
+pub fn shutdown(provider: Option<opentelemetry_sdk::trace::SdkTracerProvider>) {
     if let Some(provider) = provider
         && let Err(e) = provider.shutdown()
     {
