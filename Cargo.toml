@@ -47,7 +47,7 @@ metrics-exporter-prometheus = "0.16"
 thiserror = "2"
 
 # File handling
-axum-extra = { version = "0.10", features = ["multipart"] }
+axum-extra = { version = "0.12", features = ["multipart"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 mime_guess = "2"
 bytes = "1"
