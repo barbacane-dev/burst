@@ -1,29 +1,15 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { apiFetch, setAccessToken, getAccessToken } from "../api/client";
 import type { TokenResponse, User } from "../api/types";
 import { queryClient } from "../query-client";
 import { wsClient } from "../ws/client";
+import { AuthContext } from "./auth-context";
 
-interface AuthState {
-  user: User | null;
-  isLoading: boolean;
-  login: (username: string, password: string) => Promise<void>;
-  loginWithToken: (token: string) => Promise<void>;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthState | null>(null);
+export { AuthContext } from "./auth-context";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => Boolean(getAccessToken()));
 
   const fetchMe = useCallback(async () => {
     const me = await apiFetch<User>("/users/me");
@@ -32,35 +18,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // On mount: if a token exists in sessionStorage (set by setAccessToken),
   // try to restore the session by fetching the current user.
+  const hasToken = Boolean(getAccessToken());
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      setIsLoading(false);
+    if (!hasToken) {
       return;
     }
 
     let stopHeartbeat: (() => void) | null = null;
+    let cancelled = false;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- setState is in async callbacks, not synchronous
     fetchMe()
       .then(() => {
-        wsClient.connect();
-        stopHeartbeat = wsClient.startHeartbeat();
+        if (!cancelled) {
+          wsClient.connect();
+          stopHeartbeat = wsClient.startHeartbeat();
+        }
       })
       .catch(() => {
-        setAccessToken(null);
-        setUser(null);
+        if (!cancelled) {
+          setAccessToken(null);
+          setUser(null);
+        }
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
 
     return () => {
+      cancelled = true;
       stopHeartbeat?.();
     };
-  }, [fetchMe]);
+  }, [fetchMe, hasToken]);
 
   const login = useCallback(
     async (username: string, password: string) => {
-      // Exchange credentials for a JWT via the mock OIDC server's password grant.
-      // This flow is dev-only (mock OIDC). Production uses the OIDC redirect flow.
       const params = new URLSearchParams({
         grant_type: "password",
         username,
@@ -109,10 +101,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
 }

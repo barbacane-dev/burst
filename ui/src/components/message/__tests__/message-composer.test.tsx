@@ -88,7 +88,7 @@ describe("MessageComposer file validation", () => {
     expect(screen.getByText(/File exceeds 10 MB limit/)).toBeInTheDocument();
     expect(screen.getByText(/huge\.zip/)).toBeInTheDocument();
     // The file should NOT appear as a pill
-    expect(screen.queryByText("huge.zip")?.closest("[class*='rounded-full']")).toBeNull;
+    expect(screen.queryByText("huge.zip")?.closest("[class*='rounded-full']")).toBeFalsy();
   });
 
   it("rejects when adding files would exceed the maximum count", () => {
