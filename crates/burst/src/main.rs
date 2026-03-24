@@ -13,6 +13,24 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Minimal healthcheck subcommand for distroless Docker containers.
+    // Tries a TCP connection to the admin port to verify the server is up.
+    if std::env::args().nth(1).as_deref() == Some("healthcheck") {
+        let addr =
+            std::env::var("BURST_SERVER_ADMIN_LISTEN").unwrap_or_else(|_| "0.0.0.0:3001".into());
+        let port = addr.rsplit_once(':').map(|(_, p)| p).unwrap_or("3001");
+        let target = format!("127.0.0.1:{port}");
+        match tokio::time::timeout(
+            Duration::from_secs(3),
+            tokio::net::TcpStream::connect(&target),
+        )
+        .await
+        {
+            Ok(Ok(_)) => return Ok(()),
+            _ => std::process::exit(1),
+        }
+    }
+
     // Config (loaded first so telemetry config is available for subscriber init)
     let config_path = std::env::args()
         .nth(1)
