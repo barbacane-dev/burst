@@ -26,7 +26,7 @@ x-barbacane-middlewares:
       groups_claim: "roles"
   - name: rate-limit
     config:
-      quota: 100
+      quota: 300
       window: 60
       partition_key: "context:auth.sub"
 
@@ -81,7 +81,7 @@ paths:
             groups_claim: "roles"
         - name: rate-limit
           config:
-            quota: 100
+            quota: 300
             window: 60
             partition_key: "context:auth.sub"
       parameters:
@@ -1352,7 +1352,7 @@ paths:
             groups_claim: "roles"
         - name: rate-limit
           config:
-            quota: 100
+            quota: 300
             window: 60
             partition_key: "context:auth.sub"
       parameters:
