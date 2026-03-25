@@ -40,7 +40,7 @@ export const options = {
       iterations: 1,
       exec: "rateLimit",
       // Start after the smoke scenario finishes to avoid polluting its
-      // rate-limit window (global quota is 100 req / 60 s per consumer).
+      // rate-limit window (global quota is 300 req / 60 s per consumer).
       startTime: "10s",
     },
   },
@@ -752,7 +752,7 @@ export function smoke() {
 }
 
 // ── Rate-limit scenario ──────────────────────────────────────────────────────
-// Fires requests beyond the gateway quota (100 req / 60 s) and verifies that
+// Fires requests beyond the gateway quota (300 req / 60 s) and verifies that
 // the gateway returns 429 with the expected headers.
 
 export function rateLimit() {
@@ -762,8 +762,8 @@ export function rateLimit() {
   let got429 = false;
   let hasRetryAfter = false;
 
-  // Exceed the 100 req / 60 s quota. Stop as soon as we see 429.
-  for (let i = 0; i < 120; i++) {
+  // Exceed the 300 req / 60 s quota. Stop as soon as we see 429.
+  for (let i = 0; i < 320; i++) {
     const res = http.get(endpoint, authHeaders(token));
     if (res.status === 429) {
       got429 = true;
