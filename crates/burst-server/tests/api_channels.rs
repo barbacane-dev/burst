@@ -72,7 +72,7 @@ async fn non_member_cannot_send_message(pool: sqlx::PgPool) {
     // Alice creates a channel (becomes owner/member).
     let (status, ch) = app
         .post(
-            "/channels",
+            "/api/channels",
             "alice@test.example",
             serde_json::json!({ "name": "alices-room" }),
         )
@@ -83,7 +83,7 @@ async fn non_member_cannot_send_message(pool: sqlx::PgPool) {
     // Eve (non-member) attempts to post.
     let (status, _) = app
         .post(
-            &format!("/channels/{channel_id}/messages"),
+            &format!("/api/channels/{channel_id}/messages"),
             "eve@test.example",
             serde_json::json!({ "content": "you shall not post" }),
         )
@@ -102,7 +102,7 @@ async fn member_can_send_message(pool: sqlx::PgPool) {
     // Alice creates the channel.
     let (_, ch) = app
         .post(
-            "/channels",
+            "/api/channels",
             "alice@test.example",
             serde_json::json!({ "name": "general" }),
         )
@@ -112,7 +112,7 @@ async fn member_can_send_message(pool: sqlx::PgPool) {
     // Bob joins.
     let (join_status, _) = app
         .post(
-            &format!("/channels/{channel_id}/members"),
+            &format!("/api/channels/{channel_id}/members"),
             "bob@test.example",
             serde_json::Value::Null,
         )
@@ -122,7 +122,7 @@ async fn member_can_send_message(pool: sqlx::PgPool) {
     // Bob sends a message.
     let (status, msg) = app
         .post(
-            &format!("/channels/{channel_id}/messages"),
+            &format!("/api/channels/{channel_id}/messages"),
             "bob@test.example",
             serde_json::json!({ "content": "hello!" }),
         )
@@ -143,7 +143,9 @@ async fn own_message_does_not_count_as_unread(pool: sqlx::PgPool) {
 
     common::seed_message(&pool, ch.id, alice.id, "hello from alice").await;
 
-    let (status, list) = app.get("/channels?joined=true", "alice@test.example").await;
+    let (status, list) = app
+        .get("/api/channels?joined=true", "alice@test.example")
+        .await;
     assert_eq!(status, StatusCode::OK);
 
     let ch_api_id = burst_core::id::format_channel_id(ch.id);
@@ -175,7 +177,9 @@ async fn peer_message_counts_as_unread_for_other_member(pool: sqlx::PgPool) {
 
     common::seed_message(&pool, ch.id, bob.id, "hello from bob").await;
 
-    let (status, list) = app.get("/channels?joined=true", "alice@test.example").await;
+    let (status, list) = app
+        .get("/api/channels?joined=true", "alice@test.example")
+        .await;
     assert_eq!(status, StatusCode::OK);
 
     let ch_api_id = burst_core::id::format_channel_id(ch.id);
@@ -204,7 +208,7 @@ async fn dm_appears_in_channel_list_for_both_participants(pool: sqlx::PgPool) {
 
     let (status, dm) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userId": format!("usr_{}", bob.id) }),
         )
@@ -213,7 +217,7 @@ async fn dm_appears_in_channel_list_for_both_participants(pool: sqlx::PgPool) {
     let dm_id = dm["id"].as_str().unwrap().to_owned();
 
     for (label, ext_id) in [("alice", "alice@test.example"), ("bob", "bob@test.example")] {
-        let (s, list) = app.get("/channels?joined=true", ext_id).await;
+        let (s, list) = app.get("/api/channels?joined=true", ext_id).await;
         assert_eq!(s, StatusCode::OK, "{label}: GET /channels failed");
         let ids: Vec<&str> = list["items"]
             .as_array()

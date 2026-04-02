@@ -20,7 +20,7 @@ async fn setup(pool: &sqlx::PgPool) -> (common::TestApp, String, String) {
 
 fn reaction_url(ch_id: &str, msg_id: &str, emoji: &str) -> String {
     format!(
-        "/channels/{ch_id}/messages/{msg_id}/reactions/{}",
+        "/api/channels/{ch_id}/messages/{msg_id}/reactions/{}",
         urlencoding::encode(emoji)
     )
 }
@@ -71,7 +71,10 @@ async fn reaction_appears_in_message_list(pool: sqlx::PgPool) {
         .await;
 
     let (_, list) = app
-        .get(&format!("/channels/{ch_id}/messages"), "alice@test.example")
+        .get(
+            &format!("/api/channels/{ch_id}/messages"),
+            "alice@test.example",
+        )
         .await;
     let msg = &list["items"].as_array().unwrap()[0];
     let reactions = msg["reactions"].as_array().unwrap();
@@ -143,7 +146,10 @@ async fn removed_reaction_disappears_from_message_list(pool: sqlx::PgPool) {
     app.delete(&url, "alice@test.example").await;
 
     let (_, list) = app
-        .get(&format!("/channels/{ch_id}/messages"), "alice@test.example")
+        .get(
+            &format!("/api/channels/{ch_id}/messages"),
+            "alice@test.example",
+        )
         .await;
     let reactions = list["items"].as_array().unwrap()[0]["reactions"]
         .as_array()

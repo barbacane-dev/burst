@@ -103,7 +103,7 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
-  /users:
+  /api/users:
     get:
       operationId: listUsers
       summary: List users
@@ -172,7 +172,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /users/me:
+  /api/users/me:
     get:
       operationId: getMe
       summary: Get current user
@@ -251,7 +251,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /users/{userId}:
+  /api/users/{userId}:
     get:
       operationId: getUser
       summary: Get a user by ID
@@ -264,7 +264,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/users/{userId}"
       parameters:
         - name: userId
           in: path
@@ -315,7 +314,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels:
+  /api/channels:
     get:
       operationId: listChannels
       summary: List channels
@@ -455,7 +454,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}:
+  /api/channels/{channelId}:
     get:
       operationId: getChannel
       summary: Get a channel
@@ -468,7 +467,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -522,7 +520,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
@@ -561,7 +558,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /dms:
+  /api/dms:
     post:
       operationId: createOrGetDm
       summary: Create or retrieve a direct message channel
@@ -621,7 +618,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}/members:
+  /api/channels/{channelId}/members:
     get:
       operationId: listChannelMembers
       summary: List channel members
@@ -634,7 +631,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -673,7 +669,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/members"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -712,7 +707,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}/members/me:
+  /api/channels/{channelId}/members/me:
     delete:
       operationId: leaveChannel
       summary: Leave a channel
@@ -725,7 +720,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/members/me"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -747,7 +741,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}/members/me/last-read:
+  /api/channels/{channelId}/members/me/last-read:
     patch:
       operationId: markChannelRead
       summary: Mark the channel as read
@@ -760,7 +754,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/members/me/last-read"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       responses:
@@ -786,7 +779,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}/messages:
+  /api/channels/{channelId}/messages:
     get:
       operationId: listMessages
       summary: List messages in a channel
@@ -799,7 +792,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - name: cursor
@@ -853,7 +845,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
@@ -897,7 +888,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}/messages/{messageId}:
+  /api/channels/{channelId}/messages/{messageId}:
     get:
       operationId: getMessage
       summary: Get a message
@@ -910,7 +901,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -952,7 +942,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1003,7 +992,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages/{messageId}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1030,7 +1018,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}/messages/{messageId}/replies:
+  /api/channels/{channelId}/messages/{messageId}/replies:
     get:
       operationId: listThreadReplies
       summary: List replies in a message thread
@@ -1043,7 +1031,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages/{messageId}/replies"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1089,7 +1076,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /channels/{channelId}/messages/{messageId}/reactions/{emoji}:
+  /api/channels/{channelId}/messages/{messageId}/reactions/{emoji}:
     put:
       operationId: addReaction
       summary: Add a reaction to a message (idempotent)
@@ -1102,7 +1089,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1150,7 +1136,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/channels/{channelId}/messages/{messageId}/reactions/{emoji}"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/MessageId"
@@ -1200,7 +1185,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /search/messages:
+  /api/search/messages:
     get:
       operationId: searchMessages
       summary: Full-text search across messages
@@ -1217,7 +1202,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/search/messages"
       parameters:
         - name: q
           in: query
@@ -1289,7 +1273,7 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
-  /emojis:
+  /api/emojis:
     get:
       operationId: listCustomEmojis
       summary: List custom emojis
@@ -1325,7 +1309,7 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
 
-  /attachments/{attachmentId}:
+  /api/attachments/{attachmentId}:
     get:
       operationId: downloadAttachment
       summary: Download a file attachment
@@ -1341,7 +1325,6 @@ paths:
         name: http-upstream
         config:
           url: "env://BURST_UPSTREAM_URL"
-          path: "/attachments/{attachmentId}"
       x-barbacane-middlewares:
         - name: oidc-auth
           config:
@@ -1389,7 +1372,7 @@ paths:
           $ref: "#/components/responses/RateLimited"
   # ── Pinned messages ──
 
-  /channels/{channelId}/messages/{messageId}/pin:
+  /api/channels/{channelId}/messages/{messageId}/pin:
     put:
       operationId: pinMessage
       summary: Pin a message
@@ -1451,7 +1434,7 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
-  /channels/{channelId}/pins:
+  /api/channels/{channelId}/pins:
     get:
       operationId: listPins
       summary: List pinned messages
@@ -1482,7 +1465,7 @@ paths:
           $ref: "#/components/responses/RateLimited"
   # ── Channel archival ──
 
-  /channels/{channelId}/archive:
+  /api/channels/{channelId}/archive:
     post:
       operationId: archiveChannel
       summary: Archive a channel
@@ -1519,7 +1502,7 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
-  /channels/{channelId}/unarchive:
+  /api/channels/{channelId}/unarchive:
     post:
       operationId: unarchiveChannel
       summary: Unarchive a channel
@@ -1552,7 +1535,7 @@ paths:
           $ref: "#/components/responses/RateLimited"
   # ── Notification preferences ──
 
-  /channels/{channelId}/members/me/notify:
+  /api/channels/{channelId}/members/me/notify:
     patch:
       operationId: updateNotifyPreference
       summary: Update notification preference
@@ -1593,7 +1576,7 @@ paths:
           $ref: "#/components/responses/RateLimited"
   # ── Admin endpoints ──
 
-  /admin/users:
+  /api/admin/users:
     get:
       operationId: listAdminUsers
       summary: List all users (admin)
@@ -1648,7 +1631,7 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
-  /admin/users/{userId}:
+  /api/admin/users/{userId}:
     patch:
       operationId: updateAdminUser
       summary: Update a user (admin)
@@ -1706,7 +1689,7 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
-  /admin/channels:
+  /api/admin/channels:
     get:
       operationId: listAdminChannels
       summary: List all channels (admin)
@@ -1756,7 +1739,7 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
-  /admin/channels/{channelId}:
+  /api/admin/channels/{channelId}:
     patch:
       operationId: updateAdminChannel
       summary: Update a channel (admin)
@@ -1837,7 +1820,7 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
-  /admin/audit-log:
+  /api/admin/audit-log:
     get:
       operationId: listAuditLog
       summary: List audit log entries

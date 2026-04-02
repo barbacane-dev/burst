@@ -10,11 +10,11 @@ fn auth(username: &str) -> String {
 }
 
 fn pin_url(ch_id: &str, msg_id: &str) -> String {
-    format!("/channels/{ch_id}/messages/{msg_id}/pin")
+    format!("/api/channels/{ch_id}/messages/{msg_id}/pin")
 }
 
 fn pins_url(ch_id: &str) -> String {
-    format!("/channels/{ch_id}/pins")
+    format!("/api/channels/{ch_id}/pins")
 }
 
 async fn setup(pool: &sqlx::PgPool) -> (common::TestApp, String, String) {

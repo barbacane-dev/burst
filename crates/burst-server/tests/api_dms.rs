@@ -13,7 +13,7 @@ async fn create_dm_returns_dm_channel(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userId": format!("usr_{}", bob.id) }),
         )
@@ -36,8 +36,10 @@ async fn create_dm_is_idempotent(pool: sqlx::PgPool) {
 
     let body = serde_json::json!({ "userId": format!("usr_{}", bob.id) });
 
-    let (s1, first) = app.post("/dms", "alice@test.example", body.clone()).await;
-    let (s2, second) = app.post("/dms", "alice@test.example", body).await;
+    let (s1, first) = app
+        .post("/api/dms", "alice@test.example", body.clone())
+        .await;
+    let (s2, second) = app.post("/api/dms", "alice@test.example", body).await;
 
     assert_eq!(s1, StatusCode::OK);
     assert_eq!(s2, StatusCode::OK);
@@ -56,7 +58,7 @@ async fn create_dm_is_symmetric(pool: sqlx::PgPool) {
 
     let (_, alice_view) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userId": format!("usr_{}", bob.id) }),
         )
@@ -64,7 +66,7 @@ async fn create_dm_is_symmetric(pool: sqlx::PgPool) {
 
     let (_, bob_view) = app
         .post(
-            "/dms",
+            "/api/dms",
             "bob@test.example",
             serde_json::json!({ "userId": format!("usr_{}", alice.id) }),
         )
@@ -85,7 +87,7 @@ async fn create_dm_with_self_is_bad_request(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userId": format!("usr_{}", alice.id) }),
         )
@@ -102,7 +104,7 @@ async fn create_dm_with_unknown_user_is_not_found(pool: sqlx::PgPool) {
     let ghost_id = uuid::Uuid::now_v7();
     let (status, _) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userId": format!("usr_{ghost_id}") }),
         )
@@ -116,7 +118,7 @@ async fn create_dm_unauthenticated_is_unauthorized(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool.clone());
 
     let (status, _) = app
-        .post_unauthenticated("/dms", serde_json::json!({ "userId": "usr_anything" }))
+        .post_unauthenticated("/api/dms", serde_json::json!({ "userId": "usr_anything" }))
         .await;
 
     assert_eq!(status, StatusCode::UNAUTHORIZED);
@@ -139,7 +141,7 @@ async fn create_dm_broadcasts_channel_joined_for_both_users(pool: sqlx::PgPool) 
 
     let (status, body) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userId": format!("usr_{}", bob.id) }),
         )

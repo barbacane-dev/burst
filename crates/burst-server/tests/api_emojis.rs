@@ -8,7 +8,7 @@ async fn list_emojis_empty(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool);
     let _ = common::seed_user(&app.state.db, "alice").await;
 
-    let (status, body) = app.get("/emojis", "alice@test.example").await;
+    let (status, body) = app.get("/api/emojis", "alice@test.example").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["items"].as_array().unwrap().len(), 0);
 }
@@ -33,7 +33,7 @@ async fn admin_create_and_list_emoji(pool: sqlx::PgPool) {
 
     let req = axum::http::Request::builder()
         .method("POST")
-        .uri("/admin/emojis")
+        .uri("/api/admin/emojis")
         .header("x-auth-consumer", "admin@test.example")
         .header(
             "content-type",
@@ -52,7 +52,7 @@ async fn admin_create_and_list_emoji(pool: sqlx::PgPool) {
     assert_eq!(emoji["shortcode"], "partyparrot");
 
     // List emojis (public)
-    let (status, body) = app.get("/emojis", "admin@test.example").await;
+    let (status, body) = app.get("/api/emojis", "admin@test.example").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["items"].as_array().unwrap().len(), 1);
     assert_eq!(body["items"][0]["shortcode"], "partyparrot");
@@ -77,7 +77,7 @@ async fn non_admin_cannot_create_emoji(pool: sqlx::PgPool) {
 
     let req = axum::http::Request::builder()
         .method("POST")
-        .uri("/admin/emojis")
+        .uri("/api/admin/emojis")
         .header("x-auth-consumer", "bob@test.example")
         .header(
             "content-type",
@@ -108,12 +108,12 @@ async fn admin_delete_emoji(pool: sqlx::PgPool) {
     .unwrap();
 
     let (status, _) = app
-        .delete(&format!("/admin/emojis/{id}"), "admin@test.example")
+        .delete(&format!("/api/admin/emojis/{id}"), "admin@test.example")
         .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
 
     // Verify gone
-    let (status, body) = app.get("/emojis", "admin@test.example").await;
+    let (status, body) = app.get("/api/emojis", "admin@test.example").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["items"].as_array().unwrap().len(), 0);
 }
@@ -132,7 +132,7 @@ async fn shortcode_validation(pool: sqlx::PgPool) {
     );
     let req = axum::http::Request::builder()
         .method("POST")
-        .uri("/admin/emojis")
+        .uri("/api/admin/emojis")
         .header("x-auth-consumer", "admin@test.example")
         .header(
             "content-type",

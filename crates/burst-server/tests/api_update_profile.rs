@@ -10,7 +10,7 @@ async fn update_display_name(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .patch(
-            "/users/me",
+            "/api/users/me",
             eid,
             serde_json::json!({ "displayName": "Alice Updated" }),
         )
@@ -29,7 +29,7 @@ async fn update_email(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .patch(
-            "/users/me",
+            "/api/users/me",
             eid,
             serde_json::json!({ "email": "bob@newdomain.com" }),
         )
@@ -47,7 +47,7 @@ async fn update_status_text(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .patch(
-            "/users/me",
+            "/api/users/me",
             eid,
             serde_json::json!({ "statusText": "On vacation" }),
         )
@@ -65,7 +65,7 @@ async fn update_multiple_fields(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .patch(
-            "/users/me",
+            "/api/users/me",
             eid,
             serde_json::json!({
                 "displayName": "Dave New",
@@ -88,7 +88,7 @@ async fn update_profile_unauthenticated(pool: sqlx::PgPool) {
     let (status, _body) = app
         .request_no_auth(
             "PATCH",
-            "/users/me",
+            "/api/users/me",
             Some(serde_json::json!({ "displayName": "Hacker" })),
         )
         .await;

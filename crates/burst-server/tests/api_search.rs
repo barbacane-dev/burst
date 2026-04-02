@@ -43,21 +43,21 @@ async fn search_returns_matching_messages(pool: sqlx::PgPool) {
     let (app, ch_id) = setup(&pool).await;
 
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "alice@test.example",
         serde_json::json!({ "content": "the quick brown fox jumps" }),
     )
     .await;
 
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "alice@test.example",
         serde_json::json!({ "content": "hello world" }),
     )
     .await;
 
     let (status, body) = app
-        .get("/search/messages?q=fox", "alice@test.example")
+        .get("/api/search/messages?q=fox", "alice@test.example")
         .await;
 
     assert_eq!(status, StatusCode::OK);
@@ -81,7 +81,7 @@ async fn search_respects_channel_membership(pool: sqlx::PgPool) {
     common::seed_message(&pool, ch.id, alice.id, "secret keyword").await;
 
     let (status, body) = app
-        .get("/search/messages?q=keyword", "charlie@test.example")
+        .get("/api/search/messages?q=keyword", "charlie@test.example")
         .await;
 
     assert_eq!(status, StatusCode::OK);
@@ -93,7 +93,9 @@ async fn search_respects_channel_membership(pool: sqlx::PgPool) {
 async fn search_empty_query_returns_bad_request(pool: sqlx::PgPool) {
     let (app, _) = setup(&pool).await;
 
-    let (status, _) = app.get("/search/messages?q=", "alice@test.example").await;
+    let (status, _) = app
+        .get("/api/search/messages?q=", "alice@test.example")
+        .await;
 
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
@@ -111,7 +113,7 @@ async fn search_filters_by_channel_id(pool: sqlx::PgPool) {
     let ch1_id = format!("ch_{}", ch1.id);
     let (status, body) = app
         .get(
-            &format!("/search/messages?q=keyword&channelId={ch1_id}"),
+            &format!("/api/search/messages?q=keyword&channelId={ch1_id}"),
             "alice@test.example",
         )
         .await;
@@ -132,7 +134,7 @@ async fn search_excludes_soft_deleted(pool: sqlx::PgPool) {
 
     let (_, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "deletable keyword" }),
         )
@@ -140,13 +142,13 @@ async fn search_excludes_soft_deleted(pool: sqlx::PgPool) {
     let msg_id = msg["id"].as_str().unwrap();
 
     app.delete(
-        &format!("/channels/{ch_id}/messages/{msg_id}"),
+        &format!("/api/channels/{ch_id}/messages/{msg_id}"),
         "alice@test.example",
     )
     .await;
 
     let (status, body) = app
-        .get("/search/messages?q=deletable", "alice@test.example")
+        .get("/api/search/messages?q=deletable", "alice@test.example")
         .await;
 
     assert_eq!(status, StatusCode::OK);
@@ -164,7 +166,7 @@ async fn search_supports_cursor_pagination(pool: sqlx::PgPool) {
     // Post several messages with the same keyword.
     for i in 1..=5 {
         app.post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": format!("paginate keyword {i}") }),
         )
@@ -173,7 +175,10 @@ async fn search_supports_cursor_pagination(pool: sqlx::PgPool) {
 
     // Fetch first page with limit=2.
     let (status, page1) = app
-        .get("/search/messages?q=paginate&limit=2", "alice@test.example")
+        .get(
+            "/api/search/messages?q=paginate&limit=2",
+            "alice@test.example",
+        )
         .await;
     assert_eq!(status, StatusCode::OK);
     let items1 = page1["items"].as_array().unwrap();
@@ -185,7 +190,7 @@ async fn search_supports_cursor_pagination(pool: sqlx::PgPool) {
     // Fetch second page using cursor.
     let (status, page2) = app
         .get(
-            &format!("/search/messages?q=paginate&limit=2&cursor={cursor}"),
+            &format!("/api/search/messages?q=paginate&limit=2&cursor={cursor}"),
             "alice@test.example",
         )
         .await;
@@ -210,7 +215,7 @@ async fn search_query_too_long_returns_bad_request(pool: sqlx::PgPool) {
     let long_query: String = "a".repeat(201);
     let (status, _) = app
         .get(
-            &format!("/search/messages?q={long_query}"),
+            &format!("/api/search/messages?q={long_query}"),
             "alice@test.example",
         )
         .await;
@@ -226,7 +231,7 @@ async fn search_query_too_long_returns_bad_request(pool: sqlx::PgPool) {
 async fn search_no_q_param_returns_bad_request(pool: sqlx::PgPool) {
     let (app, _) = setup(&pool).await;
 
-    let (status, _) = app.get("/search/messages", "alice@test.example").await;
+    let (status, _) = app.get("/api/search/messages", "alice@test.example").await;
 
     assert_eq!(
         status,
@@ -240,14 +245,14 @@ async fn search_returns_channel_and_user_ids(pool: sqlx::PgPool) {
     let (app, ch_id, alice_id) = setup_with_user(&pool).await;
 
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "alice@test.example",
         serde_json::json!({ "content": "identifiable keyword" }),
     )
     .await;
 
     let (status, body) = app
-        .get("/search/messages?q=identifiable", "alice@test.example")
+        .get("/api/search/messages?q=identifiable", "alice@test.example")
         .await;
 
     assert_eq!(status, StatusCode::OK);
@@ -278,14 +283,14 @@ async fn search_headline_highlights_query_terms(pool: sqlx::PgPool) {
     let (app, ch_id) = setup(&pool).await;
 
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "alice@test.example",
         serde_json::json!({ "content": "the highlight test should work" }),
     )
     .await;
 
     let (status, body) = app
-        .get("/search/messages?q=highlight", "alice@test.example")
+        .get("/api/search/messages?q=highlight", "alice@test.example")
         .await;
 
     assert_eq!(status, StatusCode::OK);
@@ -309,7 +314,7 @@ async fn search_with_invalid_channel_id_returns_bad_request(pool: sqlx::PgPool) 
 
     let (status, _) = app
         .get(
-            "/search/messages?q=test&channelId=not-a-valid-id",
+            "/api/search/messages?q=test&channelId=not-a-valid-id",
             "alice@test.example",
         )
         .await;
@@ -327,7 +332,7 @@ async fn search_quoted_phrase_matching(pool: sqlx::PgPool) {
 
     // Post a message with the exact phrase.
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "alice@test.example",
         serde_json::json!({ "content": "the exact phrase appears here" }),
     )
@@ -335,7 +340,7 @@ async fn search_quoted_phrase_matching(pool: sqlx::PgPool) {
 
     // Post a message with the individual words but not the exact phrase.
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "alice@test.example",
         serde_json::json!({ "content": "phrase is not exact in this message" }),
     )
@@ -344,7 +349,7 @@ async fn search_quoted_phrase_matching(pool: sqlx::PgPool) {
     // Search for the quoted exact phrase.
     let (status, body) = app
         .get(
-            "/search/messages?q=%22exact+phrase%22",
+            "/api/search/messages?q=%22exact+phrase%22",
             "alice@test.example",
         )
         .await;

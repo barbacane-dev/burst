@@ -76,12 +76,15 @@ impl AppState {
 pub fn app_router(state: AppState) -> Router {
     use axum::middleware;
 
-    Router::new()
+    let api_routes = Router::new()
         .merge(api::users::router())
         .merge(api::channels::router())
         .merge(api::search::router())
         .merge(api::attachments::router())
-        .merge(api::admin::router())
+        .merge(api::admin::router());
+
+    Router::new()
+        .nest("/api", api_routes)
         .route("/ws", axum::routing::get(ws::handler::ws_handler))
         .layer(middleware::from_fn(metrics::http_metrics))
         .with_state(state.clone())

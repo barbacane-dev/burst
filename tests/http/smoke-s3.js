@@ -65,7 +65,7 @@ export function s3smoke() {
   group("S3: Upload file via message", () => {
     // Create a channel for testing
     const ch = http.post(
-      `${GATEWAY}/channels`,
+      `${GATEWAY}/api/channels`,
       JSON.stringify({ name: `s3-test-${Date.now()}` }),
       { headers: { ...auth.headers, "Content-Type": "application/json" } }
     );
@@ -75,7 +75,7 @@ export function s3smoke() {
     // Send a message with a PNG attachment (multipart)
     const pngHash = sha256(SMALL_PNG, "hex");
     const msg = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       {
         content: http.file("s3 storage test message", "content", "text/plain"),
         files: http.file(SMALL_PNG, "test-s3.png", "image/png"),
@@ -91,7 +91,7 @@ export function s3smoke() {
 
     // ── 2. Download the file and verify integrity ──────────────────────
 
-    const dl = http.get(`${GATEWAY}/attachments/${attachment.id}`, auth);
+    const dl = http.get(`${GATEWAY}/api/attachments/${attachment.id}`, auth);
     check(dl, {
       "Download attachment → 200": (r) => r.status === 200,
       "Content-Type is image/png": (r) =>
@@ -103,7 +103,7 @@ export function s3smoke() {
 
     const msgId = JSON.parse(msg.body).id;
     const del = http.del(
-      `${GATEWAY}/channels/${channelId}/messages/${msgId}`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${msgId}`,
       null,
       auth
     );

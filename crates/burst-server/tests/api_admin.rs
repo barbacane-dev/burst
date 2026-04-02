@@ -19,7 +19,7 @@ async fn list_users_as_admin(pool: sqlx::PgPool) {
     common::seed_user(&pool, "bob").await;
     let _ = admin; // ensure admin exists
 
-    let (status, body) = app.get("/admin/users", &auth("admin1")).await;
+    let (status, body) = app.get("/api/admin/users", &auth("admin1")).await;
 
     assert_eq!(status, StatusCode::OK);
     let items = body["items"].as_array().unwrap();
@@ -31,7 +31,7 @@ async fn list_users_as_member_is_forbidden(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool.clone());
     common::seed_user(&pool, "alice").await;
 
-    let (status, _) = app.get("/admin/users", &auth("alice")).await;
+    let (status, _) = app.get("/api/admin/users", &auth("alice")).await;
 
     assert_eq!(status, StatusCode::FORBIDDEN);
 }
@@ -40,7 +40,7 @@ async fn list_users_as_member_is_forbidden(pool: sqlx::PgPool) {
 async fn list_users_unauthenticated_is_unauthorized(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool.clone());
 
-    let (status, _) = app.request_no_auth("GET", "/admin/users", None).await;
+    let (status, _) = app.request_no_auth("GET", "/api/admin/users", None).await;
 
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
@@ -56,7 +56,7 @@ async fn update_user_role(pool: sqlx::PgPool) {
     let user_id = burst_core::id::format_user_id(alice.id);
     let (status, body) = app
         .patch(
-            &format!("/admin/users/{user_id}"),
+            &format!("/api/admin/users/{user_id}"),
             &auth("admin1"),
             serde_json::json!({ "role": "moderator" }),
         )
@@ -75,7 +75,7 @@ async fn update_user_role_invalid_is_bad_request(pool: sqlx::PgPool) {
     let user_id = burst_core::id::format_user_id(alice.id);
     let (status, _) = app
         .patch(
-            &format!("/admin/users/{user_id}"),
+            &format!("/api/admin/users/{user_id}"),
             &auth("admin1"),
             serde_json::json!({ "role": "superuser" }),
         )
@@ -92,7 +92,7 @@ async fn update_nonexistent_user_returns_not_found(pool: sqlx::PgPool) {
     let fake_id = burst_core::id::format_user_id(burst_core::id::new_id());
     let (status, _) = app
         .patch(
-            &format!("/admin/users/{fake_id}"),
+            &format!("/api/admin/users/{fake_id}"),
             &auth("admin1"),
             serde_json::json!({ "role": "guest" }),
         )
@@ -112,7 +112,7 @@ async fn deactivate_user(pool: sqlx::PgPool) {
     let user_id = burst_core::id::format_user_id(alice.id);
     let (status, body) = app
         .patch(
-            &format!("/admin/users/{user_id}"),
+            &format!("/api/admin/users/{user_id}"),
             &auth("admin1"),
             serde_json::json!({ "deactivated": true }),
         )
@@ -135,7 +135,7 @@ async fn reactivate_user(pool: sqlx::PgPool) {
 
     // Deactivate first
     app.patch(
-        &format!("/admin/users/{user_id}"),
+        &format!("/api/admin/users/{user_id}"),
         &auth("admin1"),
         serde_json::json!({ "deactivated": true }),
     )
@@ -144,7 +144,7 @@ async fn reactivate_user(pool: sqlx::PgPool) {
     // Now reactivate
     let (status, body) = app
         .patch(
-            &format!("/admin/users/{user_id}"),
+            &format!("/api/admin/users/{user_id}"),
             &auth("admin1"),
             serde_json::json!({ "deactivated": false }),
         )
@@ -165,7 +165,7 @@ async fn admin_list_channels(pool: sqlx::PgPool) {
     let admin = common::seed_user_with_role(&pool, "admin1", "admin").await;
     common::seed_channel(&pool, "general", admin.id).await;
 
-    let (status, body) = app.get("/admin/channels", &auth("admin1")).await;
+    let (status, body) = app.get("/api/admin/channels", &auth("admin1")).await;
 
     assert_eq!(status, StatusCode::OK);
     let items = body["items"].as_array().unwrap();
@@ -181,7 +181,7 @@ async fn admin_archive_channel(pool: sqlx::PgPool) {
     let ch_id = burst_core::id::format_channel_id(ch.id);
     let (status, body) = app
         .patch(
-            &format!("/admin/channels/{ch_id}"),
+            &format!("/api/admin/channels/{ch_id}"),
             &auth("admin1"),
             serde_json::json!({ "isArchived": true }),
         )
@@ -201,7 +201,7 @@ async fn admin_unarchive_channel(pool: sqlx::PgPool) {
 
     // Archive first
     app.patch(
-        &format!("/admin/channels/{ch_id}"),
+        &format!("/api/admin/channels/{ch_id}"),
         &auth("admin1"),
         serde_json::json!({ "isArchived": true }),
     )
@@ -210,7 +210,7 @@ async fn admin_unarchive_channel(pool: sqlx::PgPool) {
     // Unarchive
     let (status, body) = app
         .patch(
-            &format!("/admin/channels/{ch_id}"),
+            &format!("/api/admin/channels/{ch_id}"),
             &auth("admin1"),
             serde_json::json!({ "isArchived": false }),
         )
@@ -228,13 +228,13 @@ async fn admin_delete_channel(pool: sqlx::PgPool) {
 
     let ch_id = burst_core::id::format_channel_id(ch.id);
     let (status, _) = app
-        .delete(&format!("/admin/channels/{ch_id}"), &auth("admin1"))
+        .delete(&format!("/api/admin/channels/{ch_id}"), &auth("admin1"))
         .await;
 
     assert_eq!(status, StatusCode::NO_CONTENT);
 
     // Verify it's actually gone
-    let (status, _) = app.get("/admin/channels", &auth("admin1")).await;
+    let (status, _) = app.get("/api/admin/channels", &auth("admin1")).await;
     assert_eq!(status, StatusCode::OK);
 }
 
@@ -245,7 +245,7 @@ async fn admin_delete_nonexistent_channel_returns_not_found(pool: sqlx::PgPool) 
 
     let fake_id = burst_core::id::format_channel_id(burst_core::id::new_id());
     let (status, _) = app
-        .delete(&format!("/admin/channels/{fake_id}"), &auth("admin1"))
+        .delete(&format!("/api/admin/channels/{fake_id}"), &auth("admin1"))
         .await;
 
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -261,13 +261,13 @@ async fn audit_log_records_role_change(pool: sqlx::PgPool) {
 
     let user_id = burst_core::id::format_user_id(alice.id);
     app.patch(
-        &format!("/admin/users/{user_id}"),
+        &format!("/api/admin/users/{user_id}"),
         &auth("admin1"),
         serde_json::json!({ "role": "moderator" }),
     )
     .await;
 
-    let (status, body) = app.get("/admin/audit-log", &auth("admin1")).await;
+    let (status, body) = app.get("/api/admin/audit-log", &auth("admin1")).await;
 
     assert_eq!(status, StatusCode::OK);
     let items = body["items"].as_array().unwrap();
@@ -284,13 +284,13 @@ async fn audit_log_records_channel_archive(pool: sqlx::PgPool) {
 
     let ch_id = burst_core::id::format_channel_id(ch.id);
     app.patch(
-        &format!("/admin/channels/{ch_id}"),
+        &format!("/api/admin/channels/{ch_id}"),
         &auth("admin1"),
         serde_json::json!({ "isArchived": true }),
     )
     .await;
 
-    let (status, body) = app.get("/admin/audit-log", &auth("admin1")).await;
+    let (status, body) = app.get("/api/admin/audit-log", &auth("admin1")).await;
 
     assert_eq!(status, StatusCode::OK);
     let items = body["items"].as_array().unwrap();
@@ -311,14 +311,14 @@ async fn audit_log_filter_by_target_type(pool: sqlx::PgPool) {
     // Create both user and channel audit entries
     let user_id = burst_core::id::format_user_id(alice.id);
     app.patch(
-        &format!("/admin/users/{user_id}"),
+        &format!("/api/admin/users/{user_id}"),
         &auth("admin1"),
         serde_json::json!({ "role": "moderator" }),
     )
     .await;
     let ch_id = burst_core::id::format_channel_id(ch.id);
     app.patch(
-        &format!("/admin/channels/{ch_id}"),
+        &format!("/api/admin/channels/{ch_id}"),
         &auth("admin1"),
         serde_json::json!({ "isArchived": true }),
     )
@@ -326,7 +326,7 @@ async fn audit_log_filter_by_target_type(pool: sqlx::PgPool) {
 
     // Filter by user only (camelCase query param)
     let (status, body) = app
-        .get("/admin/audit-log?targetType=user", &auth("admin1"))
+        .get("/api/admin/audit-log?targetType=user", &auth("admin1"))
         .await;
 
     assert_eq!(status, StatusCode::OK);
@@ -345,9 +345,9 @@ async fn member_cannot_access_admin_endpoints(pool: sqlx::PgPool) {
     common::seed_user(&pool, "alice").await;
 
     let endpoints = vec![
-        ("GET", "/admin/users"),
-        ("GET", "/admin/channels"),
-        ("GET", "/admin/audit-log"),
+        ("GET", "/api/admin/users"),
+        ("GET", "/api/admin/channels"),
+        ("GET", "/api/admin/audit-log"),
     ];
 
     for (method, path) in endpoints {

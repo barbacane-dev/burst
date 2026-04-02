@@ -100,7 +100,7 @@ async fn upload_and_download_attachment(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -148,7 +148,7 @@ async fn blocked_extension_rejected(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -172,7 +172,7 @@ async fn non_member_cannot_download(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -212,7 +212,7 @@ async fn file_size_limit_enforced(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -240,7 +240,7 @@ async fn attachments_included_in_list_messages(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -254,7 +254,10 @@ async fn attachments_included_in_list_messages(pool: sqlx::PgPool) {
 
     // List messages and verify attachments are present.
     let (status, body) = app
-        .get(&format!("/channels/{ch_id}/messages"), "alice@test.example")
+        .get(
+            &format!("/api/channels/{ch_id}/messages"),
+            "alice@test.example",
+        )
         .await;
     assert_eq!(status, StatusCode::OK);
 
@@ -274,7 +277,7 @@ async fn download(
 ) -> (StatusCode, Vec<u8>) {
     let req = Request::builder()
         .method("GET")
-        .uri(format!("/attachments/{attachment_id}"))
+        .uri(format!("/api/attachments/{attachment_id}"))
         .header("x-auth-consumer", external_id)
         .body(Body::empty())
         .unwrap();
@@ -295,7 +298,7 @@ async fn download_with_headers(
 ) -> (StatusCode, Vec<u8>, Option<String>) {
     let req = Request::builder()
         .method("GET")
-        .uri(format!("/attachments/{attachment_id}"))
+        .uri(format!("/api/attachments/{attachment_id}"))
         .header("x-auth-consumer", external_id)
         .body(Body::empty())
         .unwrap();
@@ -327,7 +330,7 @@ async fn upload_file(
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", external_id)
         .header(
             "Content-Type",
@@ -360,7 +363,7 @@ async fn multiple_files_upload(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -396,7 +399,7 @@ async fn file_only_message_with_empty_content(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -440,7 +443,7 @@ async fn non_member_cannot_upload(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "bob@test.example")
         .header(
             "Content-Type",
@@ -565,7 +568,7 @@ async fn attachments_included_in_get_message(pool: sqlx::PgPool) {
     // GET single message
     let (status, body) = app
         .get(
-            &format!("/channels/{ch_id}/messages/{msg_id}"),
+            &format!("/api/channels/{ch_id}/messages/{msg_id}"),
             "alice@test.example",
         )
         .await;
@@ -583,7 +586,7 @@ async fn attachments_included_in_thread_replies(pool: sqlx::PgPool) {
     // Post a root message.
     let (_, root) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "root message" }),
         )
@@ -615,7 +618,7 @@ async fn attachments_included_in_thread_replies(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",
@@ -630,7 +633,7 @@ async fn attachments_included_in_thread_replies(pool: sqlx::PgPool) {
     // List thread replies and verify the attachment is present.
     let (status, replies) = app
         .get(
-            &format!("/channels/{ch_id}/messages/{root_id}/replies"),
+            &format!("/api/channels/{ch_id}/messages/{root_id}/replies"),
             "alice@test.example",
         )
         .await;
@@ -659,7 +662,7 @@ async fn send_message_with_attachment_broadcasts_event(pool: sqlx::PgPool) {
 
     let req = Request::builder()
         .method("POST")
-        .uri(format!("/channels/{ch_id}/messages"))
+        .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
         .header(
             "Content-Type",

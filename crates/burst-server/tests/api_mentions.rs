@@ -36,7 +36,7 @@ async fn mention_is_persisted_when_message_sent(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             &auth("alice"),
             serde_json::json!({ "content": "hey @bob check this" }),
         )
@@ -70,7 +70,7 @@ async fn multiple_mentions_in_one_message(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             &auth("alice"),
             serde_json::json!({ "content": "@bob and @carol please review" }),
         )
@@ -100,7 +100,7 @@ async fn duplicate_mention_in_content_is_stored_once(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             &auth("alice"),
             serde_json::json!({ "content": "@bob @bob @bob" }),
         )
@@ -122,7 +122,7 @@ async fn mention_nonexistent_user_is_silently_ignored(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             &auth("alice"),
             serde_json::json!({ "content": "hey @nonexistent_user check this" }),
         )
@@ -147,7 +147,7 @@ async fn message_without_mentions_has_no_mention_records(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             &auth("alice"),
             serde_json::json!({ "content": "just a plain message" }),
         )
@@ -174,7 +174,7 @@ async fn mention_at_start_of_message(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             &auth("alice"),
             serde_json::json!({ "content": "@bob hello!" }),
         )
@@ -197,7 +197,7 @@ async fn email_like_text_is_not_a_mention(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             &auth("alice"),
             serde_json::json!({ "content": "send it to alice@bob.com" }),
         )

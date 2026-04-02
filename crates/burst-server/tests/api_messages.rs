@@ -31,7 +31,7 @@ async fn send_message_returns_created(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "hello world" }),
         )
@@ -51,7 +51,7 @@ async fn send_message_empty_content_is_bad_request(pool: sqlx::PgPool) {
     for content in ["", "   ", "\t\n"] {
         let (status, _) = app
             .post(
-                &format!("/channels/{ch_id}/messages"),
+                &format!("/api/channels/{ch_id}/messages"),
                 "alice@test.example",
                 serde_json::json!({ "content": content }),
             )
@@ -71,7 +71,7 @@ async fn reply_to_reply_stores_root_as_thread_id(pool: sqlx::PgPool) {
     // Post a root message.
     let (_, root) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "root" }),
         )
@@ -81,7 +81,7 @@ async fn reply_to_reply_stores_root_as_thread_id(pool: sqlx::PgPool) {
     // Reply to root.
     let (_, reply1) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "first reply", "threadId": root_id }),
         )
@@ -95,7 +95,7 @@ async fn reply_to_reply_stores_root_as_thread_id(pool: sqlx::PgPool) {
     // Reply to the reply — thread_id must still be root, not reply1.
     let (_, reply2) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "nested reply", "threadId": reply1_id }),
         )
@@ -114,7 +114,7 @@ async fn thread_replies_excluded_from_channel_feed(pool: sqlx::PgPool) {
 
     let (_, root) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "root message" }),
         )
@@ -122,14 +122,17 @@ async fn thread_replies_excluded_from_channel_feed(pool: sqlx::PgPool) {
     let root_id = root["id"].as_str().unwrap();
 
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "alice@test.example",
         serde_json::json!({ "content": "a reply", "threadId": root_id }),
     )
     .await;
 
     let (status, list) = app
-        .get(&format!("/channels/{ch_id}/messages"), "alice@test.example")
+        .get(
+            &format!("/api/channels/{ch_id}/messages"),
+            "alice@test.example",
+        )
         .await;
     assert_eq!(status, StatusCode::OK);
 
@@ -151,7 +154,7 @@ async fn deleted_replies_excluded_from_reply_count(pool: sqlx::PgPool) {
 
     let (_, root) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "root" }),
         )
@@ -161,7 +164,7 @@ async fn deleted_replies_excluded_from_reply_count(pool: sqlx::PgPool) {
     // Post a reply, then delete it.
     let (_, reply) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "to be deleted", "threadId": root_id }),
         )
@@ -169,14 +172,17 @@ async fn deleted_replies_excluded_from_reply_count(pool: sqlx::PgPool) {
     let reply_id = reply["id"].as_str().unwrap();
 
     app.delete(
-        &format!("/channels/{ch_id}/messages/{reply_id}"),
+        &format!("/api/channels/{ch_id}/messages/{reply_id}"),
         "alice@test.example",
     )
     .await;
 
     // The root message's reply count must now be 0.
     let (_, list) = app
-        .get(&format!("/channels/{ch_id}/messages"), "alice@test.example")
+        .get(
+            &format!("/api/channels/{ch_id}/messages"),
+            "alice@test.example",
+        )
         .await;
     let root_msg = &list["items"].as_array().unwrap()[0];
     assert_eq!(
@@ -193,7 +199,7 @@ async fn author_can_edit_own_message(pool: sqlx::PgPool) {
 
     let (_, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "original" }),
         )
@@ -202,7 +208,7 @@ async fn author_can_edit_own_message(pool: sqlx::PgPool) {
 
     let (status, edited) = app
         .patch(
-            &format!("/channels/{ch_id}/messages/{msg_id}"),
+            &format!("/api/channels/{ch_id}/messages/{msg_id}"),
             "alice@test.example",
             serde_json::json!({ "content": "updated" }),
         )
@@ -224,7 +230,7 @@ async fn non_author_cannot_edit_message(pool: sqlx::PgPool) {
 
     let (_, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "alice's message" }),
         )
@@ -233,7 +239,7 @@ async fn non_author_cannot_edit_message(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/messages/{msg_id}"),
+            &format!("/api/channels/{ch_id}/messages/{msg_id}"),
             "bob@test.example",
             serde_json::json!({ "content": "bob's edit" }),
         )
@@ -254,7 +260,7 @@ async fn author_can_delete_own_message(pool: sqlx::PgPool) {
 
     let (_, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "to be deleted" }),
         )
@@ -263,7 +269,7 @@ async fn author_can_delete_own_message(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .delete(
-            &format!("/channels/{ch_id}/messages/{msg_id}"),
+            &format!("/api/channels/{ch_id}/messages/{msg_id}"),
             "alice@test.example",
         )
         .await;
@@ -283,7 +289,7 @@ async fn soft_delete_clears_content_and_sets_deleted_at(pool: sqlx::PgPool) {
     let msg_id = format!("msg_{}", msg.id);
     let ch_id = format!("ch_{}", ch.id);
     app.delete(
-        &format!("/channels/{ch_id}/messages/{msg_id}"),
+        &format!("/api/channels/{ch_id}/messages/{msg_id}"),
         "alice2@test.example",
     )
     .await;
@@ -304,7 +310,7 @@ async fn non_author_cannot_delete_message(pool: sqlx::PgPool) {
 
     let (_, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "alice's message" }),
         )
@@ -313,7 +319,7 @@ async fn non_author_cannot_delete_message(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .delete(
-            &format!("/channels/{ch_id}/messages/{msg_id}"),
+            &format!("/api/channels/{ch_id}/messages/{msg_id}"),
             "bob@test.example",
         )
         .await;
@@ -335,7 +341,7 @@ async fn send_message_broadcasts_message_created(pool: sqlx::PgPool) {
 
     let (status, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "hello" }),
         )
@@ -366,7 +372,7 @@ async fn edit_message_broadcasts_message_updated(pool: sqlx::PgPool) {
 
     let (_, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "original" }),
         )
@@ -377,7 +383,7 @@ async fn edit_message_broadcasts_message_updated(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/messages/{msg_id}"),
+            &format!("/api/channels/{ch_id}/messages/{msg_id}"),
             "alice@test.example",
             serde_json::json!({ "content": "updated" }),
         )
@@ -401,7 +407,7 @@ async fn delete_message_broadcasts_message_deleted(pool: sqlx::PgPool) {
 
     let (_, msg) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "to delete" }),
         )
@@ -412,7 +418,7 @@ async fn delete_message_broadcasts_message_deleted(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .delete(
-            &format!("/channels/{ch_id}/messages/{msg_id}"),
+            &format!("/api/channels/{ch_id}/messages/{msg_id}"),
             "alice@test.example",
         )
         .await;
@@ -436,7 +442,7 @@ async fn peer_message_increments_unread_count(pool: sqlx::PgPool) {
     // Bob sends a message.
     let (status, _) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "bob@test.example",
             serde_json::json!({ "content": "hey alice" }),
         )
@@ -444,7 +450,9 @@ async fn peer_message_increments_unread_count(pool: sqlx::PgPool) {
     assert_eq!(status, StatusCode::CREATED);
 
     // Alice's joined channels should show unread count > 0.
-    let (status, list) = app.get("/channels?joined=true", "alice@test.example").await;
+    let (status, list) = app
+        .get("/api/channels?joined=true", "alice@test.example")
+        .await;
     assert_eq!(status, StatusCode::OK);
 
     let ch = list["items"]
@@ -466,7 +474,7 @@ async fn mark_read_resets_unread_count(pool: sqlx::PgPool) {
 
     // Bob sends a message so Alice has unreads.
     app.post(
-        &format!("/channels/{ch_id}/messages"),
+        &format!("/api/channels/{ch_id}/messages"),
         "bob@test.example",
         serde_json::json!({ "content": "unread msg" }),
     )
@@ -475,7 +483,7 @@ async fn mark_read_resets_unread_count(pool: sqlx::PgPool) {
     // Alice marks the channel as read.
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/members/me/last-read"),
+            &format!("/api/channels/{ch_id}/members/me/last-read"),
             "alice@test.example",
             serde_json::json!({}),
         )
@@ -483,7 +491,9 @@ async fn mark_read_resets_unread_count(pool: sqlx::PgPool) {
     assert_eq!(status, StatusCode::NO_CONTENT);
 
     // Alice's unread count should now be 0.
-    let (_, list) = app.get("/channels?joined=true", "alice@test.example").await;
+    let (_, list) = app
+        .get("/api/channels?joined=true", "alice@test.example")
+        .await;
     let ch = list["items"]
         .as_array()
         .unwrap()
@@ -504,7 +514,7 @@ async fn list_messages_returns_newest_first(pool: sqlx::PgPool) {
 
     for i in 1..=3 {
         app.post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": format!("msg {i}") }),
         )
@@ -512,7 +522,10 @@ async fn list_messages_returns_newest_first(pool: sqlx::PgPool) {
     }
 
     let (status, list) = app
-        .get(&format!("/channels/{ch_id}/messages"), "alice@test.example")
+        .get(
+            &format!("/api/channels/{ch_id}/messages"),
+            "alice@test.example",
+        )
         .await;
     assert_eq!(status, StatusCode::OK);
 
@@ -533,7 +546,7 @@ async fn non_member_cannot_list_messages(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .get(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "charlie@test.example",
         )
         .await;
@@ -551,7 +564,7 @@ async fn non_member_cannot_send_message(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .post(
-            &format!("/channels/{ch_id}/messages"),
+            &format!("/api/channels/{ch_id}/messages"),
             "charlie@test.example",
             serde_json::json!({ "content": "sneaky" }),
         )

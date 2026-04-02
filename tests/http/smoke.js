@@ -99,7 +99,7 @@ export function smoke() {
       "Issuer present": (r) => r.json().issuer !== undefined,
     });
 
-    const burst = http.get(`${BURST}/channels`, {
+    const burst = http.get(`${BURST}/api/channels`, {
       headers: { Accept: "application/json" },
     });
     check(burst, {
@@ -116,13 +116,13 @@ export function smoke() {
 
   // ── Setup: clean up leftover smoke-test channel from previous runs ──────
   group("Setup: idempotent cleanup", () => {
-    const list = http.get(`${GATEWAY}/admin/channels`, authHeaders(aliceToken));
+    const list = http.get(`${GATEWAY}/api/admin/channels`, authHeaders(aliceToken));
     if (list.status === 200) {
       const channels = list.json().items || [];
       const stale = channels.find((ch) => ch.slug === "smoke-test");
       if (stale) {
         const del = http.del(
-          `${GATEWAY}/admin/channels/${stale.id}`,
+          `${GATEWAY}/api/admin/channels/${stale.id}`,
           null,
           authHeaders(aliceToken),
         );
@@ -133,17 +133,17 @@ export function smoke() {
 
   // ── 2. Gateway Auth Validation ───────────────────────────────────────────
   group("2. Gateway Auth", () => {
-    const noAuth = http.get(`${GATEWAY}/channels`, {
+    const noAuth = http.get(`${GATEWAY}/api/channels`, {
       headers: { Accept: "application/json" },
     });
     check(noAuth, { "No auth → 401": (r) => r.status === 401 });
 
-    const badAuth = http.get(`${GATEWAY}/channels`, {
+    const badAuth = http.get(`${GATEWAY}/api/channels`, {
       headers: { Accept: "application/json", Authorization: "Bearer bad-jwt" },
     });
     check(badAuth, { "Bad token → 401": (r) => r.status === 401 });
 
-    const goodAuth = http.get(`${GATEWAY}/channels`, authHeaders(aliceToken));
+    const goodAuth = http.get(`${GATEWAY}/api/channels`, authHeaders(aliceToken));
     check(goodAuth, {
       "Valid token passes gateway → 200": (r) => r.status === 200,
     });
@@ -152,14 +152,14 @@ export function smoke() {
   // ── 3. Channels CRUD ────────────────────────────────────────────────────
   let channelId;
   group("3. Channels CRUD", () => {
-    const list = http.get(`${GATEWAY}/channels`, authHeaders(aliceToken));
+    const list = http.get(`${GATEWAY}/api/channels`, authHeaders(aliceToken));
     check(list, {
       "List channels → 200": (r) => r.status === 200,
       "Has items array": (r) => Array.isArray(r.json().items),
     });
 
     const create = http.post(
-      `${GATEWAY}/channels`,
+      `${GATEWAY}/api/channels`,
       JSON.stringify({
         name: "Smoke Test",
         slug: "smoke-test",
@@ -177,20 +177,20 @@ export function smoke() {
     channelId = create.json().id;
 
     const get = http.get(
-      `${GATEWAY}/channels/${channelId}`,
+      `${GATEWAY}/api/channels/${channelId}`,
       authHeaders(aliceToken),
     );
     check(get, { "Get channel by ID → 200": (r) => r.status === 200 });
 
     const dup = http.post(
-      `${GATEWAY}/channels`,
+      `${GATEWAY}/api/channels`,
       JSON.stringify({ name: "Dup", slug: "smoke-test", kind: "public" }),
       jsonAuthHeaders(aliceToken),
     );
     check(dup, { "Duplicate slug → 409": (r) => r.status === 409 });
 
     const patch = http.patch(
-      `${GATEWAY}/channels/${channelId}`,
+      `${GATEWAY}/api/channels/${channelId}`,
       JSON.stringify({ topic: "Smoke testing (updated)" }),
       jsonAuthHeaders(aliceToken),
     );
@@ -204,14 +204,14 @@ export function smoke() {
   // ── 4. Membership ───────────────────────────────────────────────────────
   group("4. Membership", () => {
     const join = http.post(
-      `${GATEWAY}/channels/${channelId}/members`,
+      `${GATEWAY}/api/channels/${channelId}/members`,
       null,
       authHeaders(bobToken),
     );
     check(join, { "Bob joins channel → 204": (r) => r.status === 204 });
 
     const members = http.get(
-      `${GATEWAY}/channels/${channelId}/members`,
+      `${GATEWAY}/api/channels/${channelId}/members`,
       authHeaders(aliceToken),
     );
     check(members, {
@@ -224,7 +224,7 @@ export function smoke() {
   let messageId, replyId;
   group("5. Messages", () => {
     const msg = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       JSON.stringify({
         content: "Hello team! This is the first message in #smoke-test.",
       }),
@@ -238,7 +238,7 @@ export function smoke() {
     messageId = msg.json().id;
 
     const reply = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       JSON.stringify({
         content: "Hey Alice! Great to be here.",
         threadId: messageId,
@@ -252,7 +252,7 @@ export function smoke() {
     replyId = reply.json().id;
 
     const thread = http.get(
-      `${GATEWAY}/channels/${channelId}/messages/${messageId}/replies`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${messageId}/replies`,
       authHeaders(aliceToken),
     );
     check(thread, {
@@ -261,7 +261,7 @@ export function smoke() {
     });
 
     const listMsgs = http.get(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       authHeaders(aliceToken),
     );
     check(listMsgs, {
@@ -269,7 +269,7 @@ export function smoke() {
     });
 
     const edit = http.patch(
-      `${GATEWAY}/channels/${channelId}/messages/${messageId}`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${messageId}`,
       JSON.stringify({
         content: "Hello team! First message in #smoke-test. (edited)",
       }),
@@ -282,7 +282,7 @@ export function smoke() {
     });
 
     const single = http.get(
-      `${GATEWAY}/channels/${channelId}/messages/${messageId}`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${messageId}`,
       authHeaders(aliceToken),
     );
     check(single, { "Get single message → 200": (r) => r.status === 200 });
@@ -291,14 +291,14 @@ export function smoke() {
   // ── 6. Reactions ────────────────────────────────────────────────────────
   group("6. Reactions", () => {
     const add = http.put(
-      `${GATEWAY}/channels/${channelId}/messages/${replyId}/reactions/%F0%9F%91%8D`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${replyId}/reactions/%F0%9F%91%8D`,
       null,
       authHeaders(aliceToken),
     );
     check(add, { "Add reaction → 204": (r) => r.status === 204 });
 
     const get = http.get(
-      `${GATEWAY}/channels/${channelId}/messages/${replyId}`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${replyId}`,
       authHeaders(aliceToken),
     );
     check(get, {
@@ -306,7 +306,7 @@ export function smoke() {
     });
 
     const rm = http.del(
-      `${GATEWAY}/channels/${channelId}/messages/${replyId}/reactions/%F0%9F%91%8D`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${replyId}/reactions/%F0%9F%91%8D`,
       null,
       authHeaders(aliceToken),
     );
@@ -316,14 +316,14 @@ export function smoke() {
   // ── 7. Pins ───────────────────────────────────────────────────────────
   group("7. Pins", () => {
     const pin = http.put(
-      `${GATEWAY}/channels/${channelId}/messages/${messageId}/pin`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${messageId}/pin`,
       null,
       authHeaders(aliceToken),
     );
     check(pin, { "Pin message → 204": (r) => r.status === 204 });
 
     const list = http.get(
-      `${GATEWAY}/channels/${channelId}/pins`,
+      `${GATEWAY}/api/channels/${channelId}/pins`,
       authHeaders(aliceToken),
     );
     check(list, {
@@ -334,14 +334,14 @@ export function smoke() {
     });
 
     const unpin = http.del(
-      `${GATEWAY}/channels/${channelId}/messages/${messageId}/pin`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${messageId}/pin`,
       null,
       authHeaders(aliceToken),
     );
     check(unpin, { "Unpin message → 204": (r) => r.status === 204 });
 
     const empty = http.get(
-      `${GATEWAY}/channels/${channelId}/pins`,
+      `${GATEWAY}/api/channels/${channelId}/pins`,
       authHeaders(aliceToken),
     );
     check(empty, {
@@ -355,7 +355,7 @@ export function smoke() {
   group("8. Attachments", () => {
     // Text file upload
     const txtUpload = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       {
         content: "Check out this file!",
         files: http.file(HELLO_TXT, "hello.txt", "text/plain"),
@@ -369,7 +369,7 @@ export function smoke() {
     attachmentId = txtUpload.json().attachments[0].id;
 
     const txtDownload = http.get(
-      `${GATEWAY}/attachments/${attachmentId}`,
+      `${GATEWAY}/api/attachments/${attachmentId}`,
       { headers: { Authorization: `Bearer ${aliceToken}` } },
     );
     check(txtDownload, {
@@ -378,12 +378,12 @@ export function smoke() {
     });
 
     // Auth guard
-    const noAuth = http.get(`${GATEWAY}/attachments/${attachmentId}`);
+    const noAuth = http.get(`${GATEWAY}/api/attachments/${attachmentId}`);
     check(noAuth, { "Download without auth → 401": (r) => r.status === 401 });
 
     // Attachment in message metadata
     const msgMeta = http.get(
-      `${GATEWAY}/channels/${channelId}/messages/${txtUpload.json().id}`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${txtUpload.json().id}`,
       authHeaders(aliceToken),
     );
     check(msgMeta, {
@@ -393,7 +393,7 @@ export function smoke() {
 
     // Small PNG upload + integrity (SHA-256)
     const smallUpload = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       {
         content: "Small avatar",
         files: http.file(SMALL_PNG, "Digital_punk_pirate_avatar_small.png", "image/png"),
@@ -408,7 +408,7 @@ export function smoke() {
     const smallAttId = smallUpload.json().attachments[0].id;
 
     const smallDownload = http.get(
-      `${GATEWAY}/attachments/${smallAttId}`,
+      `${GATEWAY}/api/attachments/${smallAttId}`,
       {
         headers: { Authorization: `Bearer ${aliceToken}` },
         responseType: "binary",
@@ -422,7 +422,7 @@ export function smoke() {
 
     // Large PNG upload + integrity (SHA-256)
     const largeUpload = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       {
         content: "Large avatar",
         files: http.file(LARGE_PNG, "Digital_punk_pirate_avatar.png", "image/png"),
@@ -435,7 +435,7 @@ export function smoke() {
     const largeAttId = largeUpload.json().attachments[0].id;
 
     const largeDownload = http.get(
-      `${GATEWAY}/attachments/${largeAttId}`,
+      `${GATEWAY}/api/attachments/${largeAttId}`,
       {
         headers: { Authorization: `Bearer ${aliceToken}` },
         responseType: "binary",
@@ -451,7 +451,7 @@ export function smoke() {
   // ── 9. Search ────────────────────────────────────────────────────────
   group("9. Search", () => {
     const search = http.get(
-      `${GATEWAY}/search/messages?q=first%20message`,
+      `${GATEWAY}/api/search/messages?q=first%20message`,
       authHeaders(aliceToken),
     );
     check(search, {
@@ -460,7 +460,7 @@ export function smoke() {
     });
 
     const scoped = http.get(
-      `${GATEWAY}/search/messages?q=file&channelId=${channelId}`,
+      `${GATEWAY}/api/search/messages?q=file&channelId=${channelId}`,
       authHeaders(aliceToken),
     );
     check(scoped, {
@@ -468,7 +468,7 @@ export function smoke() {
     });
 
     const empty = http.get(
-      `${GATEWAY}/search/messages?q=`,
+      `${GATEWAY}/api/search/messages?q=`,
       authHeaders(aliceToken),
     );
     check(empty, { "Empty search → 400": (r) => r.status === 400 });
@@ -478,18 +478,18 @@ export function smoke() {
   group("10. Pagination", () => {
     // Add messages for pagination
     http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       JSON.stringify({ content: "Pagination msg 1" }),
       jsonAuthHeaders(aliceToken),
     );
     http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       JSON.stringify({ content: "Pagination msg 2" }),
       jsonAuthHeaders(bobToken),
     );
 
     const page1 = http.get(
-      `${GATEWAY}/channels/${channelId}/messages?limit=2`,
+      `${GATEWAY}/api/channels/${channelId}/messages?limit=2`,
       authHeaders(aliceToken),
     );
     check(page1, {
@@ -501,7 +501,7 @@ export function smoke() {
 
     const cursor = page1.json().cursor;
     const page2 = http.get(
-      `${GATEWAY}/channels/${channelId}/messages?limit=2&cursor=${cursor}`,
+      `${GATEWAY}/api/channels/${channelId}/messages?limit=2&cursor=${cursor}`,
       authHeaders(aliceToken),
     );
     check(page2, { "Fetch page 2 → 200": (r) => r.status === 200 });
@@ -510,7 +510,7 @@ export function smoke() {
   // ── 11. Mark Read ──────────────────────────────────────────────────────
   group("11. Mark Read", () => {
     const mark = http.patch(
-      `${GATEWAY}/channels/${channelId}/members/me/last-read`,
+      `${GATEWAY}/api/channels/${channelId}/members/me/last-read`,
       null,
       authHeaders(bobToken),
     );
@@ -520,16 +520,16 @@ export function smoke() {
   // ── 12. User Profile ───────────────────────────────────────────────────
   let bobId;
   group("12. User Profile", () => {
-    const me = http.get(`${GATEWAY}/users/me`, authHeaders(aliceToken));
+    const me = http.get(`${GATEWAY}/api/users/me`, authHeaders(aliceToken));
     check(me, {
       "Get /users/me → 200": (r) => r.status === 200,
       "Has displayName": (r) => typeof r.json().displayName === "string",
       "Has role": (r) => r.json().role !== undefined,
     });
-    const bobMe = http.get(`${GATEWAY}/users/me`, authHeaders(bobToken));
+    const bobMe = http.get(`${GATEWAY}/api/users/me`, authHeaders(bobToken));
     bobId = bobMe.json().id;
 
-    const users = http.get(`${GATEWAY}/users`, authHeaders(aliceToken));
+    const users = http.get(`${GATEWAY}/api/users`, authHeaders(aliceToken));
     check(users, {
       "List users → 200": (r) => r.status === 200,
       "Users has items": (r) => Array.isArray(r.json().items),
@@ -537,7 +537,7 @@ export function smoke() {
     });
 
     const getUser = http.get(
-      `${GATEWAY}/users/${bobId}`,
+      `${GATEWAY}/api/users/${bobId}`,
       authHeaders(aliceToken),
     );
     check(getUser, {
@@ -549,7 +549,7 @@ export function smoke() {
   // ── 13. Direct Messages ───────────────────────────────────────────────
   group("13. Direct Messages", () => {
     const dm = http.post(
-      `${GATEWAY}/dms`,
+      `${GATEWAY}/api/dms`,
       JSON.stringify({ userId: bobId }),
       jsonAuthHeaders(aliceToken),
     );
@@ -561,7 +561,7 @@ export function smoke() {
 
     // Idempotent: creating again returns the same DM
     const dm2 = http.post(
-      `${GATEWAY}/dms`,
+      `${GATEWAY}/api/dms`,
       JSON.stringify({ userId: bobId }),
       jsonAuthHeaders(aliceToken),
     );
@@ -571,7 +571,7 @@ export function smoke() {
 
     // Send a message in the DM
     const msg = http.post(
-      `${GATEWAY}/channels/${dmId}/messages`,
+      `${GATEWAY}/api/channels/${dmId}/messages`,
       JSON.stringify({ content: "Hey Bob, private message!" }),
       jsonAuthHeaders(aliceToken),
     );
@@ -583,14 +583,14 @@ export function smoke() {
   // ── 14. Notify Preferences ────────────────────────────────────────────
   group("14. Notify Preferences", () => {
     const setMentions = http.patch(
-      `${GATEWAY}/channels/${channelId}/members/me/notify`,
+      `${GATEWAY}/api/channels/${channelId}/members/me/notify`,
       JSON.stringify({ notify: "mentions" }),
       jsonAuthHeaders(bobToken),
     );
     check(setMentions, { "Set notify to mentions → 204": (r) => r.status === 204 });
 
     const setAll = http.patch(
-      `${GATEWAY}/channels/${channelId}/members/me/notify`,
+      `${GATEWAY}/api/channels/${channelId}/members/me/notify`,
       JSON.stringify({ notify: "all" }),
       jsonAuthHeaders(bobToken),
     );
@@ -600,7 +600,7 @@ export function smoke() {
   // ── 15. Archive / Unarchive ───────────────────────────────────────────
   group("15. Archive / Unarchive", () => {
     const archive = http.post(
-      `${GATEWAY}/channels/${channelId}/archive`,
+      `${GATEWAY}/api/channels/${channelId}/archive`,
       null,
       authHeaders(aliceToken),
     );
@@ -611,7 +611,7 @@ export function smoke() {
 
     // Sending to archived channel should fail
     const blocked = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       JSON.stringify({ content: "Should be blocked" }),
       jsonAuthHeaders(aliceToken),
     );
@@ -620,7 +620,7 @@ export function smoke() {
     });
 
     const unarchive = http.post(
-      `${GATEWAY}/channels/${channelId}/unarchive`,
+      `${GATEWAY}/api/channels/${channelId}/unarchive`,
       null,
       authHeaders(aliceToken),
     );
@@ -633,16 +633,16 @@ export function smoke() {
   // ── 16. Admin Panel ───────────────────────────────────────────────────
   group("16. Admin Panel", () => {
     // Non-admin should be rejected
-    const forbidden = http.get(`${GATEWAY}/admin/users`, authHeaders(bobToken));
+    const forbidden = http.get(`${GATEWAY}/api/admin/users`, authHeaders(bobToken));
     check(forbidden, { "Non-admin → admin/users 403": (r) => r.status === 403 });
 
-    const users = http.get(`${GATEWAY}/admin/users`, authHeaders(aliceToken));
+    const users = http.get(`${GATEWAY}/api/admin/users`, authHeaders(aliceToken));
     check(users, {
       "Admin list users → 200": (r) => r.status === 200,
       "Admin users has items": (r) => Array.isArray(r.json().items),
     });
 
-    const channels = http.get(`${GATEWAY}/admin/channels`, authHeaders(aliceToken));
+    const channels = http.get(`${GATEWAY}/api/admin/channels`, authHeaders(aliceToken));
     check(channels, {
       "Admin list channels → 200": (r) => r.status === 200,
       "Admin channels has items": (r) => Array.isArray(r.json().items),
@@ -650,7 +650,7 @@ export function smoke() {
 
     // Update a user role (set bob to moderator, then back to member)
     const promote = http.patch(
-      `${GATEWAY}/admin/users/${bobId}`,
+      `${GATEWAY}/api/admin/users/${bobId}`,
       JSON.stringify({ role: "moderator" }),
       jsonAuthHeaders(aliceToken),
     );
@@ -660,7 +660,7 @@ export function smoke() {
     });
 
     const demote = http.patch(
-      `${GATEWAY}/admin/users/${bobId}`,
+      `${GATEWAY}/api/admin/users/${bobId}`,
       JSON.stringify({ role: "member" }),
       jsonAuthHeaders(aliceToken),
     );
@@ -670,7 +670,7 @@ export function smoke() {
     });
 
     // Check audit log after role changes so it's guaranteed non-empty
-    const audit = http.get(`${GATEWAY}/admin/audit-log`, authHeaders(aliceToken));
+    const audit = http.get(`${GATEWAY}/api/admin/audit-log`, authHeaders(aliceToken));
     check(audit, {
       "Admin audit log → 200": (r) => r.status === 200,
       "Audit log has items": (r) => Array.isArray(r.json().items),
@@ -683,7 +683,7 @@ export function smoke() {
     const fake = "ch_00000000-0000-7000-0000-000000000000";
 
     const notFound = http.get(
-      `${GATEWAY}/channels/${fake}`,
+      `${GATEWAY}/api/channels/${fake}`,
       authHeaders(aliceToken),
     );
     check(notFound, {
@@ -692,7 +692,7 @@ export function smoke() {
     });
 
     const postFake = http.post(
-      `${GATEWAY}/channels/${fake}/messages`,
+      `${GATEWAY}/api/channels/${fake}/messages`,
       JSON.stringify({ content: "Should fail" }),
       jsonAuthHeaders(aliceToken),
     );
@@ -702,14 +702,14 @@ export function smoke() {
     });
 
     const emptyMsg = http.post(
-      `${GATEWAY}/channels/${channelId}/messages`,
+      `${GATEWAY}/api/channels/${channelId}/messages`,
       JSON.stringify({ content: "" }),
       jsonAuthHeaders(aliceToken),
     );
     check(emptyMsg, { "Empty message → 400": (r) => r.status === 400 });
 
     const fakeAtt = http.get(
-      `${GATEWAY}/attachments/att_00000000-0000-7000-0000-000000000000`,
+      `${GATEWAY}/api/attachments/att_00000000-0000-7000-0000-000000000000`,
       authHeaders(aliceToken),
     );
     check(fakeAtt, {
@@ -720,14 +720,14 @@ export function smoke() {
   // ── 18. Cleanup ────────────────────────────────────────────────────────
   group("18. Cleanup", () => {
     const del = http.del(
-      `${GATEWAY}/channels/${channelId}/messages/${replyId}`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${replyId}`,
       null,
       authHeaders(bobToken),
     );
     check(del, { "Delete reply → 204": (r) => r.status === 204 });
 
     const soft = http.get(
-      `${GATEWAY}/channels/${channelId}/messages/${replyId}`,
+      `${GATEWAY}/api/channels/${channelId}/messages/${replyId}`,
       authHeaders(aliceToken),
     );
     check(soft, {
@@ -736,14 +736,14 @@ export function smoke() {
     });
 
     const leave = http.del(
-      `${GATEWAY}/channels/${channelId}/members/me`,
+      `${GATEWAY}/api/channels/${channelId}/members/me`,
       null,
       authHeaders(bobToken),
     );
     check(leave, { "Bob leaves channel → 204": (r) => r.status === 204 });
 
     const delChannel = http.del(
-      `${GATEWAY}/admin/channels/${channelId}`,
+      `${GATEWAY}/api/admin/channels/${channelId}`,
       null,
       authHeaders(aliceToken),
     );
@@ -757,7 +757,7 @@ export function smoke() {
 
 export function rateLimit() {
   const token = getToken("bob");
-  const endpoint = `${GATEWAY}/channels`;
+  const endpoint = `${GATEWAY}/api/channels`;
 
   let got429 = false;
   let hasRetryAfter = false;

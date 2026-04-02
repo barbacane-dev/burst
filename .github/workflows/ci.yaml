@@ -209,7 +209,7 @@ jobs:
           RUST_LOG=info ./target/release/burst burst.toml > /tmp/burst.log 2>&1 &
           echo $! > /tmp/burst.pid
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/channels 2>/dev/null) || true
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/channels 2>/dev/null) || true
             [ "$code" != "000" ] && echo "Burst server ready (HTTP $code)" && break
             sleep 1
           done
@@ -243,7 +243,7 @@ jobs:
             --max-body-size 10485760 > /tmp/barbacane.log 2>&1 &
           echo $! > /tmp/barbacane.pid
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/channels 2>/dev/null) || true
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/channels 2>/dev/null) || true
             [ "$code" != "000" ] && echo "Barbacane gateway ready (HTTP $code)" && break
             sleep 1
           done

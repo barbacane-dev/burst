@@ -15,7 +15,7 @@ async fn create_group_dm(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userIds": [bob_id, charlie_id] }),
         )
@@ -37,7 +37,7 @@ async fn group_dm_is_idempotent(pool: sqlx::PgPool) {
 
     let (_, body1) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userIds": [bob_id.clone(), charlie_id.clone()] }),
         )
@@ -45,7 +45,7 @@ async fn group_dm_is_idempotent(pool: sqlx::PgPool) {
 
     let (_, body2) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userIds": [bob_id, charlie_id] }),
         )
@@ -64,7 +64,7 @@ async fn single_user_id_array_creates_regular_dm(pool: sqlx::PgPool) {
 
     let (status, body) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userIds": [bob_id] }),
         )
@@ -85,7 +85,7 @@ async fn backward_compat_user_id_field(pool: sqlx::PgPool) {
     // Old format: { userId: "..." }
     let (status, body) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userId": bob_id }),
         )
@@ -107,7 +107,7 @@ async fn send_message_in_group_dm(pool: sqlx::PgPool) {
 
     let (_, ch) = app
         .post(
-            "/dms",
+            "/api/dms",
             "alice@test.example",
             serde_json::json!({ "userIds": [bob_id, charlie_id] }),
         )
@@ -116,7 +116,7 @@ async fn send_message_in_group_dm(pool: sqlx::PgPool) {
 
     let (status, msg) = app
         .post(
-            &format!("/channels/{channel_id}/messages"),
+            &format!("/api/channels/{channel_id}/messages"),
             "alice@test.example",
             serde_json::json!({ "content": "hello group!" }),
         )

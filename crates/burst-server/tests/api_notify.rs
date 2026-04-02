@@ -17,7 +17,7 @@ async fn update_notify_to_mentions(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/members/me/notify"),
+            &format!("/api/channels/{ch_id}/members/me/notify"),
             &auth("alice"),
             serde_json::json!({ "notify": "mentions" }),
         )
@@ -35,7 +35,7 @@ async fn update_notify_to_all(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/members/me/notify"),
+            &format!("/api/channels/{ch_id}/members/me/notify"),
             &auth("alice"),
             serde_json::json!({ "notify": "all" }),
         )
@@ -53,7 +53,7 @@ async fn update_notify_to_nothing(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/members/me/notify"),
+            &format!("/api/channels/{ch_id}/members/me/notify"),
             &auth("alice"),
             serde_json::json!({ "notify": "nothing" }),
         )
@@ -71,7 +71,7 @@ async fn update_notify_invalid_value_is_bad_request(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/members/me/notify"),
+            &format!("/api/channels/{ch_id}/members/me/notify"),
             &auth("alice"),
             serde_json::json!({ "notify": "invalid" }),
         )
@@ -91,7 +91,7 @@ async fn update_notify_non_member_is_not_found(pool: sqlx::PgPool) {
 
     let (status, _) = app
         .patch(
-            &format!("/channels/{ch_id}/members/me/notify"),
+            &format!("/api/channels/{ch_id}/members/me/notify"),
             &auth("eve"),
             serde_json::json!({ "notify": "all" }),
         )
