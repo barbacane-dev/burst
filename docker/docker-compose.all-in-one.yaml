@@ -1,0 +1,77 @@
+# All-in-one Burst deployment — single container with nginx, Barbacane, and Burst.
+#
+# Only PostgreSQL and RustFS remain as external services.
+# No need for `make gateway-compile` — .bca artifacts are baked into the image.
+#
+# Usage:
+#   cp docker/.env.example docker/.env   # Fill in secrets
+#   docker compose -f docker/docker-compose.all-in-one.yaml up --build
+#
+# Architecture:
+#   Browser → burst-aio (:8080) ─┬─ nginx: SPA static files
+#                                 ├─ nginx → Barbacane API (:8090) → Burst (:3000) → PostgreSQL
+#                                 └─ nginx → Barbacane API (:8090) → Burst (:3000) [WebSocket]
+#                                                                     ↓
+#                                              Barbacane S3 (:8081) → RustFS
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: burst
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: burst
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U burst"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ROOT_USER: burst
+      RUSTFS_ROOT_PASSWORD: ${RUSTFS_ROOT_PASSWORD:?Set RUSTFS_ROOT_PASSWORD in .env}
+    command: server /data --console-address ":9001"
+    volumes:
+      - rustfsdata:/data
+
+  burst:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.all-in-one
+    ports:
+      - "8080:8080"
+      - "3001:3001"
+    environment:
+      # Database
+      BURST_DATABASE_URL: postgres://burst:${POSTGRES_PASSWORD}@postgres:5432/burst
+      # OIDC provider
+      BURST_OIDC_ISSUER_URL: ${BURST_OIDC_ISSUER_URL:?Set BURST_OIDC_ISSUER_URL in .env}
+      BURST_OIDC_ISSUER_OVERRIDE: ${BURST_OIDC_ISSUER_OVERRIDE:-${BURST_OIDC_ISSUER_URL}}
+      # S3 sidecar → RustFS
+      BURST_S3_REGION: us-east-1
+      BURST_S3_BUCKET: burst-files
+      BURST_S3_ACCESS_KEY_ID: burst
+      BURST_S3_SECRET_ACCESS_KEY: ${RUSTFS_ROOT_PASSWORD}
+      BURST_S3_ENDPOINT: http://rustfs:9000
+      BURST_S3_API_KEY: ${S3_API_KEY:-burst-internal-key}
+      # Storage gateway (internal wiring)
+      BURST_STORAGE_BACKEND: gateway
+      BURST_STORAGE_GATEWAY_URL: http://127.0.0.1:8081
+      BURST_STORAGE_GATEWAY_API_KEY: ${S3_API_KEY:-burst-internal-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/burst", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  pgdata:
+  rustfsdata:

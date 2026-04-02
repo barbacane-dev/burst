@@ -53,6 +53,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Mock OAuth configured with per-user role claims for dev/test
 
 ### Changed
+- All API routes now use explicit `/api` prefix end-to-end (spec, gateway, backend, proxy)
+- All-in-one Docker image (`burst-aio`) bundling nginx, Barbacane gateway, S3 sidecar, and Burst API in a single container via s6-overlay
 - Unified WS and REST message types
 - API spec: replaced `jwt-auth` middleware with `oidc-auth`
 - API spec: `/ws` endpoint now uses `ws-upstream` dispatch

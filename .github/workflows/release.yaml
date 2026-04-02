@@ -159,6 +159,30 @@ jobs:
           push: true
           tags: ${{ steps.nginx-tags.outputs.tags }}
 
+      - name: Compute all-in-one image tags
+        id: aio-tags
+        env:
+          CUSTOM_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+          CUSTOM_IMAGE: ${{ secrets.DOCKER_IMAGE_NAME }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAGS="ghcr.io/${{ github.repository }}-aio:${VERSION}"
+          TAGS="${TAGS},ghcr.io/${{ github.repository }}-aio:latest"
+          if [ "${{ steps.custom-login.outcome }}" = "success" ] && [ -n "${CUSTOM_REGISTRY}" ] && [ -n "${CUSTOM_IMAGE}" ]; then
+            TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-aio:${VERSION}"
+            TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-aio:latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push (all-in-one)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile.all-in-one
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.aio-tags.outputs.tags }}
+
   # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
     runs-on: ubuntu-latest
