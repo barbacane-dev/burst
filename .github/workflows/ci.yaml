@@ -69,7 +69,7 @@ jobs:
       - name: Build release binary and seed example
         env:
           SQLX_OFFLINE: "true"
-        run: cargo build --release --example seed
+        run: cargo build --release && cargo build --release --example seed
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v7
