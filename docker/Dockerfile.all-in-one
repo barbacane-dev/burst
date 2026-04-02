@@ -68,6 +68,10 @@ COPY --from=frontend /ui/dist /usr/share/nginx/html
 COPY docker/all-in-one/nginx.conf /etc/nginx/conf.d/default.conf
 RUN rm -f /etc/nginx/sites-enabled/default
 
+# ── Copy runtime env.js generator ────────────────────────────────────────────
+COPY docker/env.sh /etc/burst/env.sh
+RUN chmod +x /etc/burst/env.sh
+
 # ── Copy Burst config ────────────────────────────────────────────────────────
 COPY docker/all-in-one/burst.toml /etc/burst/burst.toml
 

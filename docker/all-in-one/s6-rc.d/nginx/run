@@ -1,2 +1,3 @@
 #!/command/with-contenv sh
+/etc/burst/env.sh
 exec nginx -g "daemon off;"

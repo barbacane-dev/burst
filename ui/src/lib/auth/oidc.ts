@@ -1,8 +1,18 @@
 /**
- * OIDC configuration. In production, these are set via VITE_OIDC_* env vars.
- * When not configured, the login page falls back to the local credential form
- * (for dev with the mock OIDC server).
+ * OIDC configuration. At runtime, values come from /env.js (injected by the
+ * Docker entrypoint). In dev mode, falls back to Vite's VITE_OIDC_* env vars.
+ * When not configured, the login page shows the local credential form.
  */
+
+declare global {
+  interface Window {
+    __BURST_ENV__?: Record<string, string>;
+  }
+}
+
+function env(key: string): string | undefined {
+  return window.__BURST_ENV__?.[key] ?? import.meta.env[`VITE_${key}`];
+}
 
 export interface OidcConfig {
   authority: string; // OIDC issuer URL (e.g. https://accounts.google.com)
@@ -12,8 +22,8 @@ export interface OidcConfig {
 }
 
 export function getOidcConfig(): OidcConfig | null {
-  const authority = import.meta.env.VITE_OIDC_AUTHORITY;
-  const clientId = import.meta.env.VITE_OIDC_CLIENT_ID;
+  const authority = env("OIDC_AUTHORITY");
+  const clientId = env("OIDC_CLIENT_ID");
 
   if (!authority || !clientId) return null;
 
@@ -21,9 +31,8 @@ export function getOidcConfig(): OidcConfig | null {
     authority,
     clientId,
     redirectUri:
-      import.meta.env.VITE_OIDC_REDIRECT_URI ??
-      `${window.location.origin}/callback`,
-    scope: import.meta.env.VITE_OIDC_SCOPE ?? "openid email profile",
+      env("OIDC_REDIRECT_URI") ?? `${window.location.origin}/callback`,
+    scope: env("OIDC_SCOPE") ?? "openid email profile",
   };
 }
 

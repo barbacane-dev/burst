@@ -58,6 +58,11 @@ services:
       BURST_S3_SECRET_ACCESS_KEY: ${RUSTFS_ROOT_PASSWORD}
       BURST_S3_ENDPOINT: http://rustfs:9000
       BURST_S3_API_KEY: ${S3_API_KEY:-burst-internal-key}
+      # Frontend OIDC (runtime /env.js injection)
+      OIDC_AUTHORITY: ${OIDC_AUTHORITY:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-}
+      OIDC_SCOPE: ${OIDC_SCOPE:-}
       # Storage gateway (internal wiring)
       BURST_STORAGE_BACKEND: gateway
       BURST_STORAGE_GATEWAY_URL: http://127.0.0.1:8081
