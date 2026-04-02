@@ -37,7 +37,7 @@ cargo clippy --all-targets
 cargo test
 
 # 4. Security audit
-cargo audit
+cargo deny check advisories
 
 # 5. Lint OpenAPI spec (MUST pass — CI gate)
 vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml
