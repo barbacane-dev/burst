@@ -1,5 +1,5 @@
 # ── Runtime stage ─────────────────────────────────────────────────────────────
-FROM gcr.io/distroless/cc-debian12:nonroot
+FROM gcr.io/distroless/cc-debian13:nonroot
 
 ARG TARGETARCH
 
