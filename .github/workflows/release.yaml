@@ -125,13 +125,37 @@ jobs:
           fi
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push
+      - name: Build and push (API server)
         uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+
+      - name: Compute nginx image tags
+        id: nginx-tags
+        env:
+          CUSTOM_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+          CUSTOM_IMAGE: ${{ secrets.DOCKER_IMAGE_NAME }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAGS="ghcr.io/${{ github.repository }}-nginx:${VERSION}"
+          TAGS="${TAGS},ghcr.io/${{ github.repository }}-nginx:latest"
+          if [ -n "${CUSTOM_REGISTRY}" ] && [ -n "${CUSTOM_IMAGE}" ]; then
+            TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-nginx:${VERSION}"
+            TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-nginx:latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push (nginx frontend)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile.nginx
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.nginx-tags.outputs.tags }}
 
   # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
