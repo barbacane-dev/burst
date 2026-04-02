@@ -92,6 +92,8 @@ jobs:
 
       - name: Log in to custom registry
         if: env.CUSTOM_REGISTRY != ''
+        continue-on-error: true
+        id: custom-login
         env:
           CUSTOM_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
         uses: docker/login-action@v4
@@ -119,7 +121,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           TAGS="ghcr.io/${{ github.repository }}:${VERSION}"
           TAGS="${TAGS},ghcr.io/${{ github.repository }}:latest"
-          if [ -n "${CUSTOM_REGISTRY}" ] && [ -n "${CUSTOM_IMAGE}" ]; then
+          if [ "${{ steps.custom-login.outcome }}" = "success" ] && [ -n "${CUSTOM_REGISTRY}" ] && [ -n "${CUSTOM_IMAGE}" ]; then
             TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}:${VERSION}"
             TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}:latest"
           fi
@@ -142,7 +144,7 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           TAGS="ghcr.io/${{ github.repository }}-nginx:${VERSION}"
           TAGS="${TAGS},ghcr.io/${{ github.repository }}-nginx:latest"
-          if [ -n "${CUSTOM_REGISTRY}" ] && [ -n "${CUSTOM_IMAGE}" ]; then
+          if [ "${{ steps.custom-login.outcome }}" = "success" ] && [ -n "${CUSTOM_REGISTRY}" ] && [ -n "${CUSTOM_IMAGE}" ]; then
             TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-nginx:${VERSION}"
             TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-nginx:latest"
           fi
