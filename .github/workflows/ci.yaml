@@ -114,8 +114,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [changes, build, test]
     if: >-
-      always() &&
       needs.changes.outputs.smoke == 'true' &&
+      needs.build.result == 'success' &&
       !contains(needs.*.result, 'failure')
     services:
       postgres:
