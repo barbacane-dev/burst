@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-## [0.0.4] - 2026-04-02
+## [0.0.4] - 2026-04-03
 
 ### Added
 - All-in-one Docker image (`burst-aio`) bundling nginx, Barbacane gateway, S3 sidecar, and Burst API in a single container via s6-overlay
@@ -17,6 +17,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - Dispatch `path` overrides removed from OpenAPI spec (paths match end-to-end)
 - nginx no longer strips `/api` prefix (direct pass-through to Barbacane)
 - Vite dev proxy forwards `/api` requests as-is (no rewrite)
+- Bumped Barbacane from v0.5.1 to v0.6.1
+- CI: single build job shares artifacts (eliminates 3 redundant Rust compilations)
+- CI: switched from `cargo-audit` to `cargo-deny` (instant startup vs 2 min compile)
 
 ## [0.0.3] - 2026-04-02
 
