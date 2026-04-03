@@ -1,0 +1,14 @@
+# Burst configuration for all-in-one Docker image.
+# Database URL comes from BURST_DATABASE_URL environment variable.
+
+[server]
+listen = "127.0.0.1:3000"
+admin_listen = "0.0.0.0:3001"
+
+[database]
+url = "overridden-by-BURST_DATABASE_URL"
+max_connections = 20
+
+[storage]
+backend = "gateway"
+gateway_url = "http://127.0.0.1:8081"
