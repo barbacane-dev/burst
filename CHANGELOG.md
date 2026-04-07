@@ -5,6 +5,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Incoming webhooks — external systems can post messages to channels via `POST /api/webhooks/{id}/trigger` with bearer token auth (bypasses OIDC)
+- Outgoing webhooks — channel events delivered to external URLs with HMAC-SHA256 signing (`X-Burst-Signature`), retry with exponential backoff
+- Webhook CRUD endpoints — create, list, get, update, delete, regenerate token (channel-scoped)
+- Bot user accounts — `POST /api/admin/bots` creates users with `is_bot=true`, credentials managed by Barbacane `apikey-auth` plugin
+- `integrator` role — can manage webhooks and bots without full admin access
+- `IntegrationUser` extractor — accepts `admin` or `integrator` roles for integration management endpoints
+- Admin panel: Webhooks tab — list all webhooks, create form with channel selector, kind/status display, trigger URL for incoming
+- Admin panel: Bots tab — list bots, create form, deactivate
+- Integrator mock user (ivy) in dev OIDC server for local testing
+- Webhook integration tests (13 tests), bot integration tests (7 tests)
+- Webhook/bot E2E tests (6 Playwright tests): tab visibility, webhook creation, trigger delivery, bot creation
+- Webhook/bot smoke tests (20 k6 checks): full CRUD, trigger auth, permission checks, bot lifecycle
+- Frontend unit tests (6 Vitest tests): tab filtering, webhook list, create form
+
+### Changed
+- Admin panel tabs filtered by role: integrators see only Webhooks and Bots; admins see all tabs
+- Sidebar admin button visible to both `admin` and `integrator` roles
+- Role enum extended: `admin`, `integrator`, `moderator`, `member`, `guest` (was 4 roles, now 5)
+- `groups_claim` mapping recognizes `integrator` group from OIDC JWT
+- Integration management endpoints use `acl: { allow: [admin, integrator] }` in OpenAPI spec
+- `BURST_SPA_BUCKET` env var added to `.env` for local dev
+
 ## [0.0.5] - 2026-04-07
 
 ### Added

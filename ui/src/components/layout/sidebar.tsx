@@ -182,7 +182,7 @@ export function Sidebar() {
                 {user.username}
               </p>
             </div>
-            {user.role === "admin" && (
+            {(user.role === "admin" || user.role === "integrator") && (
               <button
                 onClick={() => navigate("/admin")}
                 className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"

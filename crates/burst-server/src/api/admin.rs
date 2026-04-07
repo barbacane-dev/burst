@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::AppState;
 use crate::api::PaginatedResponse;
 use crate::api::channels::{ChannelResponse, channel_to_response};
-use crate::api::extractors::{AdminUser, AuthUser, PaginationParams};
+use crate::api::extractors::{AdminUser, AuthUser, IntegrationUser, PaginationParams};
 use crate::db;
 use crate::error::ApiError;
 
@@ -25,6 +25,8 @@ pub fn router() -> Router<AppState> {
         .route("/admin/emojis", get(list_emojis_admin).post(create_emoji))
         .route("/admin/emojis/{emoji_id}", delete(delete_emoji))
         .route("/emojis", get(list_emojis))
+        .route("/admin/bots", get(list_bots).post(create_bot))
+        .route("/admin/bots/{bot_id}", patch(update_bot).delete(delete_bot))
 }
 
 // ── Response types ──
@@ -122,9 +124,12 @@ async fn update_user(
         .ok_or_else(|| ApiError::NotFound("User".into()))?;
 
     if let Some(ref role) = body.role {
-        if !matches!(role.as_str(), "admin" | "moderator" | "member" | "guest") {
+        if !matches!(
+            role.as_str(),
+            "admin" | "integrator" | "moderator" | "member" | "guest"
+        ) {
             return Err(ApiError::BadRequest(
-                "role must be admin, moderator, member, or guest".into(),
+                "role must be admin, integrator, moderator, member, or guest".into(),
             ));
         }
         user = db::users::update_role(&state.db, uid, role)
@@ -465,6 +470,163 @@ async fn delete_emoji(
         "emoji.deleted",
         "emoji",
         id,
+        None,
+    )
+    .await?;
+
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+// ── Bot management ──
+
+async fn list_bots(
+    _integration: IntegrationUser,
+    State(state): State<AppState>,
+) -> Result<Json<PaginatedResponse<AdminUserResponse>>, ApiError> {
+    let bots = db::users::list_bots(&state.db).await?;
+    let items = bots.iter().map(user_to_response).collect();
+    Ok(Json(PaginatedResponse {
+        items,
+        cursor: None,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateBotRequest {
+    username: String,
+    display_name: String,
+}
+
+async fn create_bot(
+    integration: IntegrationUser,
+    State(state): State<AppState>,
+    Json(body): Json<CreateBotRequest>,
+) -> Result<(axum::http::StatusCode, Json<AdminUserResponse>), ApiError> {
+    let username = body.username.trim().to_lowercase();
+    if username.is_empty() || username.len() > 64 {
+        return Err(ApiError::BadRequest(
+            "username must be 1-64 characters".into(),
+        ));
+    }
+    if !username
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    {
+        return Err(ApiError::BadRequest(
+            "username must contain only alphanumeric characters, underscores, or hyphens".into(),
+        ));
+    }
+
+    let display_name = body.display_name.trim().to_string();
+    if display_name.is_empty() {
+        return Err(ApiError::BadRequest("displayName cannot be empty".into()));
+    }
+
+    // Check uniqueness.
+    if db::users::find_by_username(&state.db, &username)
+        .await?
+        .is_some()
+    {
+        return Err(ApiError::Conflict("username already taken".into()));
+    }
+
+    let id = burst_core::id::new_id();
+    let user = db::users::create_bot(&state.db, id, &username, &display_name).await?;
+
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        integration.user_id,
+        "bot.created",
+        "user",
+        id,
+        Some(serde_json::json!({ "username": username })),
+    )
+    .await?;
+
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(user_to_response(&user)),
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpdateBotRequest {
+    display_name: Option<String>,
+}
+
+async fn update_bot(
+    integration: IntegrationUser,
+    State(state): State<AppState>,
+    Path(bot_id): Path<String>,
+    Json(body): Json<UpdateBotRequest>,
+) -> Result<Json<AdminUserResponse>, ApiError> {
+    let uid = parse_user_id(&bot_id)?;
+    let user = db::users::find_by_id(&state.db, uid)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Bot".into()))?;
+
+    if !user.is_bot {
+        return Err(ApiError::BadRequest("user is not a bot".into()));
+    }
+
+    let display_name = body.display_name.as_deref().map(str::trim);
+    if display_name == Some("") {
+        return Err(ApiError::BadRequest("displayName cannot be empty".into()));
+    }
+
+    let updated = db::users::update(
+        &state.db,
+        uid,
+        &db::users::UpdateUser {
+            display_name: display_name.map(String::from),
+            email: None,
+            avatar_url: None,
+            status_text: None,
+        },
+    )
+    .await?
+    .ok_or_else(|| ApiError::NotFound("Bot".into()))?;
+
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        integration.user_id,
+        "bot.updated",
+        "user",
+        uid,
+        None,
+    )
+    .await?;
+
+    Ok(Json(user_to_response(&updated)))
+}
+
+async fn delete_bot(
+    integration: IntegrationUser,
+    State(state): State<AppState>,
+    Path(bot_id): Path<String>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let uid = parse_user_id(&bot_id)?;
+    let user = db::users::find_by_id(&state.db, uid)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Bot".into()))?;
+
+    if !user.is_bot {
+        return Err(ApiError::BadRequest("user is not a bot".into()));
+    }
+
+    db::users::deactivate(&state.db, uid).await?;
+
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        integration.user_id,
+        "bot.deactivated",
+        "user",
+        uid,
         None,
     )
     .await?;

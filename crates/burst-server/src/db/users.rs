@@ -103,6 +103,37 @@ pub async fn create(pool: &PgPool, user: &CreateUser) -> Result<UserRow, sqlx::E
     .await
 }
 
+pub async fn create_bot(
+    pool: &PgPool,
+    id: Uuid,
+    username: &str,
+    display_name: &str,
+) -> Result<UserRow, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (id, username, display_name, role, is_bot) \
+         VALUES ($1, $2, $3, 'member', TRUE) \
+         RETURNING id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         created_at, updated_at",
+    )
+    .bind(id)
+    .bind(username)
+    .bind(display_name)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn list_bots(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "SELECT id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         created_at, updated_at \
+         FROM users WHERE is_bot = TRUE ORDER BY created_at DESC",
+    )
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn list(
     pool: &PgPool,
     cursor: Option<Uuid>,

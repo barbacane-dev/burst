@@ -199,15 +199,17 @@ Webhooks and bots multiply the value of a stable core — they are not the thing
 
 ### Backend
 
-- [ ] Incoming webhooks — receive messages via URL, `webhooks` table (ADR-007)
-- [ ] Outgoing webhooks — post events to external URLs, HMAC signing (ADR-007)
-- [ ] Bot user accounts — dedicated bot role, credential management via Barbacane (ADR-006)
+- [x] Incoming webhooks — receive messages via URL, `webhooks` table, bearer token auth bypasses OIDC (ADR-007)
+- [x] Outgoing webhooks — post events to external URLs, HMAC-SHA256 signing, retry with exponential backoff (ADR-007)
+- [x] Bot user accounts — `is_bot` flag, credentials managed by Barbacane `apikey-auth` plugin (ADR-006)
+- [x] `integrator` role — manages webhooks and bots without full admin access, `IntegrationUser` extractor
 - [ ] Typesense integration — async message sync, search via Typesense backend (ADR-003)
 
 ### Frontend
 
-- [ ] Webhook management — incoming/outgoing webhook configuration in admin panel
-- [ ] Bot management — bot user creation and token display
+- [x] Webhook management — Webhooks tab in admin panel (create, list, delete, trigger URL display)
+- [x] Bot management — Bots tab in admin panel (create, list, deactivate)
+- [x] Role-filtered admin tabs — integrators see only Webhooks and Bots
 
 ---
 

@@ -20,7 +20,7 @@ Frontend lives in `ui/` (React 19, Vite, Tailwind, TanStack Query).
 - Use `.expect("reason")` only for provably infallible operations
 - `thiserror` for library error types, `anyhow` for binary errors
 - Error URNs follow `urn:burst:error:<type>` pattern (RFC 9457 ProblemDetails)
-- UUIDv7 primary keys with `usr_`, `ch_`, `msg_` prefixes
+- UUIDv7 primary keys with `usr_`, `ch_`, `msg_`, `wh_` prefixes
 
 ## Before Pushing
 
@@ -78,5 +78,7 @@ Two deployment options:
 - Plugins used: `oidc-auth`, `acl`, `rate-limit`, `ws-upstream`, `http-upstream`, `s3`, `mock`
 - `groups_claim: "roles"` maps JWT roles to `x-auth-consumer-groups`
 - Admin routes have gateway-level ACL (`allow: [admin]`) + backend `AdminUser` extractor
+- Integration routes (webhooks, bots) use ACL (`allow: [admin, integrator]`) + `IntegrationUser` extractor
+- Incoming webhook trigger endpoint uses `x-barbacane-middlewares: []` to bypass OIDC (token-based auth)
 - SPA served via S3 dispatcher with `fallback_key: index.html` (all-in-one)
 - OIDC configuration is runtime-injected via `/env.js` (no rebuild to change provider)

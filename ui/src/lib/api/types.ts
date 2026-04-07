@@ -10,7 +10,7 @@ export interface User {
   displayName: string;
   email?: string;
   avatarUrl?: string;
-  role: "admin" | "moderator" | "member" | "guest";
+  role: "admin" | "integrator" | "moderator" | "member" | "guest";
   status: "online" | "away" | "offline" | "dnd";
   statusText?: string;
   isBot: boolean;

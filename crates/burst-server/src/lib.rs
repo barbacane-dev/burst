@@ -81,7 +81,8 @@ pub fn app_router(state: AppState) -> Router {
         .merge(api::channels::router())
         .merge(api::search::router())
         .merge(api::attachments::router())
-        .merge(api::admin::router());
+        .merge(api::admin::router())
+        .merge(api::webhooks::router());
 
     Router::new()
         .nest("/api", api_routes)

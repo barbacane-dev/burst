@@ -24,6 +24,7 @@ pub struct User {
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     Admin,
+    Integrator,
     Moderator,
     Member,
     Guest,
@@ -33,6 +34,7 @@ impl Role {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Admin => "admin",
+            Self::Integrator => "integrator",
             Self::Moderator => "moderator",
             Self::Member => "member",
             Self::Guest => "guest",
@@ -46,6 +48,7 @@ impl std::str::FromStr for Role {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "admin" => Ok(Self::Admin),
+            "integrator" => Ok(Self::Integrator),
             "moderator" => Ok(Self::Moderator),
             "member" => Ok(Self::Member),
             "guest" => Ok(Self::Guest),

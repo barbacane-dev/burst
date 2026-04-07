@@ -8,3 +8,4 @@ pub mod pinned_messages;
 pub mod reactions;
 pub mod search;
 pub mod users;
+pub mod webhooks;

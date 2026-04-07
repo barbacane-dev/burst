@@ -146,6 +146,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         shutdown_token.clone(),
     );
 
+    // Background task: outgoing webhook delivery
+    let _webhook_handle = tokio::spawn(burst_server::services::webhooks::outgoing_webhook_worker(
+        state.clone(),
+        shutdown_token.clone(),
+    ));
+
     // Main server
     let app = app_router(state.clone());
     let main_listener = TcpListener::bind(&config.server.listen).await?;

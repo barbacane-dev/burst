@@ -717,8 +717,228 @@ export function smoke() {
     });
   });
 
-  // ── 18. Cleanup ────────────────────────────────────────────────────────
-  group("18. Cleanup", () => {
+  // ── 18. Webhooks ───────────────────────────────────────────────────────
+  let webhookId, webhookToken;
+  group("18. Webhooks", () => {
+    // Create incoming webhook (alice is admin, also has IntegrationUser access)
+    const createIncoming = http.post(
+      `${GATEWAY}/api/channels/${channelId}/webhooks`,
+      JSON.stringify({ kind: "incoming", name: "Smoke Incoming" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(createIncoming, {
+      "Create incoming webhook → 201": (r) => r.status === 201,
+      "Has token": (r) => typeof r.json().token === "string" && r.json().token.length > 0,
+      "Kind is incoming": (r) => r.json().kind === "incoming",
+    });
+    webhookId = createIncoming.json().id;
+    webhookToken = createIncoming.json().token;
+
+    // Create outgoing webhook (requires url)
+    const createOutgoing = http.post(
+      `${GATEWAY}/api/channels/${channelId}/webhooks`,
+      JSON.stringify({
+        kind: "outgoing",
+        name: "Smoke Outgoing",
+        url: "https://example.com/hook",
+      }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(createOutgoing, {
+      "Create outgoing webhook → 201": (r) => r.status === 201,
+      "Outgoing has url": (r) => r.json().url === "https://example.com/hook",
+    });
+    const outgoingId = createOutgoing.json().id;
+
+    // Outgoing without url → 400
+    const noUrl = http.post(
+      `${GATEWAY}/api/channels/${channelId}/webhooks`,
+      JSON.stringify({ kind: "outgoing", name: "No URL" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(noUrl, { "Outgoing without url → 400": (r) => r.status === 400 });
+
+    // List webhooks
+    const list = http.get(
+      `${GATEWAY}/api/channels/${channelId}/webhooks`,
+      authHeaders(aliceToken),
+    );
+    check(list, {
+      "List webhooks → 200": (r) => r.status === 200,
+      "Has 2 webhooks": (r) => r.json().items.length === 2,
+    });
+
+    // Get single webhook
+    const get = http.get(
+      `${GATEWAY}/api/channels/${channelId}/webhooks/${webhookId}`,
+      authHeaders(aliceToken),
+    );
+    check(get, {
+      "Get webhook → 200": (r) => r.status === 200,
+      "Name matches": (r) => r.json().name === "Smoke Incoming",
+    });
+
+    // Update webhook
+    const update = http.patch(
+      `${GATEWAY}/api/channels/${channelId}/webhooks/${webhookId}`,
+      JSON.stringify({ name: "Renamed Incoming" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(update, {
+      "Update webhook → 200": (r) => r.status === 200,
+      "Name updated": (r) => r.json().name === "Renamed Incoming",
+    });
+
+    // Trigger incoming webhook (bypasses OIDC, uses webhook token)
+    const trigger = http.post(
+      `${GATEWAY}/api/webhooks/${webhookId}/trigger`,
+      JSON.stringify({ content: "Hello from k6 smoke test!" }),
+      {
+        headers: {
+          Authorization: `Bearer ${webhookToken}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    check(trigger, {
+      "Trigger incoming webhook → 201": (r) => r.status === 201,
+      "Message has content": (r) => r.json().content === "Hello from k6 smoke test!",
+      "Message has channelId": (r) => r.json().channelId === channelId,
+    });
+
+    // Trigger with bad token → 401
+    const badTrigger = http.post(
+      `${GATEWAY}/api/webhooks/${webhookId}/trigger`,
+      JSON.stringify({ content: "bad" }),
+      {
+        headers: {
+          Authorization: "Bearer wrong_token",
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    check(badTrigger, {
+      "Trigger with bad token → 401": (r) => r.status === 401,
+    });
+
+    // Trigger outgoing webhook → 400 (can't trigger outgoing)
+    const triggerOutgoing = http.post(
+      `${GATEWAY}/api/webhooks/${outgoingId}/trigger`,
+      JSON.stringify({ content: "nope" }),
+      {
+        headers: {
+          Authorization: `Bearer ${createOutgoing.json().token}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+    check(triggerOutgoing, {
+      "Trigger outgoing webhook → 400": (r) => r.status === 400,
+    });
+
+    // Bob (member) cannot create webhooks → 403
+    const bobCreate = http.post(
+      `${GATEWAY}/api/channels/${channelId}/webhooks`,
+      JSON.stringify({ kind: "incoming", name: "Unauthorized" }),
+      jsonAuthHeaders(bobToken),
+    );
+    check(bobCreate, {
+      "Member cannot create webhook → 403": (r) => r.status === 403,
+    });
+
+    // Admin list all webhooks
+    const listAll = http.get(
+      `${GATEWAY}/api/admin/webhooks`,
+      authHeaders(aliceToken),
+    );
+    check(listAll, {
+      "Admin list all webhooks → 200": (r) => r.status === 200,
+      "Has items": (r) => Array.isArray(r.json().items),
+    });
+
+    // Delete outgoing webhook
+    const del = http.del(
+      `${GATEWAY}/api/channels/${channelId}/webhooks/${outgoingId}`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(del, { "Delete webhook → 204": (r) => r.status === 204 });
+  });
+
+  // ── 19. Bots ──────────────────────────────────────────────────────────
+  group("19. Bots", () => {
+    const botUsername = `smoke-bot-${Date.now()}`;
+
+    // Create bot (admin)
+    const create = http.post(
+      `${GATEWAY}/api/admin/bots`,
+      JSON.stringify({ username: botUsername, displayName: "Smoke Bot" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(create, {
+      "Create bot → 201": (r) => r.status === 201,
+      "Bot isBot=true": (r) => r.json().isBot === true,
+      "Bot username matches": (r) => r.json().username === botUsername,
+    });
+    const botId = create.json().id;
+
+    // List bots
+    const list = http.get(
+      `${GATEWAY}/api/admin/bots`,
+      authHeaders(aliceToken),
+    );
+    check(list, {
+      "List bots → 200": (r) => r.status === 200,
+      "Contains created bot": (r) =>
+        r.json().items.some((b) => b.id === botId),
+    });
+
+    // Update bot
+    const update = http.patch(
+      `${GATEWAY}/api/admin/bots/${botId}`,
+      JSON.stringify({ displayName: "Renamed Bot" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(update, {
+      "Update bot → 200": (r) => r.status === 200,
+      "Display name updated": (r) => r.json().displayName === "Renamed Bot",
+    });
+
+    // Bob (member) cannot create bots → 403
+    const bobCreate = http.post(
+      `${GATEWAY}/api/admin/bots`,
+      JSON.stringify({ username: "bob-bot", displayName: "Nope" }),
+      jsonAuthHeaders(bobToken),
+    );
+    check(bobCreate, {
+      "Member cannot create bot → 403": (r) => r.status === 403,
+    });
+
+    // Deactivate bot
+    const deactivate = http.del(
+      `${GATEWAY}/api/admin/bots/${botId}`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(deactivate, { "Deactivate bot → 204": (r) => r.status === 204 });
+
+    // Duplicate username → 409
+    const dup1 = http.post(
+      `${GATEWAY}/api/admin/bots`,
+      JSON.stringify({ username: "dup-bot", displayName: "Dup 1" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(dup1, { "Create bot for dup test → 201": (r) => r.status === 201 });
+    const dup2 = http.post(
+      `${GATEWAY}/api/admin/bots`,
+      JSON.stringify({ username: "dup-bot", displayName: "Dup 2" }),
+      jsonAuthHeaders(aliceToken),
+    );
+    check(dup2, { "Duplicate bot username → 409": (r) => r.status === 409 });
+  });
+
+  // ── 20. Cleanup ────────────────────────────────────────────────────────
+  group("20. Cleanup", () => {
     const del = http.del(
       `${GATEWAY}/api/channels/${channelId}/messages/${replyId}`,
       null,

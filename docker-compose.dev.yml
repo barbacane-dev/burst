@@ -36,6 +36,18 @@ services:
                   }
                 },
                 {
+                  "requestParam": "username",
+                  "match": "ivy",
+                  "claims": {
+                    "sub": "ivy@burst.local",
+                    "preferred_username": "ivy",
+                    "name": "Ivy Integrator",
+                    "email": "ivy@burst.local",
+                    "aud": "burst",
+                    "roles": ["integrator"]
+                  }
+                },
+                {
                   "requestParam": "grant_type",
                   "match": "password",
                   "claims": {

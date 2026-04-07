@@ -180,6 +180,30 @@ impl TestApp {
         let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
         (status, json)
     }
+
+    /// Send a request with a bearer token (no X-Auth-Consumer header).
+    /// Used for incoming webhook trigger tests.
+    pub async fn post_with_bearer(
+        &self,
+        uri: &str,
+        token: &str,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let req = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("Content-Type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let response = self.router.clone().oneshot(req).await.unwrap();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+        (status, json)
+    }
 }
 
 // ── Seed helpers ──────────────────────────────────────────────────────────────
@@ -250,4 +274,38 @@ pub async fn seed_channel(pool: &PgPool, name: &str, owner_id: Uuid) -> db::chan
         .await
         .unwrap();
     ch
+}
+
+/// Create a webhook directly in the database. Returns the row and the plaintext token.
+pub async fn seed_webhook(
+    pool: &PgPool,
+    channel_id: Uuid,
+    kind: &str,
+    created_by: Uuid,
+) -> (db::webhooks::WebhookRow, String) {
+    let token = format!("test_token_{}", burst_core::id::new_id());
+    let row = db::webhooks::create(
+        pool,
+        &db::webhooks::CreateWebhook {
+            id: burst_core::id::new_id(),
+            channel_id,
+            kind,
+            name: &format!("test-{kind}-webhook"),
+            url: if kind == "outgoing" {
+                Some("https://example.com/hook")
+            } else {
+                None
+            },
+            secret: if kind == "outgoing" {
+                Some("test_secret")
+            } else {
+                None
+            },
+            token: &token,
+            created_by,
+        },
+    )
+    .await
+    .unwrap();
+    (row, token)
 }

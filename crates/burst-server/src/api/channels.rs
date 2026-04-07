@@ -160,7 +160,7 @@ pub struct MessageResponse {
 
 /// Builds a single `MessageResponse` with no reactions/attachments/replies.
 /// Used for freshly created or edited messages where metadata is already known.
-fn build_message_response_simple(
+pub fn build_message_response_simple(
     row: &db::messages::MessageRow,
     attachments: Vec<AttachmentResponse>,
 ) -> MessageResponse {

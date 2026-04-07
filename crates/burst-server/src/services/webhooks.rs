@@ -1,0 +1,195 @@
+use std::time::Duration;
+
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+use tokio::sync::broadcast;
+use tokio_util::sync::CancellationToken;
+
+use crate::AppState;
+use crate::db;
+use crate::ws::ServerEvent;
+
+type HmacSha256 = Hmac<Sha256>;
+
+/// Returns the event type tag as it appears in JSON serialization.
+fn event_type(event: &ServerEvent) -> &'static str {
+    match event {
+        ServerEvent::MessageCreated { .. } => "message.created",
+        ServerEvent::MessageUpdated { .. } => "message.updated",
+        ServerEvent::MessageDeleted { .. } => "message.deleted",
+        ServerEvent::TypingStart { .. } => "typing.start",
+        ServerEvent::TypingStop { .. } => "typing.stop",
+        ServerEvent::PresenceUpdate { .. } => "presence.update",
+        ServerEvent::ChannelJoined { .. } => "channel.joined",
+        ServerEvent::ReactionAdded { .. } => "reaction.added",
+        ServerEvent::ReactionRemoved { .. } => "reaction.removed",
+        ServerEvent::MessagePinned { .. } => "message.pinned",
+        ServerEvent::MessageUnpinned { .. } => "message.unpinned",
+        ServerEvent::ChannelUpdated { .. } => "channel.updated",
+    }
+}
+
+/// Returns true if the event should be delivered to outgoing webhooks.
+fn is_deliverable(event: &ServerEvent) -> bool {
+    !matches!(
+        event,
+        ServerEvent::TypingStart { .. }
+            | ServerEvent::TypingStop { .. }
+            | ServerEvent::PresenceUpdate { .. }
+    )
+}
+
+/// Background task that delivers events to outgoing webhooks.
+///
+/// Subscribes to the broker, filters to deliverable events, and for each
+/// event with a channel_id, looks up active outgoing webhooks and delivers
+/// the event payload via HTTP POST.
+pub async fn outgoing_webhook_worker(state: AppState, shutdown: CancellationToken) {
+    let mut rx = state.broker.subscribe();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .expect("failed to build reqwest client");
+
+    loop {
+        tokio::select! {
+            () = shutdown.cancelled() => {
+                tracing::info!("outgoing webhook worker shutting down");
+                break;
+            }
+            result = rx.recv() => {
+                match result {
+                    Ok(event) => {
+                        if !is_deliverable(&event) {
+                            continue;
+                        }
+                        if let Some(channel_id_str) = event.channel_id() {
+                            let channel_id = match burst_core::id::parse_prefixed_id(channel_id_str, "ch_") {
+                                Some(id) => id,
+                                None => continue,
+                            };
+                            let webhooks = match db::webhooks::list_active_outgoing_by_channel(
+                                &state.db,
+                                channel_id,
+                            )
+                            .await
+                            {
+                                Ok(whs) => whs,
+                                Err(e) => {
+                                    tracing::warn!(error = %e, "failed to load outgoing webhooks");
+                                    continue;
+                                }
+                            };
+                            for wh in webhooks {
+                                let event = event.clone();
+                                let client = client.clone();
+                                tokio::spawn(deliver(wh, event, client));
+                            }
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(n)) => {
+                        tracing::warn!(skipped = n, "outgoing webhook worker lagged");
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        tracing::info!("broker closed, outgoing webhook worker exiting");
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Deliver an event to a single outgoing webhook with retries.
+async fn deliver(webhook: db::webhooks::WebhookRow, event: ServerEvent, client: reqwest::Client) {
+    let url = match &webhook.url {
+        Some(u) => u.clone(),
+        None => return,
+    };
+
+    let body = match serde_json::to_vec(&event) {
+        Ok(b) => b,
+        Err(e) => {
+            tracing::warn!(
+                webhook_id = %webhook.id,
+                error = %e,
+                "failed to serialize event for outgoing webhook"
+            );
+            return;
+        }
+    };
+
+    let signature = if let Some(ref secret) = webhook.secret {
+        let mut mac =
+            HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC accepts any key size");
+        mac.update(&body);
+        let result = mac.finalize();
+        format!("sha256={}", hex::encode(result.into_bytes()))
+    } else {
+        String::new()
+    };
+
+    let delivery_id = burst_core::id::new_id().to_string();
+    let event_type_str = event_type(&event);
+
+    let delays = [
+        Duration::from_secs(0),
+        Duration::from_secs(1),
+        Duration::from_secs(5),
+        Duration::from_secs(30),
+    ];
+
+    for (attempt, delay) in delays.iter().enumerate() {
+        if attempt > 0 {
+            tokio::time::sleep(*delay).await;
+        }
+
+        let mut req = client
+            .post(&url)
+            .header("Content-Type", "application/json")
+            .header("X-Burst-Event", event_type_str)
+            .header("X-Burst-Delivery", &delivery_id);
+
+        if !signature.is_empty() {
+            req = req.header("X-Burst-Signature", &signature);
+        }
+
+        match req.body(body.clone()).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                tracing::info!(
+                    webhook_id = %webhook.id,
+                    event = event_type_str,
+                    delivery_id = %delivery_id,
+                    status = %resp.status(),
+                    "outgoing webhook delivered"
+                );
+                return;
+            }
+            Ok(resp) => {
+                tracing::warn!(
+                    webhook_id = %webhook.id,
+                    event = event_type_str,
+                    attempt = attempt + 1,
+                    status = %resp.status(),
+                    "outgoing webhook delivery failed"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    webhook_id = %webhook.id,
+                    event = event_type_str,
+                    attempt = attempt + 1,
+                    error = %e,
+                    "outgoing webhook delivery error"
+                );
+            }
+        }
+    }
+
+    tracing::error!(
+        webhook_id = %webhook.id,
+        event = event_type_str,
+        delivery_id = %delivery_id,
+        "outgoing webhook delivery failed after all retries"
+    );
+}

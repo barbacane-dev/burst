@@ -30,6 +30,10 @@ image.workspace = true
 mime_guess.workspace = true
 bytes.workspace = true
 multer.workspace = true
+rand.workspace = true
+sha2.workspace = true
+hmac.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
 burst-core.workspace = true

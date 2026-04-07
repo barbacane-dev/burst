@@ -159,15 +159,18 @@ async fn sync_profile_from_claims(
 }
 
 /// Extract role from the x-auth-consumer-groups header set by Barbacane.
-/// Maps "admin" group to "admin" role, defaults to "member".
+/// Maps "admin" group to "admin" role, "integrator" to "integrator", defaults to "member".
 fn extract_role_from_groups(parts: &Parts) -> String {
     parts
         .headers
         .get("x-auth-consumer-groups")
         .and_then(|v| v.to_str().ok())
         .map(|groups| {
-            if groups.split(',').any(|g| g.trim() == "admin") {
+            let groups: Vec<&str> = groups.split(',').map(|g| g.trim()).collect();
+            if groups.contains(&"admin") {
                 "admin".to_string()
+            } else if groups.contains(&"integrator") {
+                "integrator".to_string()
             } else {
                 "member".to_string()
             }
@@ -206,6 +209,29 @@ impl FromRequestParts<AppState> for AdminUser {
     }
 }
 
+/// Extracts an authenticated user with integration management privileges.
+/// Accepts users with `admin` or `integrator` roles. Rejects others with 403.
+pub struct IntegrationUser {
+    pub user_id: Uuid,
+}
+
+impl FromRequestParts<AppState> for IntegrationUser {
+    type Rejection = ApiError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let auth = AuthUser::from_request_parts(parts, state).await?;
+        if auth.user_role != "admin" && auth.user_role != "integrator" {
+            return Err(ApiError::Forbidden);
+        }
+        Ok(IntegrationUser {
+            user_id: auth.user_id,
+        })
+    }
+}
+
 /// Pagination query parameters.
 #[derive(Debug, serde::Deserialize)]
 pub struct PaginationParams {
@@ -228,7 +254,7 @@ impl PaginationParams {
     pub fn cursor_uuid(&self) -> Option<Uuid> {
         self.cursor.as_deref().and_then(|s| {
             // Try stripping known prefixes, fall back to raw UUID parse
-            for prefix in &["msg_", "ch_", "usr_", "att_"] {
+            for prefix in &["msg_", "ch_", "usr_", "att_", "wh_"] {
                 if let Some(rest) = s.strip_prefix(prefix) {
                     return Uuid::parse_str(rest).ok();
                 }
@@ -291,6 +317,18 @@ mod tests {
     #[test]
     fn role_from_multiple_groups_with_admin() {
         let parts = make_parts_with_groups(Some("member, admin, moderator"));
+        assert_eq!(extract_role_from_groups(&parts), "admin");
+    }
+
+    #[test]
+    fn role_from_integrator_group() {
+        let parts = make_parts_with_groups(Some("integrator"));
+        assert_eq!(extract_role_from_groups(&parts), "integrator");
+    }
+
+    #[test]
+    fn role_admin_takes_precedence_over_integrator() {
+        let parts = make_parts_with_groups(Some("integrator, admin"));
         assert_eq!(extract_role_from_groups(&parts), "admin");
     }
 

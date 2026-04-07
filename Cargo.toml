@@ -56,6 +56,12 @@ multer = "3"
 # HTTP client (S3 gateway storage)
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 
+# Cryptography
+rand = "0.9"
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
+
 # Utilities
 tokio-util = { version = "0.7", features = ["rt"] }
 urlencoding = "2"

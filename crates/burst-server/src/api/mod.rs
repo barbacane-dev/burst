@@ -5,6 +5,7 @@ pub mod extractors;
 pub mod health;
 pub mod search;
 pub mod users;
+pub mod webhooks;
 
 use serde::Serialize;
 
