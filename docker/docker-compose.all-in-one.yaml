@@ -1,18 +1,18 @@
-# All-in-one Burst deployment — single container with nginx, Barbacane, and Burst.
+# All-in-one Burst deployment — single container with Barbacane gateway and Burst API.
 #
 # Only PostgreSQL and RustFS remain as external services.
 # No need for `make gateway-compile` — .bca artifacts are baked into the image.
+# SPA is uploaded to RustFS at startup and served via Barbacane's S3 dispatcher.
 #
 # Usage:
 #   cp docker/.env.example docker/.env   # Fill in secrets
 #   docker compose -f docker/docker-compose.all-in-one.yaml up --build
 #
 # Architecture:
-#   Browser → burst-aio (:8080) ─┬─ nginx: SPA static files
-#                                 ├─ nginx → Barbacane API (:8090) → Burst (:3000) → PostgreSQL
-#                                 └─ nginx → Barbacane API (:8090) → Burst (:3000) [WebSocket]
-#                                                                     ↓
-#                                              Barbacane S3 (:8081) → RustFS
+#   Browser → Barbacane API (:8080) ─┬─ /api/* → Burst (:3000) → PostgreSQL
+#                                    ├─ /ws    → Burst (:3000) [WebSocket]
+#                                    └─ /*     → RustFS (SPA via S3 dispatcher)
+#                                    Barbacane S3 (:8081) → RustFS (file storage)
 
 services:
   postgres:
@@ -48,12 +48,13 @@ services:
     environment:
       # Database
       BURST_DATABASE_URL: postgres://burst:${POSTGRES_PASSWORD}@postgres:5432/burst
-      # OIDC provider
+      # OIDC provider (gateway auth)
       BURST_OIDC_ISSUER_URL: ${BURST_OIDC_ISSUER_URL:?Set BURST_OIDC_ISSUER_URL in .env}
       BURST_OIDC_ISSUER_OVERRIDE: ${BURST_OIDC_ISSUER_OVERRIDE:-${BURST_OIDC_ISSUER_URL}}
-      # S3 sidecar → RustFS
+      # S3 — shared credentials for file storage and SPA buckets
       BURST_S3_REGION: us-east-1
       BURST_S3_BUCKET: burst-files
+      BURST_SPA_BUCKET: burst-spa
       BURST_S3_ACCESS_KEY_ID: burst
       BURST_S3_SECRET_ACCESS_KEY: ${RUSTFS_ROOT_PASSWORD}
       BURST_S3_ENDPOINT: http://rustfs:9000
@@ -75,7 +76,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 20s
 
 volumes:
   pgdata:

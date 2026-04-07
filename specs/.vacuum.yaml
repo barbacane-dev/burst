@@ -37,7 +37,7 @@ rules:
     then:
       function: pattern
       functionOptions:
-        notMatch: "/$"
+        notMatch: "./$"
 
   # ── ADR-005: Naming conventions ──
 

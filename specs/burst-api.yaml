@@ -51,6 +51,8 @@ tags:
     description: Pinned messages
   - name: Admin
     description: Administration endpoints (admin role required)
+  - name: Frontend
+    description: SPA static file serving (no authentication)
 
 # ── Paths ──
 
@@ -1877,6 +1879,59 @@ paths:
 
         "429":
           $ref: "#/components/responses/RateLimited"
+
+  # ── Frontend SPA ──
+
+  /:
+    get:
+      operationId: spaRoot
+      summary: Redirect root to SPA index
+      tags:
+        - Frontend
+      x-barbacane-dispatch:
+        name: mock
+        config:
+          status: 302
+          body: ""
+          headers:
+            Location: /index.html
+          content_type: text/plain
+      x-barbacane-middlewares: []
+      responses:
+        "302":
+          description: Redirect to SPA
+
+  /{path+}:
+    get:
+      operationId: serveSpa
+      summary: Serve SPA static files from S3 with index.html fallback
+      tags:
+        - Frontend
+      x-barbacane-dispatch:
+        name: s3
+        config:
+          region: "env://BURST_S3_REGION"
+          bucket: "env://BURST_SPA_BUCKET"
+          access_key_id: "env://BURST_S3_ACCESS_KEY_ID"
+          secret_access_key: "env://BURST_S3_SECRET_ACCESS_KEY"
+          endpoint: "env://BURST_S3_ENDPOINT"
+          force_path_style: true
+          key_param: path
+          fallback_key: index.html
+      x-barbacane-middlewares: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          allowReserved: true
+          schema:
+            type: string
+            maxLength: 1024
+      responses:
+        "200":
+          description: Static file or SPA fallback
+        "404":
+          description: File not found (fallback also missing)
 
 # ── Components ──
 

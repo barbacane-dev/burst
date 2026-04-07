@@ -4,8 +4,8 @@
 
 plugins:
   s3:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.1/s3.wasm
-    sha256: 061619f60790903a50855d3d464751d73e9ad083617d841425075e5915f93302
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.6.3/s3.wasm
+    sha256: 4e8298ad059c367e0d648b77e657da4325f7ea9933de9f4dac31775a9be8b4c6
   apikey-auth:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.5.1/apikey-auth.wasm
-    sha256: c1369ac4abe07833823f4bfb472aea5a34edde163625bdb237a51cdda1cd375e
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.6.3/apikey-auth.wasm
+    sha256: 193b3a98be3c56233811b40d4fa802663120c150123dfb0e0e5dedcc4845a5ca

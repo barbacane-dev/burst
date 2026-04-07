@@ -1,2 +1,0 @@
-#!/command/with-contenv sh
-exec /usr/local/bin/burst /etc/burst/burst.toml

@@ -1,7 +1,0 @@
-#!/command/with-contenv sh
-exec /usr/local/bin/barbacane serve \
-  --artifact /etc/barbacane/burst-api.bca \
-  --listen 127.0.0.1:8090 \
-  --admin-bind off \
-  --allow-plaintext-upstream \
-  --max-body-size 10485760
