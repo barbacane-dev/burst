@@ -65,9 +65,18 @@ vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml --no-b
 - **Frontend unit tests**: `cd ui && npm test`
 - **E2E tests**: `make e2e` (Playwright, requires full stack running)
 
+## Deployment
+
+Two deployment options:
+
+- **All-in-one** (`docker/docker-compose.all-in-one.yaml`): single container with Barbacane + Burst, SPA served from RustFS via S3 dispatcher. No nginx, no s6-overlay.
+- **Multi-service** (`docker/docker-compose.yaml`): separate containers for nginx, Barbacane, Burst. Zero-trust topology.
+
 ## Barbacane Integration
 
 - Gateway manifest: `barbacane.yaml` (plugin paths)
-- Plugins used: `oidc-auth`, `acl`, `rate-limit`, `ws-upstream`, `http-upstream`
+- Plugins used: `oidc-auth`, `acl`, `rate-limit`, `ws-upstream`, `http-upstream`, `s3`, `mock`
 - `groups_claim: "roles"` maps JWT roles to `x-auth-consumer-groups`
 - Admin routes have gateway-level ACL (`allow: [admin]`) + backend `AdminUser` extractor
+- SPA served via S3 dispatcher with `fallback_key: index.html` (all-in-one)
+- OIDC configuration is runtime-injected via `/env.js` (no rebuild to change provider)

@@ -63,24 +63,42 @@ Browser (:5173) → Vite ─┬─ /api/* → Barbacane (:8080) → Burst (:3000
                                     Mock OIDC (:9099)    Barbacane-S3 (:8081) → RustFS (:9000)
 ```
 
-**Production** (nginx serves SPA, proxies to Barbacane):
+**Production — all-in-one** (single container, SPA served from S3):
 
 ```
-Browser → nginx (:8080) ─┬─ /*    → SPA static files (served directly)
+Browser → Barbacane API (:8080) ─┬─ /api/* → Burst (:3000) → PostgreSQL
+                                 ├─ /ws    → Burst (:3000)
+                                 └─ /*     → RustFS (SPA via S3 dispatcher)
+                                 Barbacane S3 (:8081) → RustFS (file storage)
+```
+
+**Production — multi-service** (nginx + separate containers):
+
+```
+Browser → nginx (:8080) ─┬─ /*     → SPA static files
                           ├─ /api/* → Barbacane (internal) → Burst → PostgreSQL
                           └─ /ws   → Barbacane (internal) → Burst
                                           ↓
-                                   Barbacane-S3 (internal) → RustFS
+                                   Barbacane S3 (internal) → RustFS
 ```
 
-Two Barbacane instances (zero-trust, minimal attack surface):
+Two Barbacane instances in both topologies (zero-trust, minimal attack surface):
 
-- **Public gateway** — oidc-auth, acl, rate-limit, http-upstream, ws-upstream. Handles all API + WebSocket traffic.
+- **Public gateway** — oidc-auth, acl, rate-limit, http-upstream, ws-upstream, s3. Handles all API, WebSocket, and SPA traffic.
 - **S3 sidecar** — s3, apikey-auth only. Internal, serves Burst's file storage operations.
 
-Barbacane validates JWTs (oidc-auth plugin) and sets `X-Auth-Consumer` / `X-Auth-Consumer-Groups` before forwarding to Burst. Admin routes are protected by the ACL plugin at the gateway level (`allow: [admin]`), with defense-in-depth via the `AdminUser` extractor on the backend. WebSocket auth uses `?access_token=` query param (RFC 6750 §2.3).
+Barbacane validates JWTs (oidc-auth plugin) and sets `X-Auth-Consumer` / `X-Auth-Consumer-Groups` before forwarding to Burst. JIT user provisioning maps `preferred_username`, `name`, `email` from OIDC claims, and `admin` group to admin role. WebSocket auth uses `?access_token=` query param (RFC 6750 §2.3).
 
 ### Production deployment
+
+**All-in-one** (recommended — no gateway compilation needed):
+
+```bash
+cp docker/.env.example docker/.env   # Configure secrets + OIDC
+docker compose -f docker/docker-compose.all-in-one.yaml up --build
+```
+
+**Multi-service** (zero-trust topology with nginx):
 
 ```bash
 cp docker/.env.example docker/.env   # Configure secrets
