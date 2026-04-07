@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-04-07
+
 ### Added
 - OIDC discovery — resolve authorize/token endpoints from `.well-known/openid-configuration` (works with any provider)
 - PKCE (S256) for secure public client authentication

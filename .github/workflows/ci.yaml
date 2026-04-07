@@ -224,6 +224,7 @@ jobs:
           BURST_S3_ACCESS_KEY_ID: ci-key
           BURST_S3_SECRET_ACCESS_KEY: ci-secret
           BURST_S3_ENDPOINT: http://localhost:9000
+          BURST_SPA_BUCKET: burst-ci-spa
         run: |
           .barbacane/bin/barbacane serve \
             --artifact burst-api.bca \
