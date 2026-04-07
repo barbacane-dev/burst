@@ -49,6 +49,7 @@ Used by the public Barbacane gateway (port 8080).
 | `BURST_UPSTREAM_WS_URL` | WebSocket URL of the Burst server (e.g., `ws://127.0.0.1:3000`) |
 | `BURST_OIDC_ISSUER_URL` | OIDC issuer URL for token validation (e.g., `https://auth.example.com/realms/burst`) |
 | `BURST_OIDC_ISSUER_OVERRIDE` | Optional internal OIDC issuer URL when the gateway reaches the IdP via a different address |
+| `BURST_OIDC_GROUPS_CLAIM` | JWT claim containing user groups/roles. Defaults to `roles`. Set to `groups` for Authelia, or whatever claim your IdP uses |
 
 ### S3 Sidecar Variables
 
@@ -95,6 +96,7 @@ BURST_UPSTREAM_URL=http://127.0.0.1:3000
 BURST_UPSTREAM_WS_URL=ws://127.0.0.1:3000
 BURST_OIDC_ISSUER_URL=https://auth.example.com/realms/burst
 # BURST_OIDC_ISSUER_OVERRIDE=http://keycloak:8080/realms/burst
+BURST_OIDC_GROUPS_CLAIM=roles
 
 # ── S3 Sidecar (Barbacane :8081) ─────────────────────────────
 BURST_S3_REGION=us-east-1

@@ -219,6 +219,7 @@ jobs:
           BURST_UPSTREAM_WS_URL: ws://127.0.0.1:3000
           BURST_OIDC_ISSUER_URL: http://127.0.0.1:9099/burst
           BURST_OIDC_ISSUER_OVERRIDE: http://localhost:9099/burst
+          BURST_OIDC_GROUPS_CLAIM: roles
           BURST_S3_REGION: us-east-1
           BURST_S3_BUCKET: burst-ci
           BURST_S3_ACCESS_KEY_ID: ci-key

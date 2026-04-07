@@ -145,8 +145,9 @@ This manifest is used during compilation to resolve plugin paths.
 ## Roles and ACL
 
 Barbacane maps JWT claims to consumer groups using the `groups_claim` option in
-the `oidc-auth` plugin. Burst sets `groups_claim: "roles"`, so the `roles` array
-in your JWT becomes the list of groups for ACL evaluation.
+the `oidc-auth` plugin. Burst configures this via the `BURST_OIDC_GROUPS_CLAIM`
+environment variable (defaults to `roles`), so the named claim in your JWT
+becomes the list of groups for ACL evaluation.
 
 Admin routes are protected at **two** layers:
 

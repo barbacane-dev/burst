@@ -23,7 +23,7 @@ x-barbacane-middlewares:
       issuer_url: "env://BURST_OIDC_ISSUER_URL"
       issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
       audience: "burst"
-      groups_claim: "roles"
+      groups_claim: "env://BURST_OIDC_GROUPS_CLAIM"
   - name: rate-limit
     config:
       quota: 300
@@ -84,7 +84,7 @@ paths:
             issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
             audience: "burst"
             allow_query_token: true
-            groups_claim: "roles"
+            groups_claim: "env://BURST_OIDC_GROUPS_CLAIM"
         - name: rate-limit
           config:
             quota: 300
@@ -1338,7 +1338,7 @@ paths:
             issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
             audience: "burst"
             allow_query_token: true
-            groups_claim: "roles"
+            groups_claim: "env://BURST_OIDC_GROUPS_CLAIM"
         - name: rate-limit
           config:
             quota: 300
