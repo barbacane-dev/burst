@@ -28,7 +28,7 @@ async fn jit_provision_with_claims_and_groups(pool: sqlx::PgPool) {
         )
         .await;
 
-    assert_eq!(status, 200);
+    assert_eq!(status, 200, "expected 200, got {status}: {body}");
     assert_eq!(body["username"], "alice");
     assert_eq!(body["displayName"], "Alice Smith");
     assert_eq!(body["email"], "alice@example.com");
@@ -42,7 +42,7 @@ async fn jit_provision_without_claims_uses_external_id(pool: sqlx::PgPool) {
 
     let (status, body) = app.get("/api/users/me", "bob-external-id").await;
 
-    assert_eq!(status, 200);
+    assert_eq!(status, 200, "expected 200, got {status}: {body}");
     assert_eq!(body["username"], "bob-external-id");
     assert_eq!(body["role"], "member");
 }
@@ -61,7 +61,7 @@ async fn role_synced_from_groups_on_each_request(pool: sqlx::PgPool) {
     let claims_str = serde_json::to_string(&claims).unwrap();
 
     // First request: member
-    let (_, body) = app
+    let (status, body) = app
         .request_with_headers(
             "GET",
             "/api/users/me",
@@ -73,10 +73,11 @@ async fn role_synced_from_groups_on_each_request(pool: sqlx::PgPool) {
             None,
         )
         .await;
+    assert_eq!(status, 200, "first request: expected 200, got {status}: {body}");
     assert_eq!(body["role"], "member");
 
     // Second request: promoted to admin
-    let (_, body) = app
+    let (status, body) = app
         .request_with_headers(
             "GET",
             "/api/users/me",
@@ -88,5 +89,6 @@ async fn role_synced_from_groups_on_each_request(pool: sqlx::PgPool) {
             None,
         )
         .await;
+    assert_eq!(status, 200, "second request: expected 200, got {status}: {body}");
     assert_eq!(body["role"], "admin");
 }
