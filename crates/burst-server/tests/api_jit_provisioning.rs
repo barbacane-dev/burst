@@ -4,7 +4,7 @@ use common::TestApp;
 use serde_json::json;
 
 /// JIT provisioning with OIDC claims extracts username, display name, email, and role.
-#[sqlx::test]
+#[sqlx::test(migrations = "../../migrations")]
 async fn jit_provision_with_claims_and_groups(pool: sqlx::PgPool) {
     let app = TestApp::new(pool);
 
@@ -36,7 +36,7 @@ async fn jit_provision_with_claims_and_groups(pool: sqlx::PgPool) {
 }
 
 /// JIT provisioning without claims falls back to external_id for username.
-#[sqlx::test]
+#[sqlx::test(migrations = "../../migrations")]
 async fn jit_provision_without_claims_uses_external_id(pool: sqlx::PgPool) {
     let app = TestApp::new(pool);
 
@@ -48,7 +48,7 @@ async fn jit_provision_without_claims_uses_external_id(pool: sqlx::PgPool) {
 }
 
 /// Role is synced from groups header on subsequent requests.
-#[sqlx::test]
+#[sqlx::test(migrations = "../../migrations")]
 async fn role_synced_from_groups_on_each_request(pool: sqlx::PgPool) {
     let app = TestApp::new(pool);
     let eid = "a1b2c3d4-0000-0000-0000-000000000002";
@@ -73,7 +73,10 @@ async fn role_synced_from_groups_on_each_request(pool: sqlx::PgPool) {
             None,
         )
         .await;
-    assert_eq!(status, 200, "first request: expected 200, got {status}: {body}");
+    assert_eq!(
+        status, 200,
+        "first request: expected 200, got {status}: {body}"
+    );
     assert_eq!(body["role"], "member");
 
     // Second request: promoted to admin
@@ -89,6 +92,9 @@ async fn role_synced_from_groups_on_each_request(pool: sqlx::PgPool) {
             None,
         )
         .await;
-    assert_eq!(status, 200, "second request: expected 200, got {status}: {body}");
+    assert_eq!(
+        status, 200,
+        "second request: expected 200, got {status}: {body}"
+    );
     assert_eq!(body["role"], "admin");
 }
