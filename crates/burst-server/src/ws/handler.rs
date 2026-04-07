@@ -48,6 +48,7 @@ pub async fn ws_handler(
                 external_id,
                 &display_name,
                 None,
+                "member",
             )
             .await?;
             db::users::find_by_external_id(&state.db, external_id)

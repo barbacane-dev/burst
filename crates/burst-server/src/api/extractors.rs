@@ -37,7 +37,7 @@ impl FromRequestParts<AppState> for AuthUser {
             Some(user) => {
                 // Re-sync profile from OIDC claims on each request (lazy sync).
                 if let Some(ref c) = claims {
-                    sync_profile_from_claims(&state.db, &user, c).await;
+                    sync_profile_from_claims(&state.db, &user, c, parts).await;
                 }
                 user
             }
@@ -47,15 +47,21 @@ impl FromRequestParts<AppState> for AuthUser {
                     .as_ref()
                     .and_then(extract_display_name)
                     .unwrap_or_else(|| humanize_username(external_id));
+                let username = claims
+                    .as_ref()
+                    .and_then(|c| extract_claim_string(c, "preferred_username"))
+                    .unwrap_or_else(|| external_id.to_string());
                 let email = claims
                     .as_ref()
                     .and_then(|c| extract_claim_string(c, "email"));
+                let role = extract_role_from_groups(parts);
                 super::users::jit_provision(
                     &state.db,
                     external_id,
-                    external_id,
+                    &username,
                     &display_name,
                     email.as_deref(),
+                    &role,
                 )
                 .await?;
 
@@ -117,27 +123,56 @@ async fn sync_profile_from_claims(
     pool: &sqlx::PgPool,
     user: &db::users::UserRow,
     claims: &serde_json::Value,
+    parts: &Parts,
 ) {
     let new_name = extract_display_name(claims);
     let new_email = extract_claim_string(claims, "email");
     let new_avatar = extract_claim_string(claims, "picture");
+    let new_username = extract_claim_string(claims, "preferred_username");
 
     let name_changed = new_name.as_ref().is_some_and(|n| n != &user.display_name);
     let email_changed = new_email.is_some() && new_email != user.email;
     let avatar_changed = new_avatar.is_some() && new_avatar != user.avatar_url;
+    let username_changed = new_username.as_ref().is_some_and(|u| u != &user.username);
 
-    if (name_changed || email_changed || avatar_changed)
+    if (name_changed || email_changed || avatar_changed || username_changed)
         && let Err(e) = db::users::sync_profile(
             pool,
             user.id,
             new_name.as_deref(),
             new_email.as_deref(),
             new_avatar.as_deref(),
+            new_username.as_deref(),
         )
         .await
     {
         tracing::warn!(user_id = %user.id, error = %e, "failed to sync profile from OIDC claims");
     }
+
+    // Sync role from gateway groups header.
+    let new_role = extract_role_from_groups(parts);
+    if new_role != user.role
+        && let Err(e) = db::users::update_role(pool, user.id, &new_role).await
+    {
+        tracing::warn!(user_id = %user.id, error = %e, "failed to sync role from groups");
+    }
+}
+
+/// Extract role from the x-auth-consumer-groups header set by Barbacane.
+/// Maps "admin" group to "admin" role, defaults to "member".
+fn extract_role_from_groups(parts: &Parts) -> String {
+    parts
+        .headers
+        .get("x-auth-consumer-groups")
+        .and_then(|v| v.to_str().ok())
+        .map(|groups| {
+            if groups.split(',').any(|g| g.trim() == "admin") {
+                "admin".to_string()
+            } else {
+                "member".to_string()
+            }
+        })
+        .unwrap_or_else(|| "member".to_string())
 }
 
 /// Convert a username like "alice" to a display name like "Alice".
@@ -200,5 +235,89 @@ impl PaginationParams {
             }
             Uuid::parse_str(s).ok()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::Request;
+    use serde_json::json;
+
+    #[test]
+    fn extract_display_name_from_name_claim() {
+        let claims = json!({"name": "Alice Smith", "preferred_username": "alice"});
+        assert_eq!(extract_display_name(&claims), Some("Alice Smith".into()));
+    }
+
+    #[test]
+    fn extract_display_name_from_given_family() {
+        let claims = json!({"given_name": "Alice", "family_name": "Smith"});
+        assert_eq!(extract_display_name(&claims), Some("Alice Smith".into()));
+    }
+
+    #[test]
+    fn extract_display_name_from_preferred_username() {
+        let claims = json!({"preferred_username": "alice"});
+        assert_eq!(extract_display_name(&claims), Some("alice".into()));
+    }
+
+    #[test]
+    fn extract_display_name_no_claims() {
+        let claims = json!({"sub": "abc"});
+        assert_eq!(extract_display_name(&claims), None);
+    }
+
+    #[test]
+    fn humanize_username_capitalizes() {
+        assert_eq!(humanize_username("alice"), "Alice");
+        assert_eq!(humanize_username(""), "");
+    }
+
+    fn make_parts_with_groups(groups: Option<&str>) -> Parts {
+        let mut builder = Request::builder().method("GET").uri("/");
+        if let Some(g) = groups {
+            builder = builder.header("x-auth-consumer-groups", g);
+        }
+        builder.body(()).unwrap().into_parts().0
+    }
+
+    #[test]
+    fn role_from_admin_group() {
+        let parts = make_parts_with_groups(Some("admin"));
+        assert_eq!(extract_role_from_groups(&parts), "admin");
+    }
+
+    #[test]
+    fn role_from_multiple_groups_with_admin() {
+        let parts = make_parts_with_groups(Some("member, admin, moderator"));
+        assert_eq!(extract_role_from_groups(&parts), "admin");
+    }
+
+    #[test]
+    fn role_defaults_to_member() {
+        let parts = make_parts_with_groups(Some("user, editor"));
+        assert_eq!(extract_role_from_groups(&parts), "member");
+    }
+
+    #[test]
+    fn role_defaults_to_member_when_no_header() {
+        let parts = make_parts_with_groups(None);
+        assert_eq!(extract_role_from_groups(&parts), "member");
+    }
+
+    #[test]
+    fn extract_claim_string_returns_value() {
+        let claims = json!({"email": "alice@example.com"});
+        assert_eq!(
+            extract_claim_string(&claims, "email"),
+            Some("alice@example.com".into())
+        );
+    }
+
+    #[test]
+    fn extract_claim_string_returns_none_for_missing() {
+        let claims = json!({"sub": "abc"});
+        assert_eq!(extract_claim_string(&claims, "email"), None);
     }
 }

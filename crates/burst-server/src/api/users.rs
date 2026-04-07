@@ -131,6 +131,7 @@ pub async fn jit_provision(
     username: &str,
     display_name: &str,
     email: Option<&str>,
+    role: &str,
 ) -> Result<Uuid, ApiError> {
     if let Some(user) = db::users::find_by_external_id(pool, external_id).await? {
         return Ok(user.id);
@@ -146,7 +147,7 @@ pub async fn jit_provision(
             email: email.map(String::from),
             password_hash: None,
             external_id: Some(external_id.to_string()),
-            role: "member".to_string(),
+            role: role.to_string(),
         },
     )
     .await?;

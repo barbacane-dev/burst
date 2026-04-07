@@ -117,6 +117,39 @@ impl TestApp {
         self.request(method, uri, None, body).await
     }
 
+    /// Send a request with custom headers (claims, groups, etc.)
+    pub async fn request_with_headers(
+        &self,
+        method: &str,
+        uri: &str,
+        external_id: &str,
+        headers: &[(&str, &str)],
+        body: Option<serde_json::Value>,
+    ) -> (StatusCode, serde_json::Value) {
+        let mut builder = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header("x-auth-consumer", external_id);
+        for (k, v) in headers {
+            builder = builder.header(*k, *v);
+        }
+        let req = if let Some(json) = body {
+            builder = builder.header("Content-Type", "application/json");
+            builder
+                .body(Body::from(serde_json::to_vec(&json).unwrap()))
+                .unwrap()
+        } else {
+            builder.body(Body::empty()).unwrap()
+        };
+        let response = self.router.clone().oneshot(req).await.unwrap();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let json = serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null);
+        (status, json)
+    }
+
     async fn request(
         &self,
         method: &str,

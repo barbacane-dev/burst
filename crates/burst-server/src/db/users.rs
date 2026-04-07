@@ -305,12 +305,14 @@ pub async fn sync_profile(
     display_name: Option<&str>,
     email: Option<&str>,
     avatar_url: Option<&str>,
+    username: Option<&str>,
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE users SET \
          display_name = COALESCE($2, display_name), \
          email = COALESCE($3, email), \
          avatar_url = COALESCE($4, avatar_url), \
+         username = COALESCE($5, username), \
          updated_at = now() \
          WHERE id = $1",
     )
@@ -318,6 +320,7 @@ pub async fn sync_profile(
     .bind(display_name)
     .bind(email)
     .bind(avatar_url)
+    .bind(username)
     .execute(pool)
     .await?;
     Ok(())
