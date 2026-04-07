@@ -28,7 +28,7 @@ RUN barbacane compile \
       --allow-plaintext
 
 # ── Stage 4: Runtime ──────────────────────────────────────────────────────────
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ARG TARGETARCH
 
