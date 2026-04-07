@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-04-08
+
 ### Added
 - Incoming webhooks — external systems can post messages to channels via `POST /api/webhooks/{id}/trigger` with bearer token auth (bypasses OIDC)
 - Outgoing webhooks — channel events delivered to external URLs with HMAC-SHA256 signing (`X-Burst-Signature`), retry with exponential backoff
@@ -27,6 +29,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - `groups_claim` mapping recognizes `integrator` group from OIDC JWT
 - Integration management endpoints use `acl: { allow: [admin, integrator] }` in OpenAPI spec
 - `BURST_SPA_BUCKET` env var added to `.env` for local dev
+
+### Fixed
+- All-in-one Docker image crash on amd64: switched runtime base from `debian:bookworm-slim` (glibc 2.36) to `debian:trixie-slim` (glibc 2.40) to match CI-built binary (#62)
 
 ## [0.0.5] - 2026-04-07
 
