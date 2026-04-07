@@ -50,6 +50,7 @@ function AppRoutes() {
         element={user ? <Navigate to="/" replace /> : <LoginPage />}
       />
       <Route path="/callback" element={<CallbackPage />} />
+      <Route path="/index.html" element={<Navigate to="/" replace />} />
       <Route
         path="/"
         element={
