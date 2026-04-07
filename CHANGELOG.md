@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- OIDC discovery — resolve authorize/token endpoints from `.well-known/openid-configuration` (works with any provider)
+- PKCE (S256) for secure public client authentication
+- JIT user provisioning maps `preferred_username`, `name`, `email` from OIDC claims
+- Role mapping from `x-auth-consumer-groups` header (`admin` group → admin role)
+- Profile and role re-synced from OIDC claims on every authenticated request
+- `LOGIN_LOCAL` env var to hide credentials form when SSO-only
+- SPA catch-all route via Barbacane S3 dispatcher with `fallback_key: index.html`
+- JIT provisioning integration tests (3 tests) and extractor unit tests (11 tests)
+
+### Changed
+- All-in-one image: removed nginx and s6-overlay, replaced with shell entrypoint (4 → 3 processes)
+- All-in-one image: SPA served from RustFS via Barbacane S3 dispatcher (was nginx static files)
+- All-in-one image: SPA uploaded to RustFS at container startup via `curl --aws-sigv4`
+- Bumped Barbacane from v0.6.1 to v0.6.3
+- Login button: generic "Sign in with SSO" (was Google-specific)
+- Default OIDC scopes: `openid email profile groups` (added `groups`)
+- Username set from `preferred_username` claim (was UUID `sub`)
+
+### Removed
+- nginx from all-in-one Docker image
+- s6-overlay process supervisor from all-in-one Docker image
+- Google-specific OIDC endpoint hardcoding
+
 ## [0.0.4] - 2026-04-03
 
 ### Added
