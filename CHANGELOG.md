@@ -5,6 +5,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-04-08
+
+### Changed
+- `groups_claim` in OIDC config is now configurable via `BURST_OIDC_GROUPS_CLAIM` env var (was hardcoded to `roles`)
+- Defaults to `roles` for backwards compatibility; set to `groups` for Authelia or any provider-specific claim name
+- OIDC docs updated with Authelia setup guide and provider comparison table
+
+### Fixed
+- Release workflow: reverted `action-gh-release` from v3 to v2 (v3 tag does not exist)
+
+### Dependencies
+- vite 8.0.2 → 8.0.7
+- react-router-dom 7.13.2 → 7.14.0
+- tokio 1.50.0 → 1.51.0
+- @playwright/test 1.58.2 → 1.59.1
+- jsdom 29.0.1 → 29.0.2
+- vitest 4.1.1 → 4.1.3
+- react-virtuoso 4.18.3 → 4.18.4
+- @tanstack/react-query 5.95.2 → 5.96.2
+- toml 1.1.0 → 1.1.2
+
 ## [0.0.6] - 2026-04-08
 
 ### Added
