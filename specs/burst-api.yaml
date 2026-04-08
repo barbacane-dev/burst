@@ -1884,6 +1884,160 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
 
+  # ── Custom Emojis (Admin) ──
+
+  /api/admin/emojis:
+    get:
+      operationId: listAdminEmojis
+      summary: List custom emojis (admin)
+      description: >-
+        Returns all custom emojis. Requires admin role.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      responses:
+        "200":
+          description: Paginated list of custom emojis
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 1000
+                    items:
+                      $ref: "#/components/schemas/CustomEmoji"
+                  cursor:
+                    type: ["string", "null"]
+                    maxLength: 40
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    post:
+      operationId: createCustomEmoji
+      summary: Upload a custom emoji
+      description: >-
+        Uploads a custom emoji image with a shortcode. Requires admin role.
+        The image must be under 256 KB and have an image/* content type.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [shortcode, image]
+              properties:
+                shortcode:
+                  type: string
+                  minLength: 2
+                  maxLength: 32
+                  pattern: "^[a-z0-9_]+$"
+                  description: Shortcode for the emoji (e.g. "party_parrot").
+                image:
+                  type: string
+                  format: binary
+                  maxLength: 262144
+                  description: Emoji image file (PNG, GIF, WebP, or SVG, max 256 KB).
+      responses:
+        "201":
+          description: Custom emoji created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomEmoji"
+        "400":
+          description: Invalid shortcode or missing image
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          description: Image exceeds 256 KB size limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/admin/emojis/{emojiId}:
+    delete:
+      operationId: deleteCustomEmoji
+      summary: Delete a custom emoji
+      description: >-
+        Deletes a custom emoji by ID. Requires admin role.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: emojiId
+          in: path
+          required: true
+          description: Custom emoji ID
+          schema:
+            type: string
+            maxLength: 40
+      responses:
+        "204":
+          description: Emoji deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   # ── Webhooks ──
 
   /api/channels/{channelId}/webhooks:
