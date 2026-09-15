@@ -3,7 +3,7 @@
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
 
-BARBACANE_VERSION := 0.6.3
+BARBACANE_VERSION := 0.10.0
 BARBACANE_BIN     := .barbacane/bin/barbacane
 BURST_BCA         := burst-api.bca
 
@@ -87,7 +87,7 @@ gateway-compile: $(BARBACANE_BIN) ## Compile the Burst OpenAPI spec into Barbaca
 	@echo "Compiled burst-s3.bca"
 
 gateway: $(BURST_BCA) ## Run the Barbacane gateway (requires: make gateway-compile)
-	$(BARBACANE_BIN) serve \
+	BARBACANE_ALLOW_INTERNAL_EGRESS=true $(BARBACANE_BIN) serve \
 		--artifact $(BURST_BCA) \
 		--listen 0.0.0.0:8080 \
 		--dev \

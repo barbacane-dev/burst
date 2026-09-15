@@ -1,11 +1,12 @@
 # Barbacane manifest for the Burst S3 storage sidecar.
 # Minimal plugin set: only S3 dispatcher + API key auth.
 # Compile with: barbacane compile --spec specs/burst-s3.yaml --manifest barbacane-s3.yaml --output burst-s3.bca
+# Checksums: https://github.com/barbacane-dev/barbacane/releases/download/v0.10.0/plugin-checksums.txt
 
 plugins:
   s3:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.6.3/s3.wasm
-    sha256: 4e8298ad059c367e0d648b77e657da4325f7ea9933de9f4dac31775a9be8b4c6
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.10.0/s3.wasm
+    sha256: 812c19ddea1e9198963c4a005c12c72655f5d00fdc0b54bf24c1e4c87f075e43
   apikey-auth:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.6.3/apikey-auth.wasm
-    sha256: 193b3a98be3c56233811b40d4fa802663120c150123dfb0e0e5dedcc4845a5ca
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.10.0/apikey-auth.wasm
+    sha256: b296d5b8ecf5b66693e0d596aa4ed06921a20e6b9cb522f25f765b1a11ce893c

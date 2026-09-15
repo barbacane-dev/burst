@@ -71,6 +71,11 @@ Both gateway instances read their configuration from environment variables.
 Here is a minimal `.env.example` covering all referenced `env://` values:
 
 ```bash
+# --- Both gateway processes ---
+# Burst, RustFS and an IdP on the same host or network are internal
+# addresses; Barbacane's plugin SSRF guard blocks egress to them unless set.
+BARBACANE_ALLOW_INTERNAL_EGRESS=true
+
 # --- Public gateway (port 8080) ---
 BURST_UPSTREAM_URL=http://127.0.0.1:3000
 BURST_UPSTREAM_WS_URL=ws://127.0.0.1:3000
@@ -161,6 +166,10 @@ If the gateway rejects requests unexpectedly, check:
 
 - **OIDC discovery** — the gateway must reach `BURST_OIDC_ISSUER_URL/.well-known/openid-configuration`.
   Use `BURST_OIDC_ISSUER_OVERRIDE` when the internal URL differs from the public one.
+- **Internal egress blocked** — every valid token is rejected with 401 while unauthenticated
+  requests also get 401: the plugin SSRF guard is blocking the discovery/JWKS fetch (or the
+  upstream) because it resolves to a loopback or private address. Set
+  `BARBACANE_ALLOW_INTERNAL_EGRESS=true` on the gateway process.
 - **Upstream connectivity** — verify `BURST_UPSTREAM_URL` and `BURST_UPSTREAM_WS_URL`
   point to a running Burst server.
 - **Rate limits** — rate-limit errors return HTTP 429. Adjust thresholds in the spec

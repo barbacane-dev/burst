@@ -39,6 +39,14 @@ These variables are referenced by `env://` placeholders in the OpenAPI specs
 (`specs/burst-api.yaml` and `specs/burst-s3.yaml`). They are read by the
 Barbacane gateway processes, not by Burst itself.
 
+### Gateway Process Variables
+
+Read by the Barbacane binary itself, not through `env://` references. Apply to both gateway processes.
+
+| Variable | Description |
+|----------|-------------|
+| `BARBACANE_ALLOW_INTERNAL_EGRESS` | Set to `true`. Disables Barbacane's plugin SSRF guard, which otherwise blocks egress to loopback, private-network and link-local addresses. Every Burst upstream (the Burst API, the S3 sidecar, RustFS, and an IdP on the same network) is such an address, so without it `oidc-auth` cannot fetch discovery/JWKS and every authenticated request is rejected with 401 |
+
 ### Public Gateway Variables
 
 Used by the public Barbacane gateway (port 8080).
@@ -90,6 +98,9 @@ BURST_STORAGE_LOCAL_PATH=./uploads
 # BURST_STORAGE_GATEWAY_URL=http://127.0.0.1:8081
 # BURST_STORAGE_GATEWAY_API_KEY=change-me
 # BURST_BROKER_BACKEND=pg_notify
+
+# ── Both Barbacane processes ─────────────────────────────────
+BARBACANE_ALLOW_INTERNAL_EGRESS=true
 
 # ── Public Gateway (Barbacane :8080) ─────────────────────────
 BURST_UPSTREAM_URL=http://127.0.0.1:3000

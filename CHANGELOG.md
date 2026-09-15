@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- Bumped Barbacane from v0.6.3 to v0.10.0 (plugin manifests, `barbacane-standalone` image, CI and Makefile). Barbacane 0.10 verifies plugin capability manifests at load and rejects artifacts built from pre-0.8.1 plugin binaries, so artifacts must be recompiled against the new manifests.
+- Gateway processes run with `BARBACANE_ALLOW_INTERNAL_EGRESS=true` (CI, Makefile, Procfile, compose files, all-in-one entrypoint). Barbacane 0.8+ blocks plugin egress to loopback and private addresses by default, which covers every Burst upstream (Burst API, S3 sidecar, RustFS, and an IdP on the same network); without it `oidc-auth` cannot fetch discovery/JWKS and every authenticated request is rejected.
+- CI prints the gateway and server logs when the smoke job fails.
+
+### Fixed
+- CI `openapi-lint` no longer hardcodes the Barbacane vacuum function list; it is read from the downloaded ruleset. The hardcoded list referenced a function Barbacane has since removed, which made the job fail on every run.
+
 ## [0.0.7] - 2026-04-08
 
 ### Changed

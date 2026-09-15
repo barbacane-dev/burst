@@ -70,7 +70,7 @@ services:
   # Public gateway — handles API + WebSocket traffic with full middleware stack
   # Plugins: oidc-auth, acl, rate-limit, http-upstream, ws-upstream
   barbacane:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:0.6.3
+    image: ghcr.io/barbacane-dev/barbacane-standalone:0.10.0
     expose:
       - "8080"
     volumes:
@@ -81,6 +81,9 @@ services:
       BURST_OIDC_ISSUER_URL: ${BURST_OIDC_ISSUER_URL:?Set BURST_OIDC_ISSUER_URL in .env}
       BURST_OIDC_ISSUER_OVERRIDE: ${BURST_OIDC_ISSUER_OVERRIDE:-}
       BURST_OIDC_GROUPS_CLAIM: ${BURST_OIDC_GROUPS_CLAIM:-roles}
+      # Upstreams are on the private compose network; the plugin SSRF guard
+      # blocks that egress unless this is set.
+      BARBACANE_ALLOW_INTERNAL_EGRESS: "true"
     command: >
       serve
       --artifact /config/burst-api.bca
@@ -104,7 +107,7 @@ services:
   # S3 storage sidecar — internal only, minimal attack surface
   # Plugins: s3, apikey-auth
   barbacane-s3:
-    image: ghcr.io/barbacane-dev/barbacane-standalone:0.6.3
+    image: ghcr.io/barbacane-dev/barbacane-standalone:0.10.0
     expose:
       - "8081"
     volumes:
@@ -116,6 +119,7 @@ services:
       BURST_S3_SECRET_ACCESS_KEY: ${RUSTFS_ROOT_PASSWORD}
       BURST_S3_ENDPOINT: http://rustfs:9000
       BURST_S3_API_KEY: ${S3_API_KEY}
+      BARBACANE_ALLOW_INTERNAL_EGRESS: "true"
     command: >
       serve
       --artifact /config/burst-s3.bca

@@ -15,7 +15,7 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-  BARBACANE_VERSION: "0.6.3"
+  BARBACANE_VERSION: "0.10.0"
 
 jobs:
   changes:
@@ -226,6 +226,9 @@ jobs:
           BURST_S3_SECRET_ACCESS_KEY: ci-secret
           BURST_S3_ENDPOINT: http://localhost:9000
           BURST_SPA_BUCKET: burst-ci-spa
+          # Burst and the mock IdP are loopback upstreams; the plugin SSRF
+          # guard blocks loopback egress unless this is set.
+          BARBACANE_ALLOW_INTERNAL_EGRESS: "true"
         run: |
           .barbacane/bin/barbacane serve \
             --artifact burst-api.bca \
@@ -253,6 +256,12 @@ jobs:
 
       - name: Run smoke tests
         run: k6 run tests/http/smoke.js
+
+      - name: Show gateway and server logs
+        if: failure()
+        run: |
+          echo "::group::barbacane.log"; cat /tmp/barbacane.log || true; echo "::endgroup::"
+          echo "::group::burst.log"; cat /tmp/burst.log || true; echo "::endgroup::"
 
   # ── Security audit ─────────────────────────────────────────────────────────
   audit:

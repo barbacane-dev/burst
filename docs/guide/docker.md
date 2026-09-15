@@ -47,6 +47,9 @@ The compose uses environment variables. Override defaults by setting them in you
 BURST_UPSTREAM_URL=http://burst:3000
 BURST_UPSTREAM_WS_URL=ws://burst:3000
 BURST_OIDC_ISSUER_URL=http://host.docker.internal:9099/burst
+# Upstreams are on the private compose network; Barbacane's plugin SSRF
+# guard blocks that egress unless set (set in the compose file by default)
+BARBACANE_ALLOW_INTERNAL_EGRESS=true
 ```
 
 See [Environment Variables](../reference/environment-variables.md) for the complete list.

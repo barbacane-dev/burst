@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+# Burst, the S3 sidecar and RustFS are loopback or private-network upstreams;
+# the plugin SSRF guard blocks that egress unless this is set.
+export BARBACANE_ALLOW_INTERNAL_EGRESS=true
+
 # ── 1. Generate runtime env.js ───────────────────────────────────────────────
 /etc/burst/env.sh
 
