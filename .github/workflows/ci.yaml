@@ -272,15 +272,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Download Barbacane ruleset and functions
+        # The function list is read from the ruleset itself, so it always
+        # matches what docs.barbacane.dev publishes.
         run: |
           mkdir -p .barbacane/rulesets
           curl -fsSL "https://docs.barbacane.dev/rulesets/barbacane.yaml" \
             -o ".barbacane/rulesets/barbacane.yaml"
-          for f in barbacane-auth-opt-out barbacane-no-duplicate-middlewares \
-                   barbacane-no-plaintext-upstream barbacane-no-unknown-extensions \
-                   barbacane-valid-path-params barbacane-valid-secret-refs \
-                   barbacane-validate-dispatch-config barbacane-validate-middleware-config \
-                   barbacane-mcp-requires-fields; do
+          funcs=$(grep -E '^[[:space:]]*function:[[:space:]]*barbacane-' .barbacane/rulesets/barbacane.yaml \
+            | sed -E 's/.*function:[[:space:]]*//' | sort -u)
+          echo "functions: $(echo $funcs | tr '\n' ' ')"
+          for f in $funcs; do
             curl -fsSL "https://docs.barbacane.dev/rulesets/functions/${f}.js" \
               -o "specs/functions/${f}.js"
           done

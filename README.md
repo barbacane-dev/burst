@@ -34,23 +34,13 @@ Open http://localhost:5173 and sign in with `alice` (any password).
 The API spec is linted with [vacuum](https://quobix.com/vacuum/) using Burst-specific rules (ADR-005) and the [Barbacane ruleset](https://docs.barbacane.dev/guide/vacuum.html).
 
 ```bash
-# Download the Barbacane ruleset and custom functions (first time only)
-mkdir -p .barbacane/rulesets/functions
-curl -fsSL https://docs.barbacane.dev/rulesets/barbacane.yaml \
-  -o .barbacane/rulesets/barbacane.yaml
-for f in barbacane-auth-opt-out barbacane-no-duplicate-middlewares \
-         barbacane-no-plaintext-upstream barbacane-no-unknown-extensions \
-         barbacane-valid-secret-refs barbacane-validate-dispatch-config \
-         barbacane-validate-middleware-config; do
-  curl -fsSL "https://docs.barbacane.dev/rulesets/functions/${f}.js" \
-    -o ".barbacane/rulesets/functions/${f}.js"
-done
-
-# Lint
-vacuum lint -f .barbacane/rulesets/functions specs/burst-api.yaml -r specs/.vacuum.yaml
+# Download the Barbacane ruleset and the custom functions it references,
+# then lint. The function list comes from the ruleset, so it tracks what
+# docs.barbacane.dev publishes.
+make lint-spec
 ```
 
-CI downloads the ruleset automatically on each run.
+CI runs the same download and lint on each run.
 
 ## Architecture
 

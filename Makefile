@@ -117,15 +117,15 @@ db: ## Open a psql shell on the burst database
 seed: ## Seed the database with sample users
 	cargo run --example seed -- $(DB_URL)
 
-BARBACANE_FUNCTIONS := barbacane-auth-opt-out barbacane-no-duplicate-middlewares \
-	barbacane-no-plaintext-upstream barbacane-no-unknown-extensions \
-	barbacane-valid-path-params barbacane-valid-secret-refs \
-	barbacane-validate-dispatch-config barbacane-validate-middleware-config \
-	barbacane-mcp-requires-fields
+BARBACANE_RULESET_URL := https://docs.barbacane.dev/rulesets
 
+# Downloads the Barbacane ruleset and every custom function it references.
 specs/functions/.barbacane-fetched:
-	@for f in $(BARBACANE_FUNCTIONS); do \
-		curl -fsSL "https://docs.barbacane.dev/rulesets/functions/$${f}.js" \
+	@mkdir -p .barbacane/rulesets
+	@curl -fsSL "$(BARBACANE_RULESET_URL)/barbacane.yaml" -o .barbacane/rulesets/barbacane.yaml
+	@for f in $$(grep -E '^[[:space:]]*function:[[:space:]]*barbacane-' .barbacane/rulesets/barbacane.yaml \
+			| sed -E 's/.*function:[[:space:]]*//' | sort -u); do \
+		curl -fsSL "$(BARBACANE_RULESET_URL)/functions/$${f}.js" \
 			-o "specs/functions/$${f}.js"; \
 	done
 	@touch $@
