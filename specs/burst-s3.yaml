@@ -116,3 +116,13 @@ paths:
       responses:
         "204":
           description: Object deleted
+
+security:
+  - StorageKey: []
+
+components:
+  securitySchemes:
+    StorageKey:
+      type: apiKey
+      in: header
+      name: X-Storage-Key

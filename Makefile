@@ -3,7 +3,7 @@
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
 
-BARBACANE_VERSION := 0.10.0
+BARBACANE_VERSION := 0.11.0
 BARBACANE_BIN     := .barbacane/bin/barbacane
 BURST_BCA         := burst-api.bca
 

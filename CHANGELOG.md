@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Changed
+- Bumped Barbacane to v0.11.0. The gateway now forwards only the request headers an operation admits, and refuses an operation that runs an authentication middleware without naming the security scheme carrying the credential. Two spec changes were needed:
+  - `specs/burst-s3.yaml` declares a `StorageKey` `apiKey` scheme naming `X-Storage-Key`, the header its global `apikey-auth` middleware reads. Without it the spec no longer compiles.
+  - `specs/burst-api.yaml` declares a `WebhookToken` bearer scheme on `POST /api/webhooks/{webhookId}/trigger`. That operation opts out of the OIDC chain and is authenticated by the upstream against the webhook's own token, so its `security: []` would have dropped the `Authorization` header and broken every incoming webhook.
 - Bumped Barbacane from v0.6.3 to v0.10.0 (plugin manifests, `barbacane-standalone` image, CI and Makefile). Barbacane 0.10 verifies plugin capability manifests at load and rejects artifacts built from pre-0.8.1 plugin binaries, so artifacts must be recompiled against the new manifests.
 - Gateway processes run with `BARBACANE_ALLOW_INTERNAL_EGRESS=true` (CI, Makefile, Procfile, compose files, all-in-one entrypoint). Barbacane 0.8+ blocks plugin egress to loopback and private addresses by default, which covers every Burst upstream (Burst API, S3 sidecar, RustFS, and an IdP on the same network); without it `oidc-auth` cannot fetch discovery/JWKS and every authenticated request is rejected.
 - CI prints the gateway and server logs when the smoke job fails.

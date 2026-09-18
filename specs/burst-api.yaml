@@ -2313,7 +2313,8 @@ paths:
         Authenticates via the webhook's bearer token, not OIDC.
       tags:
         - Webhooks
-      security: []
+      security:
+        - WebhookToken: []
       x-barbacane-dispatch:
         name: http-upstream
         config:
@@ -2632,6 +2633,13 @@ paths:
 
 components:
   securitySchemes:
+    WebhookToken:
+      type: http
+      scheme: bearer
+      description: >-
+        The incoming webhook's own token, issued by Burst and validated by the
+        upstream rather than by a gateway middleware. Naming it here is what
+        lets the Authorization header reach the upstream.
     BearerAuth:
       type: http
       scheme: bearer
