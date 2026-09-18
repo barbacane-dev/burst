@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
@@ -192,4 +192,22 @@ async fn deliver(webhook: db::webhooks::WebhookRow, event: ServerEvent, client: 
         delivery_id = %delivery_id,
         "outgoing webhook delivery failed after all retries"
     );
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use super::*;
+
+    /// RFC 4231 test case 2. The signature travels to every outgoing webhook
+    /// consumer, so a dependency bump that changed it would break them all
+    /// silently.
+    #[test]
+    fn hmac_sha256_matches_the_published_vector() {
+        let mut mac = HmacSha256::new_from_slice(b"Jefe").expect("HMAC accepts any key size");
+        mac.update(b"what do ya want for nothing?");
+        assert_eq!(
+            hex::encode(mac.finalize().into_bytes()),
+            "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
+        );
+    }
 }
