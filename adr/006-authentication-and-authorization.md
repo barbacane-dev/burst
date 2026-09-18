@@ -1,6 +1,6 @@
 # ADR-006: Authentication & Authorization
 
-**Status:** Amended (2026-03-12)
+**Status:** Amended (2026-03-12); amended by [ADR-014](014-gateway-optional-deployment.md) and [ADR-015](015-local-accounts.md) (2026-09-15): Burst validates tokens itself in the standalone tier, accepts gateway identity headers only from configured trusted proxies, and provides local accounts. The JIT provisioning, role model and resource-level authorization sections remain in force.
 **Date:** 2026-03-06
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR-002: Core Feature Set
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-014](014-gateway-optional-deployment.md) (2026-09-15): the Barbacane gateway is the recommended production front door, not a requirement.
 **Date:** 2026-03-06
 
 ## Context

@@ -1,6 +1,6 @@
 # ADR-003: Technology Stack
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-014](014-gateway-optional-deployment.md) (2026-09-15): authentication is delegated to Barbacane in the gateway tier only; the standalone tier validates tokens and serves the SPA from the Burst binary.
 **Date:** 2026-03-06
 
 ## Context

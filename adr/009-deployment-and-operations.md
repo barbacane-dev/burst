@@ -1,6 +1,6 @@
 # ADR-009: Deployment & Operations
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-014](014-gateway-optional-deployment.md) (2026-09-15): the minimum deployment is the Burst binary plus PostgreSQL (standalone tier); the Barbacane topologies below describe the gateway tier.
 **Date:** 2026-03-06
 
 ## Context

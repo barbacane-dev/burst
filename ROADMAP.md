@@ -4,20 +4,26 @@ Prioritised development roadmap for Burst.
 
 ## What ships as v1.0?
 
-v1.0 is the public release. It covers Milestones 1–7: a fully functional, production-deployable messaging tool with real-time delivery, threads, DMs, search, file sharing, and basic administration. Milestones 8+ extend the integration surface and introduce enhanced search.
+v1.0 is the public release. It covers Milestones 1–9 (the messaging core, integration surface and SSO) plus Milestones 10–13: a standalone deployment tier that runs as one binary with PostgreSQL, local accounts, and the public release itself. Milestones 1–9 are complete.
 
-**v1.0 is not a feature-complete product.** It is the smallest version that proves the core hypothesis: a focused, fully open-source messaging tool with no feature gating beats the alternatives for teams that need reliability and operational simplicity over breadth.
+**v1.0 is not a feature-complete product.** It is the smallest version that proves the core hypothesis: a focused, fully open-source messaging tool with no feature gating and no user cap beats the alternatives for teams that need reliability and operational simplicity over breadth.
 
 **v1.0 success looks like:** at least three external teams self-hosting Burst as their primary internal messaging tool within 6 months of public release, with no blocking issues caused by missing core features.
 
+**Deployment tiers at v1.0 ([ADR-014](adr/014-gateway-optional-deployment.md)):**
+- **Standalone:** `burst` + PostgreSQL. Local accounts and/or an external OIDC provider. Single-node rate limiting. Bot accounts unavailable.
+- **Gateway (recommended for production):** Barbacane in front of Burst. Zero-trust boundary, multi-node rate limiting, native WAF, gateway observability, MCP exposure, bot accounts via `apikey-auth`.
+
 **Known gaps at v1.0:**
-- No LDAP auth. Teams with LDAP-only directories must use an OIDC bridge (e.g., Keycloak in front of LDAP) or wait for the Barbacane `ldap-auth` plugin (see Future Considerations). The "LDAP not enterprise-gated" differentiator (ADR-002) is real — it means LDAP will ship as a free feature — but it is not in v1.
+- No LDAP auth. Teams with LDAP-only directories use an OIDC bridge (e.g., Keycloak in front of LDAP). LDAP is planned for M14 (see Future Considerations).
 - No mobile push notifications. Browser notifications cover the primary use case. Native push is deferred.
 - No link unfurling. Links are rendered as plain clickable text in v1.
-- Webhooks and bot accounts ship in M8 (post-v1). Teams needing integrations can use the REST API directly.
+- Bot accounts require the gateway tier. Standalone bot credentials are planned for M14.
+- Local accounts and an external IdP cannot both be active behind the gateway until the gateway supports two issuers on one route ([ADR-015](adr/015-local-accounts.md)).
 
 **Pre-release gates (must complete before tagging v1.0):**
-- Licensing ADR completed and committed.
+- Licensing ADR completed and committed. Done.
+- Milestones 10–13 complete.
 - Repo made public.
 
 ---
@@ -222,13 +228,89 @@ Production-grade SSO documentation and JIT provisioning refinement.
 
 ---
 
+## Milestone 10 — Hygiene & Barbacane 0.10
+
+Bring the repository current and close the identity-header trust gap. No product changes.
+
+- [x] Merge open dependency updates; fix the failing `actions/checkout@v7` CI run (#97, #99; major bumps sha2/hmac/rand and action-gh-release v3 still under review, #92)
+- [x] Bump Barbacane 0.6.3 → 0.10.0 — plugin URLs and SHA256 in `barbacane.yaml` / `barbacane-s3.yaml`, `barbacane-standalone` image tag, `BARBACANE_VERSION` in CI and Makefile (#98). Gateway processes need `BARBACANE_ALLOW_INTERNAL_EGRESS=true`: 0.8+ blocks plugin egress to loopback/private upstreams by default
+- [ ] Replace the manual compile-serve loop in `make gateway` with `barbacane dev` (blocked: `dev` has no `--max-body-size`, barbacane-dev/barbacane#177)
+- [ ] `[auth] mode` + `trusted_proxies` — refuse `X-Auth-*` headers from unlisted peers; refuse to start in `trusted-headers` mode without a list (ADR-014)
+- [ ] Fix role re-sync overwriting `PATCH /api/admin/users/{id}` on the next request (`sync_profile_from_claims`)
+- [ ] Remove the dead `[auth]` section from `burst.toml.example`; default `LOGIN_LOCAL` off in `docker/env.sh` until ADR-015 gives the form a backend
+- [ ] Remove the unused `tower-http` `cors` feature or start using it (M11 uses it)
+
+---
+
+## Milestone 11 — Standalone Tier
+
+Burst runs as one binary with PostgreSQL. Barbacane becomes the recommended production topology instead of a requirement (ADR-014).
+
+### Backend
+
+- [ ] OIDC token validation — discovery, JWKS cache with rotation, issuer/audience/skew checks, producing the existing `AuthUser`
+- [ ] `/ws` accepts `?access_token=` and validates it with the same path
+- [ ] SPA served from the binary with `index.html` fallback; `/env.js` rendered from config
+- [ ] CORS, request body limit and baseline security-header layers
+- [ ] Single-node per-subject rate limiter; login and upload endpoints throttled
+- [ ] Optional direct S3 storage backend (SigV4) as a third `Storage` variant
+
+### Testing & CI
+
+- [ ] OIDC-mode integration harness with a test issuer and JWKS; trusted-headers tests with and without a matching peer
+- [ ] Smoke suite runs twice, through the gateway and direct against Burst; results diffed as a contract test
+
+### Infrastructure & docs
+
+- [ ] Standalone compose file (two services: `burst`, `postgres`) and bare-binary quick start
+- [ ] All-in-one image stops uploading the SPA to S3; RustFS becomes optional
+- [ ] Docs restructured around the two tiers; the gateway tier documents WAF, multi-node limits and MCP exposure
+
+---
+
+## Milestone 12 — Local Accounts
+
+Sign in without an identity provider (ADR-015).
+
+### Backend
+
+- [ ] Argon2id password hashing; minimum length 12
+- [ ] `POST /api/auth/login`, `/refresh`, `/logout`; `sessions` table with hashed, rotating refresh tokens
+- [ ] Ed25519 signing key generated on first start; `/.well-known/jwks.json`
+- [ ] First-run admin bootstrap (endpoint and `burst admin create`); disabled once a user exists
+- [ ] Invitations; open self-registration as an instance setting, off by default
+- [ ] Admin password reset; session revocation on deactivation
+- [ ] Login throttling per account and per client address
+
+### Frontend
+
+- [ ] Login form targets `/api/auth/login`; shown only when local accounts are enabled (`/env.js` setting replaces `LOGIN_LOCAL`)
+- [ ] First-run setup page; invitation acceptance page
+- [ ] Admin panel: create user with password, reset password, invitation management
+
+### Gateway tier
+
+- [ ] `/api/auth/*` declared unauthenticated in the spec; `oidc-auth` configurable with Burst as issuer
+
+---
+
+## Milestone 13 — Public Release (v1.0)
+
+- [ ] README rewritten around the standalone quick start and the two-tier model; positioning against user caps and SSO gating in the alternatives
+- [ ] Release workflow publishes the standalone image alongside the gateway-tier images
+- [ ] Repo made public; v1.0 tagged
+- [ ] Announcement and a place for feedback (discussions or issues templates)
+
+---
+
 ## Future Considerations
 
 Not committed — revisit when demand or opportunity arises.
 
 | Item | Context | ADR |
 |------|---------|-----|
-| Barbacane ldap-auth plugin | **Blocks the "LDAP not enterprise-gated" differentiator.** Required for teams with LDAP-only directories. Already in Barbacane roadmap P2. High priority to pull forward — Burst's LDAP requirement is a strong argument. | ADR-006 |
+| LDAP auth (M14 candidate) | Gateway tier: the Barbacane `ldap-auth` plugin exists (native `ldap` host functions, Barbacane ADR-0032, merged 2026-09-16, ships in the next Barbacane release); groups arrive as `x-auth-consumer-groups` like every other auth plugin, so the spec change is a middleware swap. Standalone tier: direct LDAP bind via the `ldap3` crate (`default-features = false`, `tls-rustls-aws-lc-rs`). | ADR-006, ADR-014 |
+| Standalone bot credentials (M14 candidate) | API keys issued and hashed in Burst, validated by the ADR-014 auth path, so bots work without the gateway. Needs a credential table, issuance/rotation/revocation endpoints and admin UI. | ADR-014 |
 | Mobile push notifications | Browser notifications cover v1. Native push (APNs, FCM) requires per-platform cert management, service workers, and a notification relay service. Add when mobile usage data justifies the engineering cost. | ADR-002 |
 | Link unfurling | In-scope in ADR-002 but deferred from v1. Requires an async fetch pipeline, timeout handling, and content sanitisation to do safely. Add in a post-v1 polish milestone. | ADR-002 |
 | Tauri desktop app | Lightweight alternative to Electron | ADR-003 |
