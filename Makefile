@@ -1,10 +1,35 @@
-.PHONY: help all dev stop restart services-up server ui gateway gateway-compile services db seed lint-spec check smoke smoke-s3 e2e install
+.PHONY: help all dev stop restart require-engine require-procfile-runner services-up server ui gateway gateway-compile services db seed lint-spec check smoke smoke-s3 e2e install
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 DB_URL    := postgres://burst:burst@localhost:5432/burst
 
-BARBACANE_VERSION := 0.11.0
-BARBACANE_BIN     := .barbacane/bin/barbacane
+# Container engine. Docker when present, podman otherwise; both accept the
+# `compose` subcommand. Override with CONTAINER_ENGINE=... for anything else.
+CONTAINER_ENGINE ?= $(shell command -v docker 2>/dev/null || command -v podman 2>/dev/null)
+COMPOSE          := $(CONTAINER_ENGINE) compose
+
+# Procfile runner. Overmind when present, hivemind otherwise; they read the same
+# Procfile but are invoked differently, and only overmind can stop a running set
+# from another shell.
+OVERMIND := $(shell command -v overmind 2>/dev/null)
+HIVEMIND := $(shell command -v hivemind 2>/dev/null)
+ifneq ($(OVERMIND),)
+  PROC_START := $(OVERMIND) start
+  PROC_STOP  := $(OVERMIND) quit 2>/dev/null || true
+else
+  PROC_START := $(HIVEMIND)
+  PROC_STOP  := true
+endif
+
+BARBACANE_VERSION ?= 0.11.0
+# Downloaded from the release by default. Point it at a local build to run
+# ahead of a release, which works while the change stays out of the plugins
+# and the artifact format:
+#   BARBACANE_BIN=../barbacane/target/release/barbacane make gateway
+BARBACANE_BIN     ?= .barbacane/bin/barbacane
+# The Procfile reads it too, and overmind inherits this process's environment,
+# so export it for `make BARBACANE_BIN=... all` as well as the env form.
+export BARBACANE_BIN
 BURST_BCA         := burst-api.bca
 
 # Detect platform for binary download
@@ -28,21 +53,58 @@ help: ## Show this help
 	/^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 # ── Combined ───────────────────────────────────────────────────────────────────
-all: services-up gateway-compile ## Start gateway + server + UI via overmind
-	overmind start
+all: require-procfile-runner .env burst.toml ui/node_modules services-up gateway-compile ## Start gateway + server + UI
+	$(PROC_START)
 
-stop: ## Stop overmind processes and free ports (Docker stays running)
-	overmind quit 2>/dev/null || true
+stop: ## Stop the process set and free ports (containers stay running)
+	@$(PROC_STOP)
 	@for port in 3000 5173 8080; do \
 		pid=$$(lsof -ti :$$port 2>/dev/null); \
 		[ -n "$$pid" ] && kill $$pid 2>/dev/null && echo "killed pid $$pid on :$$port"; \
 	done; true
 
-restart: gateway-compile stop services-up ## Recompile gateway, stop everything, then start fresh
-	overmind start
+restart: require-procfile-runner .env burst.toml ui/node_modules gateway-compile stop services-up ## Recompile gateway, stop everything, then start fresh
+	$(PROC_START)
 
-services-up: ## Ensure Docker services are running and healthy
-	@docker compose -f docker-compose.dev.yml up -d
+# Overmind loads .env for the process set, but a target run on its own does
+# not get it, and the gateway resolves its env:// references from there.
+# Sourced in the recipe so quoting behaves as the shell does.
+LOAD_ENV := set -a; . ./.env; set +a;
+
+# The Procfile runs `burst burst.toml`, and the file is gitignored. The example
+# already matches the dev stack: the same database, and the local gateway's
+# address in trusted_proxies.
+burst.toml:
+	@cp burst.toml.example burst.toml
+	@echo "Created burst.toml from burst.toml.example."
+
+# The Procfile runs `npm run dev`, which needs the UI dependencies present.
+# Keyed on the lockfile so it reinstalls when that changes.
+ui/node_modules: ui/package-lock.json
+	@cd ui && npm ci
+	@touch ui/node_modules
+
+# Overmind reads .env from the working directory, and the gateway resolves its
+# env:// references from there. Seed it rather than failing after the compile.
+.env:
+	@cp .env.example .env
+	@echo "Created .env from .env.example. Edit it if your local ports differ."
+
+require-procfile-runner:
+	@test -n "$(PROC_START)" || { \
+		echo "No Procfile runner found. Run 'make install', or install overmind"; \
+		echo "(https://github.com/DarthSim/overmind) or hivemind."; \
+		exit 1; \
+	}
+
+require-engine:
+	@test -n "$(CONTAINER_ENGINE)" || { \
+		echo "No container engine found. Install docker or podman, or set CONTAINER_ENGINE=<path>."; \
+		exit 1; \
+	}
+
+services-up: require-engine ## Ensure the container services are running and healthy
+	@$(COMPOSE) -f docker-compose.dev.yml up -d
 	@until curl -sf http://localhost:9099/burst/.well-known/openid-configuration >/dev/null 2>&1; do \
 		sleep 0.5; \
 	done
@@ -86,8 +148,8 @@ gateway-compile: $(BARBACANE_BIN) ## Compile the Burst OpenAPI spec into Barbaca
 		--allow-plaintext
 	@echo "Compiled burst-s3.bca"
 
-gateway: $(BARBACANE_BIN) ## Run the Barbacane gateway, recompiling on spec changes
-	BARBACANE_ALLOW_INTERNAL_EGRESS=true $(BARBACANE_BIN) dev \
+gateway: $(BARBACANE_BIN) .env ## Run the Barbacane gateway, recompiling on spec changes
+	@$(LOAD_ENV) BARBACANE_ALLOW_INTERNAL_EGRESS=true $(BARBACANE_BIN) dev \
 		--spec specs/burst-api.yaml \
 		--manifest barbacane.yaml \
 		--listen 0.0.0.0:8080 \
@@ -95,23 +157,23 @@ gateway: $(BARBACANE_BIN) ## Run the Barbacane gateway, recompiling on spec chan
 		--log-format pretty
 
 # ── Dev Services ──────────────────────────────────────────────────────────
-services: ## Run PostgreSQL + mock OIDC server (Docker)
-	docker compose -f docker-compose.dev.yml up
+services: require-engine ## Run PostgreSQL + mock OIDC server
+	$(COMPOSE) -f docker-compose.dev.yml up
 
 # ── Backend ────────────────────────────────────────────────────────────────────
-server: ## Run the Burst API server
+server: burst.toml ## Run the Burst API server
 	RUST_LOG=info,burst=debug,burst_server=debug cargo run --bin burst -- burst.toml
 
 server-release: ## Run with release build
 	cargo build --release && RUST_LOG=info ./target/release/burst burst.toml
 
 # ── Frontend ───────────────────────────────────────────────────────────────────
-ui: ## Run the Vite dev server (proxies API to localhost:8080)
+ui: ui/node_modules ## Run the Vite dev server (proxies API to localhost:8080)
 	cd ui && npm run dev
 
 # ── Database ───────────────────────────────────────────────────────────────────
 db: ## Open a psql shell on the burst database
-	docker compose -f docker-compose.dev.yml exec postgres psql -U burst burst
+	$(COMPOSE) -f docker-compose.dev.yml exec postgres psql -U burst burst
 
 seed: ## Seed the database with sample users
 	cargo run --example seed -- $(DB_URL)
@@ -144,9 +206,15 @@ smoke: ## Run k6 smoke tests (requires: make all running in another terminal)
 smoke-s3: ## Run k6 S3 storage smoke test (requires: RustFS + Barbacane S3 dispatcher)
 	k6 run tests/http/smoke-s3.js
 
-e2e: ## Run Playwright E2E tests (requires: make all running in another terminal)
+# Playwright downloads its browsers separately from npm, so a fresh checkout
+# has the runner without anything to drive.
+ui/node_modules/.playwright-browsers: ui/node_modules
+	@cd ui && npx playwright install chromium
+	@touch ui/node_modules/.playwright-browsers
+
+e2e: ui/node_modules/.playwright-browsers ## Run Playwright E2E tests (requires: make all running in another terminal)
 	cd ui && npx playwright test
 
 # ── Tooling ────────────────────────────────────────────────────────────────────
-install: ## Install dev tooling (overmind)
+install: ## Install dev tooling (the Procfile runner)
 	brew install overmind

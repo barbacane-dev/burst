@@ -1,5 +1,10 @@
 # Docker Compose
 
+> Commands below use `docker`. Podman is a drop-in alternative: `podman compose`
+> and `podman build` take the same arguments, and podman reads a `Dockerfile`
+> without renaming. The Makefile picks whichever is installed, so `make` targets
+> need no change.
+
 The full-stack Docker Compose runs Burst, PostgreSQL, RustFS, and Barbacane in containers with a zero-trust topology.
 
 ## Prerequisites

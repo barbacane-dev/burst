@@ -152,6 +152,24 @@ barbacane serve --artifact burst-s3.bca --listen 0.0.0.0:8081 \
 Both read `env://` values from the process environment; in development use a
 `.env` file or `direnv`.
 
+### Running ahead of a release
+
+`BARBACANE_BIN` points at the binary downloaded from the pinned release.
+Override it to run a local build, which is how a gateway fix gets exercised
+here before it is tagged:
+
+```bash
+BARBACANE_BIN=../barbacane/target/release/barbacane make gateway
+```
+
+This works while the change stays out of the plugins and the artifact format.
+A plugin fix needs its `.wasm` rebuilt and the manifest repointed, and an
+artifact-format change forces a recompile, since the data plane checks the
+version on load. `BARBACANE_VERSION` is overridable the same way.
+
+Note that CI downloads the released binary, so it keeps testing the pinned
+version while a local run is ahead of it.
+
 ## Gateway Manifest
 
 `barbacane.yaml` declares the plugins Burst needs, each pinned to a release

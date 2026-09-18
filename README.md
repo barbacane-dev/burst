@@ -109,8 +109,8 @@ Run `make help` for the full list. Key targets:
 | `make ui` | Run Vite dev server |
 | `make seed` | Seed database with test users |
 | `make db` | Open psql shell |
-| `make all` | Compile gateway + start everything via overmind |
-| `make stop` | Stop all overmind processes |
+| `make all` | Compile gateway + start everything (overmind, or hivemind if that is what you have) |
+| `make stop` | Stop the process set and free its ports |
 | `make restart` | Recompile gateway and restart everything |
 | `make check` | Format, lint, and test |
 | `make smoke` | Run k6 smoke tests (106 checks) |
