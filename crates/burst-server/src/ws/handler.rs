@@ -22,10 +22,17 @@ pub struct WsQuery {
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
+    axum::extract::ConnectInfo(peer): axum::extract::ConnectInfo<std::net::SocketAddr>,
     headers: HeaderMap,
     Query(query): Query<WsQuery>,
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, ApiError> {
+    // A second entry point for the same identity headers, so it takes the same
+    // peer check as the HTTP extractor.
+    if !crate::api::trusted_peer::is_trusted(peer.ip(), &state.config.auth.trusted_proxies) {
+        return Err(ApiError::Unauthorized);
+    }
+
     let external_id = headers
         .get("x-auth-consumer")
         .and_then(|v| v.to_str().ok())

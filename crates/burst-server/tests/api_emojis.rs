@@ -31,7 +31,7 @@ async fn admin_create_and_list_emoji(pool: sqlx::PgPool) {
          --{boundary}--\r\n"
     );
 
-    let req = axum::http::Request::builder()
+    let req = common::with_peer(axum::http::Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri("/api/admin/emojis")
         .header("x-auth-consumer", "admin@test.example")
@@ -75,7 +75,7 @@ async fn non_admin_cannot_create_emoji(pool: sqlx::PgPool) {
          --{boundary}--\r\n"
     );
 
-    let req = axum::http::Request::builder()
+    let req = common::with_peer(axum::http::Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri("/api/admin/emojis")
         .header("x-auth-consumer", "bob@test.example")
@@ -130,7 +130,7 @@ async fn shortcode_validation(pool: sqlx::PgPool) {
          --{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"t.png\"\r\n\
          Content-Type: image/png\r\n\r\ndata\r\n--{boundary}--\r\n"
     );
-    let req = axum::http::Request::builder()
+    let req = common::with_peer(axum::http::Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri("/api/admin/emojis")
         .header("x-auth-consumer", "admin@test.example")

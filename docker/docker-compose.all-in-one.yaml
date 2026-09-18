@@ -48,6 +48,13 @@ services:
     environment:
       # Database
       BURST_DATABASE_URL: postgres://burst:${POSTGRES_PASSWORD}@postgres:5432/burst
+      # Peers whose X-Auth-* headers are believed. Burst refuses to start with
+      # an empty list: those headers name the caller and carry the role, so any
+      # peer reaching Burst directly could otherwise claim any identity. The
+      # compose network assigns the gateway a dynamic address, so the private
+      # ranges are listed here; narrow this to the gateway's address in a
+      # deployment where it is fixed.
+      BURST_AUTH_TRUSTED_PROXIES: ${BURST_AUTH_TRUSTED_PROXIES:-10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,127.0.0.1/32}
       # OIDC provider (gateway auth)
       BURST_OIDC_ISSUER_URL: ${BURST_OIDC_ISSUER_URL:?Set BURST_OIDC_ISSUER_URL in .env}
       BURST_OIDC_ISSUER_OVERRIDE: ${BURST_OIDC_ISSUER_OVERRIDE:-${BURST_OIDC_ISSUER_URL}}

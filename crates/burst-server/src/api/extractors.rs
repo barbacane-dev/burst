@@ -3,8 +3,24 @@ use axum::http::request::Parts;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::api::trusted_peer;
 use crate::db;
 use crate::error::ApiError;
+
+/// Whether the connecting peer is one whose `X-Auth-*` headers are believed.
+///
+/// A request with no peer address recorded is refused: that means the server
+/// was not built with connection info, and accepting the headers anyway would
+/// silently disable the check.
+pub(crate) fn peer_is_trusted(parts: &Parts, trusted: &[String]) -> bool {
+    match parts
+        .extensions
+        .get::<axum::extract::ConnectInfo<std::net::SocketAddr>>()
+    {
+        Some(info) => trusted_peer::is_trusted(info.0.ip(), trusted),
+        None => false,
+    }
+}
 
 /// Extracts the authenticated user ID from the `X-Auth-Consumer` header
 /// set by the Barbacane gateway after authentication (basic-auth, jwt-auth, etc.).
@@ -25,6 +41,13 @@ impl FromRequestParts<AppState> for AuthUser {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
+        // The identity headers name the caller and carry the role, so they are
+        // believed only from the gateway that sets them. Every other peer is
+        // anonymous, whatever it sends.
+        if !peer_is_trusted(parts, &state.config.auth.trusted_proxies) {
+            return Err(ApiError::Unauthorized);
+        }
+
         let external_id = parts
             .headers
             .get("x-auth-consumer")

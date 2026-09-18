@@ -7,6 +7,12 @@ url = "postgres://burst:burst@localhost:5432/burst"
 max_connections = 20
 
 [auth]
-jwt_secret = "change-me-in-production"
-jwt_expiry = "15m"
-refresh_expiry = "7d"
+# How the caller's identity is established. "trusted-headers" takes it from the
+# X-Auth-* headers the gateway sets.
+mode = "trusted-headers"
+# Peers whose X-Auth-* headers are believed, as addresses or CIDR ranges.
+# Required in trusted-headers mode and refused if empty: those headers name the
+# caller and carry the role, so any peer able to reach Burst directly could
+# otherwise claim any identity. List the gateway, and nothing else.
+# Override with BURST_AUTH_TRUSTED_PROXIES as a comma-separated list.
+trusted_proxies = ["127.0.0.1/32"]

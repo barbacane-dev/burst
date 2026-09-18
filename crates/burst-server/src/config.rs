@@ -14,6 +14,30 @@ pub struct Config {
     pub telemetry: TelemetryConfig,
     #[serde(default)]
     pub broker: BrokerConfig,
+    #[serde(default)]
+    pub auth: AuthConfig,
+}
+
+/// How Burst establishes the caller's identity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AuthMode {
+    /// Identity comes from the `X-Auth-*` headers a gateway sets, and is
+    /// accepted only from a peer in `trusted_proxies`.
+    #[default]
+    TrustedHeaders,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AuthConfig {
+    #[serde(default)]
+    pub mode: AuthMode,
+    /// Peers whose `X-Auth-*` headers are believed, as single addresses or CIDR
+    /// ranges. Required in `trusted-headers` mode: the headers name the caller,
+    /// so anything able to reach Burst directly could otherwise claim any
+    /// identity, and any role.
+    #[serde(default)]
+    pub trusted_proxies: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -64,6 +88,7 @@ fn default_max_connections() -> u32 {
 pub struct AppConfig {
     pub storage: StorageConfig,
     pub websocket: WebSocketConfig,
+    pub auth: AuthConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -231,6 +256,7 @@ impl Config {
                     websocket: WebSocketConfig::default(),
                     telemetry: TelemetryConfig::default(),
                     broker: BrokerConfig::default(),
+                    auth: AuthConfig::default(),
                 },
             }
         };
@@ -245,6 +271,21 @@ impl Config {
         if self.database.url.is_empty() {
             return Err(ConfigError::Missing("database.url (or BURST_DATABASE_URL)"));
         }
+        // Fail closed: an empty list in trusted-headers mode would believe the
+        // identity headers from every peer.
+        if self.auth.mode == AuthMode::TrustedHeaders && self.auth.trusted_proxies.is_empty() {
+            return Err(ConfigError::Missing(
+                "auth.trusted_proxies (or BURST_AUTH_TRUSTED_PROXIES) is required in \
+                 trusted-headers mode, as a comma-separated list of addresses or CIDR ranges",
+            ));
+        }
+        for entry in &self.auth.trusted_proxies {
+            if !crate::api::trusted_peer::is_valid_entry(entry) {
+                return Err(ConfigError::Invalid(format!(
+                    "auth.trusted_proxies entry '{entry}' is not an IP address or CIDR range"
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -252,6 +293,7 @@ impl Config {
         AppConfig {
             storage: self.storage.clone(),
             websocket: self.websocket.clone(),
+            auth: self.auth.clone(),
         }
     }
 }
@@ -270,6 +312,14 @@ fn apply_env(config: &mut Config) {
         && let Ok(n) = v.parse()
     {
         config.database.max_connections = n;
+    }
+    if let Ok(v) = std::env::var("BURST_AUTH_TRUSTED_PROXIES") {
+        config.auth.trusted_proxies = v
+            .split(',')
+            .map(str::trim)
+            .filter(|e| !e.is_empty())
+            .map(str::to_string)
+            .collect();
     }
     if let Ok(v) = std::env::var("BURST_STORAGE_BACKEND") {
         config.storage.backend = v;
@@ -293,4 +343,6 @@ pub enum ConfigError {
     Parse(toml::de::Error),
     #[error("missing required config: {0}")]
     Missing(&'static str),
+    #[error("invalid config: {0}")]
+    Invalid(String),
 }

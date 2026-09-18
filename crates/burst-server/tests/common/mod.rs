@@ -33,6 +33,19 @@ pub struct TestApp {
     _storage_dir: tempfile::TempDir,
 }
 
+/// The peer the test fixture trusts, and the address the helpers connect from.
+pub const TRUSTED_TEST_PEER: &str = "127.0.0.1/32";
+
+/// `oneshot` drives the router directly, so no connection info exists. The
+/// helpers add it, since the identity headers are only believed from a peer.
+pub fn with_peer(
+    builder: axum::http::request::Builder,
+    peer: &str,
+) -> axum::http::request::Builder {
+    let addr: std::net::SocketAddr = peer.parse().expect("peer address");
+    builder.extension(axum::extract::ConnectInfo(addr))
+}
+
 impl TestApp {
     pub fn new(pool: PgPool) -> Self {
         let storage_dir = tempfile::tempdir().expect("failed to create temp storage dir");
@@ -42,6 +55,10 @@ impl TestApp {
                 ..StorageConfig::default()
             },
             websocket: WebSocketConfig::default(),
+            auth: burst_server::config::AuthConfig {
+                mode: burst_server::config::AuthMode::TrustedHeaders,
+                trusted_proxies: vec![TRUSTED_TEST_PEER.to_string()],
+            },
         };
         let storage = Storage::Local(LocalStorage::new(storage_dir.path().to_path_buf()).unwrap());
         let state = AppState::new(
@@ -126,7 +143,7 @@ impl TestApp {
         headers: &[(&str, &str)],
         body: Option<serde_json::Value>,
     ) -> (StatusCode, serde_json::Value) {
-        let mut builder = Request::builder()
+        let mut builder = with_peer(Request::builder(), "127.0.0.1:54321")
             .method(method)
             .uri(uri)
             .header("x-auth-consumer", external_id);
@@ -157,7 +174,9 @@ impl TestApp {
         external_id: Option<&str>,
         body: Option<serde_json::Value>,
     ) -> (StatusCode, serde_json::Value) {
-        let mut builder = Request::builder().method(method).uri(uri);
+        let mut builder = with_peer(Request::builder(), "127.0.0.1:54321")
+            .method(method)
+            .uri(uri);
 
         if let Some(eid) = external_id {
             builder = builder.header("x-auth-consumer", eid);
@@ -189,7 +208,7 @@ impl TestApp {
         token: &str,
         body: serde_json::Value,
     ) -> (StatusCode, serde_json::Value) {
-        let req = Request::builder()
+        let req = with_peer(Request::builder(), "127.0.0.1:54321")
             .method("POST")
             .uri(uri)
             .header("Content-Type", "application/json")

@@ -4,6 +4,7 @@ pub mod channels;
 pub mod extractors;
 pub mod health;
 pub mod search;
+pub mod trusted_peer;
 pub mod users;
 pub mod webhooks;
 

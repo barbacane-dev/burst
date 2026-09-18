@@ -98,7 +98,7 @@ async fn upload_and_download_attachment(pool: sqlx::PgPool) {
         b"Hello, world!",
     );
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -146,7 +146,7 @@ async fn blocked_extension_rejected(pool: sqlx::PgPool) {
         b"\x00",
     );
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -170,7 +170,7 @@ async fn non_member_cannot_download(pool: sqlx::PgPool) {
     let boundary = "----TestBoundary789";
     let body = multipart_body(boundary, "secret", "doc.txt", "text/plain", b"classified");
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -210,7 +210,7 @@ async fn file_size_limit_enforced(pool: sqlx::PgPool) {
         &big_data,
     );
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -238,7 +238,7 @@ async fn attachments_included_in_list_messages(pool: sqlx::PgPool) {
         b"some notes",
     );
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -275,7 +275,7 @@ async fn download(
     attachment_id: &str,
     external_id: &str,
 ) -> (StatusCode, Vec<u8>) {
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("GET")
         .uri(format!("/api/attachments/{attachment_id}"))
         .header("x-auth-consumer", external_id)
@@ -296,7 +296,7 @@ async fn download_with_headers(
     attachment_id: &str,
     external_id: &str,
 ) -> (StatusCode, Vec<u8>, Option<String>) {
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("GET")
         .uri(format!("/api/attachments/{attachment_id}"))
         .header("x-auth-consumer", external_id)
@@ -328,7 +328,7 @@ async fn upload_file(
     let boundary = "----UploadHelper";
     let body = multipart_body(boundary, content, file_name, file_content_type, file_data);
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", external_id)
@@ -361,7 +361,7 @@ async fn multiple_files_upload(pool: sqlx::PgPool) {
     ];
     let body = multipart_body_multi(boundary, "two files", &files);
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -397,7 +397,7 @@ async fn file_only_message_with_empty_content(pool: sqlx::PgPool) {
 
     let body = multipart_body(boundary, "", "data.txt", "text/plain", b"some data");
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -441,7 +441,7 @@ async fn non_member_cannot_upload(pool: sqlx::PgPool) {
     let boundary = "----NonMemberUpload";
     let body = multipart_body(boundary, "sneaky", "hack.txt", "text/plain", b"data");
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "bob@test.example")
@@ -616,7 +616,7 @@ async fn attachments_included_in_thread_replies(pool: sqlx::PgPool) {
     body.extend_from_slice(b"\r\n");
     body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")
@@ -660,7 +660,7 @@ async fn send_message_with_attachment_broadcasts_event(pool: sqlx::PgPool) {
         b"event data",
     );
 
-    let req = Request::builder()
+    let req = common::with_peer(Request::builder(), "127.0.0.1:54321")
         .method("POST")
         .uri(format!("/api/channels/{ch_id}/messages"))
         .header("x-auth-consumer", "alice@test.example")

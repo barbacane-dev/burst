@@ -196,6 +196,11 @@ jobs:
           [database]
           url = "postgres://burst:burst@localhost:5432/burst"
           max_connections = 5
+
+          [auth]
+          mode = "trusted-headers"
+          # The gateway runs on the same host in CI.
+          trusted_proxies = ["127.0.0.1/32", "::1/128"]
           TOML
 
       - name: Start Burst server

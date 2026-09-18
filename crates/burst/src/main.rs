@@ -190,12 +190,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Run both servers with graceful shutdown
     let main_handle = tokio::spawn(
-        axum::serve(main_listener, app)
-            .with_graceful_shutdown({
-                let token = shutdown_token.clone();
-                async move { token.cancelled().await }
-            })
-            .into_future(),
+        axum::serve(
+            main_listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        )
+        .with_graceful_shutdown({
+            let token = shutdown_token.clone();
+            async move { token.cancelled().await }
+        })
+        .into_future(),
     );
     let admin_handle = tokio::spawn(
         axum::serve(admin_listener, admin)
