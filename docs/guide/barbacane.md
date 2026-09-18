@@ -84,6 +84,8 @@ BURST_OIDC_ISSUER_URL=https://auth.example.com/realms/burst
 # Optional: override the issuer URL used for token validation
 # (useful when the gateway reaches the IdP via a different address)
 BURST_OIDC_ISSUER_OVERRIDE=http://keycloak:8080/realms/burst
+# Token claim holding the user's groups, mapped to x-auth-consumer-groups
+BURST_OIDC_GROUPS_CLAIM=roles
 
 # --- S3 sidecar (port 8081) ---
 BURST_S3_REGION=us-east-1
@@ -94,58 +96,96 @@ BURST_S3_ENDPOINT=http://127.0.0.1:9000
 BURST_S3_API_KEY=a-long-random-secret
 ```
 
+`BURST_S3_API_KEY` is one half of a pair. The sidecar's `apikey-auth` accepts
+that key; Burst presents it when calling the sidecar, as
+`BURST_STORAGE_GATEWAY_API_KEY` alongside `BURST_STORAGE_GATEWAY_URL`. The two
+must hold the same value, which is why the compose files feed both from one
+`S3_API_KEY`.
+
+Burst itself needs `BURST_AUTH_TRUSTED_PROXIES`, listing the peers whose
+`X-Auth-*` headers it believes. It refuses to start without one, since those
+headers name the caller and carry the role. List the gateway, and nothing
+else.
+
 ## Compiling Gateway Artifacts
 
-Barbacane compiles OpenAPI specs into binary artifacts (`.bca` files) for fast
-startup. You compile both artifacts with a single command:
+Barbacane compiles the OpenAPI specs into binary artifacts (`.bca` files) so the
+gateway starts without a compiler. Both are produced by one command:
 
 ```bash
 make gateway-compile
 ```
-
-This produces two files:
 
 | Artifact | Source | Instance |
 |----------|--------|----------|
 | `burst-api.bca` | `specs/burst-api.yaml` | Public gateway |
 | `burst-s3.bca` | `specs/burst-s3.yaml` | S3 sidecar |
 
-You must recompile whenever you change the spec. The compiled artifacts are
-checked into version control so that `barbacane run` can start without the
-compiler installed.
+Artifacts are build output, not source: `*.bca` is gitignored. The compose
+topology compiles them with `make gateway-compile` before starting, and the
+all-in-one image compiles them at build time.
+
+Recompile whenever a spec changes. An artifact built by an older Barbacane is
+refused at load by version, naming the recompile.
 
 ## Running the Gateways
 
-Start each instance pointing to its compiled artifact:
+For local development, one command compiles the spec, serves it, and recompiles
+on save:
 
 ```bash
-# Public gateway
-barbacane run burst-api.bca --listen 0.0.0.0:8080
-
-# S3 sidecar
-barbacane run burst-s3.bca --listen 0.0.0.0:8081
+make gateway     # barbacane dev, watching specs/burst-api.yaml, on :8080
 ```
 
-Both commands read `env://` values from the process environment.
-In development, use a `.env` file or a tool like `direnv`.
+Deployments serve a prebuilt artifact instead, which is what the compose files
+and the all-in-one entrypoint do:
+
+```bash
+barbacane serve --artifact burst-api.bca --listen 0.0.0.0:8080 \
+  --allow-plaintext-upstream --max-body-size 10485760
+
+barbacane serve --artifact burst-s3.bca --listen 0.0.0.0:8081 \
+  --allow-plaintext-upstream --max-body-size 104857600
+```
+
+`--max-body-size` differs by instance: the S3 sidecar carries file uploads.
+Both read `env://` values from the process environment; in development use a
+`.env` file or `direnv`.
 
 ## Gateway Manifest
 
-The file `barbacane.yaml` at the repository root declares which Barbacane plugins
-Burst requires and where to find them:
+`barbacane.yaml` declares the plugins Burst needs, each pinned to a release
+asset by URL and checksum, so a compile fetches exactly the reviewed binary:
 
 ```yaml
 plugins:
-  - oidc-auth
-  - acl
-  - rate-limit
-  - http-upstream
-  - ws-upstream
-  - s3
-  - apikey-auth
+  oidc-auth:
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.11.0/oidc-auth.wasm
+    sha256: ded95c05c1eaeb4b307871a6f18c6289b9c31f73b6bd1a40fecc2817fdc2fb43
+  rate-limit:
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.11.0/rate-limit.wasm
+    sha256: ...
 ```
 
-This manifest is used during compilation to resolve plugin paths.
+`barbacane-s3.yaml` does the same for the sidecar, which needs only `s3` and
+`apikey-auth`. The checksums for a release are published alongside it as
+`plugin-checksums.txt`.
+
+## Declaring Authentication
+
+From Barbacane 0.11 an operation that runs an authentication middleware must
+name the security scheme carrying its credential, and only the headers an
+operation admits reach the upstream. Two consequences for these specs:
+
+- `specs/burst-s3.yaml` declares a `StorageKey` `apiKey` scheme naming
+  `X-Storage-Key`, the header its `apikey-auth` middleware reads.
+- `POST /api/webhooks/{webhookId}/trigger` opts out of the OIDC chain and is
+  authenticated by Burst against the webhook's own token, so it declares a
+  `WebhookToken` bearer scheme. Without it the gateway would strip the
+  `Authorization` header and the webhook would fail with nothing logged.
+
+Headers a plugin's own configuration names, such as the `rate-limit` partition
+key, are admitted automatically and need no declaration.
 
 ## Roles and ACL
 
@@ -170,6 +210,16 @@ If the gateway rejects requests unexpectedly, check:
   requests also get 401: the plugin SSRF guard is blocking the discovery/JWKS fetch (or the
   upstream) because it resolves to a loopback or private address. Set
   `BARBACANE_ALLOW_INTERNAL_EGRESS=true` on the gateway process.
+- **A header never arrives** — from 0.11 the gateway forwards only the headers an
+  operation admits. Declare it as an `in: header` parameter on the operation, or as
+  the security scheme carrying it. `barbacane dev` logs each dropped header by name,
+  which is the quickest way to see what is missing.
+- **Burst refuses to start** — `auth.trusted_proxies` is empty. It is required, since
+  the `X-Auth-*` headers name the caller and carry the role.
+- **Every request is 401 with a valid token** — Burst is reachable from a peer outside
+  `trusted_proxies`, so it treats the gateway's identity headers as untrusted. Check the
+  address the gateway connects from, remembering that a container network assigns it
+  dynamically.
 - **Upstream connectivity** — verify `BURST_UPSTREAM_URL` and `BURST_UPSTREAM_WS_URL`
   point to a running Burst server.
 - **Rate limits** — rate-limit errors return HTTP 429. Adjust thresholds in the spec
