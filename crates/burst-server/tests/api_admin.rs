@@ -66,6 +66,81 @@ async fn update_user_role(pool: sqlx::PgPool) {
     assert_eq!(body["role"], "moderator");
 }
 
+/// A role an admin sets by hand must survive the user's next request. The auth
+/// plugins omit the groups header for an identity that has none, and reading
+/// that absence as `member` silently undid the change on the very next call.
+#[sqlx::test(migrations = "../../migrations")]
+async fn a_role_set_by_an_admin_survives_the_next_request(pool: sqlx::PgPool) {
+    let app = common::TestApp::new(pool.clone());
+    common::seed_user_with_role(&pool, "admin1", "admin").await;
+    let alice = common::seed_user(&pool, "alice").await;
+    let user_id = burst_core::id::format_user_id(alice.id);
+
+    let (status, body) = app
+        .patch(
+            &format!("/api/admin/users/{user_id}"),
+            &auth("admin1"),
+            serde_json::json!({ "role": "moderator" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["role"], "moderator");
+
+    // Alice calls again. The gateway sends her claims, as it does on every
+    // request, but her identity has no groups so it sends no groups header.
+    // The stored role must stand.
+    let (status, _) = app
+        .request_with_headers(
+            "GET",
+            "/api/users/me",
+            &auth("alice"),
+            &[("x-auth-claims", r#"{"sub":"alice"}"#)],
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let stored = burst_server::db::users::find_by_external_id(&pool, &auth("alice"))
+        .await
+        .expect("query")
+        .expect("alice exists");
+    assert_eq!(
+        stored.role, "moderator",
+        "the role an admin set was overwritten by the groups re-sync"
+    );
+}
+
+/// Where the identity provider does say something, it still wins: that is the
+/// re-sync the role mapping exists for.
+#[sqlx::test(migrations = "../../migrations")]
+async fn groups_still_drive_the_role_when_the_gateway_sends_them(pool: sqlx::PgPool) {
+    let app = common::TestApp::new(pool.clone());
+    let alice = common::seed_user(&pool, "alice").await;
+
+    let (status, _) = app
+        .request_with_headers(
+            "GET",
+            "/api/users/me",
+            &auth("alice"),
+            &[
+                ("x-auth-consumer-groups", "admin"),
+                // The re-sync runs inside the claims block, so the gateway's
+                // claims header has to be present as it is in a real request.
+                ("x-auth-claims", r#"{"sub":"alice"}"#),
+            ],
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let stored = burst_server::db::users::find_by_external_id(&pool, &auth("alice"))
+        .await
+        .expect("query")
+        .expect("alice exists");
+    assert_eq!(stored.role, "admin", "a groups header still promotes");
+    let _ = alice;
+}
+
 #[sqlx::test(migrations = "../../migrations")]
 async fn update_user_role_invalid_is_bad_request(pool: sqlx::PgPool) {
     let app = common::TestApp::new(pool.clone());

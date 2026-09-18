@@ -237,7 +237,7 @@ Bring the repository current and close the identity-header trust gap. No product
 - [x] Bump Barbacane 0.10.0 → 0.11.0. The gateway forwards only the headers an operation admits and refuses an operation running an authentication middleware without a security scheme, so `burst-s3.yaml` declares a `StorageKey` apiKey scheme and the incoming-webhook operation declares a `WebhookToken` bearer scheme (its `security: []` would otherwise have dropped the credential the upstream validates). Clears the 0.10 blocker where the data plane rejected the artifact with `plugin 's3' violates its declared capabilities`: 0.11 plugin binaries carry their manifest and config schema inside the `.wasm`
 - [ ] Replace the manual compile-serve loop in `make gateway` with `barbacane dev` (unblocked in Barbacane 0.11: `dev` accepts `--max-body-size`, `--max-headers` and `--log-format`, barbacane-dev/barbacane#177)
 - [x] `[auth] mode` + `trusted_proxies` — refuse `X-Auth-*` headers from unlisted peers; refuse to start in `trusted-headers` mode without a list (ADR-014)
-- [ ] Fix role re-sync overwriting `PATCH /api/admin/users/{id}` on the next request (`sync_profile_from_claims`)
+- [x] Fix role re-sync overwriting `PATCH /api/admin/users/{id}` on the next request (`sync_profile_from_claims`)
 - [ ] Default `LOGIN_LOCAL` off in `docker/env.sh` until ADR-015 gives the form a backend (the dead `[auth]` section in `burst.toml.example` is replaced by the real one)
 - [ ] Remove the unused `tower-http` `cors` feature or start using it (M11 uses it)
 

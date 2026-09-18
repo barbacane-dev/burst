@@ -77,7 +77,7 @@ impl FromRequestParts<AppState> for AuthUser {
                 let email = claims
                     .as_ref()
                     .and_then(|c| extract_claim_string(c, "email"));
-                let role = extract_role_from_groups(parts);
+                let role = role_from_groups(parts).unwrap_or_else(|| "member".to_string());
                 super::users::jit_provision(
                     &state.db,
                     external_id,
@@ -172,33 +172,38 @@ async fn sync_profile_from_claims(
         tracing::warn!(user_id = %user.id, error = %e, "failed to sync profile from OIDC claims");
     }
 
-    // Sync role from gateway groups header.
-    let new_role = extract_role_from_groups(parts);
-    if new_role != user.role
+    // The identity provider is authoritative for the role where it says
+    // anything. Where it says nothing, the stored role stands, so a role an
+    // admin set by hand survives the next request.
+    if let Some(new_role) = role_from_groups(parts)
+        && new_role != user.role
         && let Err(e) = db::users::update_role(pool, user.id, &new_role).await
     {
         tracing::warn!(user_id = %user.id, error = %e, "failed to sync role from groups");
     }
 }
 
-/// Extract role from the x-auth-consumer-groups header set by Barbacane.
-/// Maps "admin" group to "admin" role, "integrator" to "integrator", defaults to "member".
-fn extract_role_from_groups(parts: &Parts) -> String {
-    parts
+/// The role the gateway's `x-auth-consumer-groups` header implies, if it sent
+/// one.
+///
+/// `None` means the header is absent, which is not the same as "no groups": the
+/// auth plugins omit it entirely for an identity that has none, and a
+/// deployment may not map groups at all. Reading that absence as `member` would
+/// demote every user whose identity carries no groups, including one an admin
+/// has just promoted by hand.
+fn role_from_groups(parts: &Parts) -> Option<String> {
+    let groups = parts
         .headers
         .get("x-auth-consumer-groups")
-        .and_then(|v| v.to_str().ok())
-        .map(|groups| {
-            let groups: Vec<&str> = groups.split(',').map(|g| g.trim()).collect();
-            if groups.contains(&"admin") {
-                "admin".to_string()
-            } else if groups.contains(&"integrator") {
-                "integrator".to_string()
-            } else {
-                "member".to_string()
-            }
-        })
-        .unwrap_or_else(|| "member".to_string())
+        .and_then(|v| v.to_str().ok())?;
+    let groups: Vec<&str> = groups.split(',').map(|g| g.trim()).collect();
+    Some(if groups.contains(&"admin") {
+        "admin".to_string()
+    } else if groups.contains(&"integrator") {
+        "integrator".to_string()
+    } else {
+        "member".to_string()
+    })
 }
 
 /// Convert a username like "alice" to a display name like "Alice".
@@ -334,37 +339,49 @@ mod tests {
     #[test]
     fn role_from_admin_group() {
         let parts = make_parts_with_groups(Some("admin"));
-        assert_eq!(extract_role_from_groups(&parts), "admin");
+        assert_eq!(role_from_groups(&parts).as_deref(), Some("admin"));
     }
 
     #[test]
     fn role_from_multiple_groups_with_admin() {
         let parts = make_parts_with_groups(Some("member, admin, moderator"));
-        assert_eq!(extract_role_from_groups(&parts), "admin");
+        assert_eq!(role_from_groups(&parts).as_deref(), Some("admin"));
     }
 
     #[test]
     fn role_from_integrator_group() {
         let parts = make_parts_with_groups(Some("integrator"));
-        assert_eq!(extract_role_from_groups(&parts), "integrator");
+        assert_eq!(role_from_groups(&parts).as_deref(), Some("integrator"));
     }
 
     #[test]
     fn role_admin_takes_precedence_over_integrator() {
         let parts = make_parts_with_groups(Some("integrator, admin"));
-        assert_eq!(extract_role_from_groups(&parts), "admin");
+        assert_eq!(role_from_groups(&parts).as_deref(), Some("admin"));
     }
 
     #[test]
     fn role_defaults_to_member() {
         let parts = make_parts_with_groups(Some("user, editor"));
-        assert_eq!(extract_role_from_groups(&parts), "member");
+        assert_eq!(role_from_groups(&parts).as_deref(), Some("member"));
     }
 
+    /// The auth plugins omit the header for an identity with no groups, and a
+    /// deployment may not map groups at all. Reading that as `member` demoted
+    /// every such user on their next request, including one an admin had just
+    /// promoted by hand.
     #[test]
-    fn role_defaults_to_member_when_no_header() {
+    fn an_absent_header_says_nothing_about_the_role() {
         let parts = make_parts_with_groups(None);
-        assert_eq!(extract_role_from_groups(&parts), "member");
+        assert_eq!(role_from_groups(&parts), None);
+    }
+
+    /// An empty value is a statement, unlike an absent header: the identity was
+    /// asked about its groups and has none.
+    #[test]
+    fn an_empty_header_means_member() {
+        let parts = make_parts_with_groups(Some(""));
+        assert_eq!(role_from_groups(&parts).as_deref(), Some("member"));
     }
 
     #[test]
