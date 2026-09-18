@@ -138,7 +138,7 @@ pub async fn jit_provision(
     }
 
     let id = burst_core::id::new_id();
-    db::users::create(
+    let user = db::users::create_or_get_by_external_id(
         pool,
         &db::users::CreateUser {
             id,
@@ -149,8 +149,16 @@ pub async fn jit_provision(
             external_id: Some(external_id.to_string()),
             role: role.to_string(),
         },
+        external_id,
     )
     .await?;
 
-    Ok(id)
+    // No row for this identity after a refused insert means the username or
+    // email belongs to somebody else, which is a genuine conflict.
+    match user {
+        Some(user) => Ok(user.id),
+        None => Err(ApiError::Conflict(format!(
+            "cannot provision '{external_id}': its username or email is already taken by another user"
+        ))),
+    }
 }

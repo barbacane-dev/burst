@@ -103,6 +103,47 @@ pub async fn create(pool: &PgPool, user: &CreateUser) -> Result<UserRow, sqlx::E
     .await
 }
 
+/// Insert the user for `external_id`, or return the one a concurrent request
+/// already inserted.
+///
+/// Every request carrying an identity Burst has not seen provisions it, so
+/// several arrive at once on a first login and race. `ON CONFLICT DO NOTHING`
+/// without a target absorbs whichever unique constraint fires, since an
+/// identical row collides on `external_id`, `username` and `email` alike, and
+/// the follow-up select returns the winner's row.
+///
+/// `Ok(None)` means the insert was refused and no row carries this
+/// `external_id`, so the collision was a different user holding the username or
+/// email, which is a real conflict rather than a race.
+pub async fn create_or_get_by_external_id(
+    pool: &PgPool,
+    user: &CreateUser,
+    external_id: &str,
+) -> Result<Option<UserRow>, sqlx::Error> {
+    let inserted = sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (id, username, display_name, email, password_hash, external_id, role) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7) \
+         ON CONFLICT DO NOTHING \
+         RETURNING id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         created_at, updated_at",
+    )
+    .bind(user.id)
+    .bind(&user.username)
+    .bind(&user.display_name)
+    .bind(&user.email)
+    .bind(&user.password_hash)
+    .bind(&user.external_id)
+    .bind(&user.role)
+    .fetch_optional(pool)
+    .await?;
+
+    match inserted {
+        Some(row) => Ok(Some(row)),
+        None => find_by_external_id(pool, external_id).await,
+    }
+}
+
 pub async fn create_bot(
     pool: &PgPool,
     id: Uuid,
