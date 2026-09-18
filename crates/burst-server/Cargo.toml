@@ -46,3 +46,5 @@ urlencoding.workspace = true
 sqlx = { workspace = true }
 reqwest.workspace = true
 tempfile = "3"
+# Sending a real SIGTERM in the process-lifecycle test.
+libc = "0.2"

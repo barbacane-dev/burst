@@ -262,6 +262,20 @@ jobs:
       - name: Run smoke tests
         run: k6 run tests/http/smoke.js
 
+      # The gateway forwards only the headers an operation admits, and a header
+      # it drops reaches nothing downstream with no error anywhere. `--dev`
+      # names each one, so the smoke traffic having produced none is the only
+      # cheap evidence that the specs declare what the app actually sends.
+      - name: Assert the gateway dropped no request header
+        run: |
+          if grep -q "request header dropped" /tmp/barbacane.log; then
+            echo "::error::The gateway dropped request headers during the smoke run."
+            echo "Declare each as an in: header parameter, or as the security scheme carrying it."
+            grep -oE "header: [a-z0-9-]+" /tmp/barbacane.log | sort -u
+            exit 1
+          fi
+          echo "No request headers were dropped."
+
       - name: Show gateway and server logs
         if: failure()
         run: |

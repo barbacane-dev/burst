@@ -258,6 +258,7 @@ dependencies = [
  "hex",
  "hmac 0.13.0",
  "image",
+ "libc",
  "metrics",
  "metrics-exporter-prometheus",
  "mime_guess",
