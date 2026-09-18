@@ -86,12 +86,11 @@ gateway-compile: $(BARBACANE_BIN) ## Compile the Burst OpenAPI spec into Barbaca
 		--allow-plaintext
 	@echo "Compiled burst-s3.bca"
 
-gateway: $(BURST_BCA) ## Run the Barbacane gateway (requires: make gateway-compile)
-	BARBACANE_ALLOW_INTERNAL_EGRESS=true $(BARBACANE_BIN) serve \
-		--artifact $(BURST_BCA) \
+gateway: $(BARBACANE_BIN) ## Run the Barbacane gateway, recompiling on spec changes
+	BARBACANE_ALLOW_INTERNAL_EGRESS=true $(BARBACANE_BIN) dev \
+		--spec specs/burst-api.yaml \
+		--manifest barbacane.yaml \
 		--listen 0.0.0.0:8080 \
-		--dev \
-		--allow-plaintext-upstream \
 		--max-body-size 10485760 \
 		--log-format pretty
 

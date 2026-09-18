@@ -8,6 +8,8 @@ window.__BURST_ENV__ = {
   OIDC_CLIENT_ID: "${OIDC_CLIENT_ID:-}",
   OIDC_REDIRECT_URI: "${OIDC_REDIRECT_URI:-}",
   OIDC_SCOPE: "${OIDC_SCOPE:-}",
-  LOGIN_LOCAL: "${LOGIN_LOCAL:-true}",
+  # Off by default: the form has no backend until local accounts land
+  # (ADR-015). Set LOGIN_LOCAL=true to show it anyway.
+  LOGIN_LOCAL: "${LOGIN_LOCAL:-false}",
 };
 EOF

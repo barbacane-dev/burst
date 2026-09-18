@@ -17,7 +17,9 @@ tokio = { version = "1", features = ["full"] }
 # Web
 axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace"] }
+# `cors` is added back in M11, where the standalone tier terminates requests
+# itself; today every request arrives through the gateway, which handles CORS.
+tower-http = { version = "0.6", features = ["trace"] }
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "migrate"] }
