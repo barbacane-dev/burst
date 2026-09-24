@@ -80,6 +80,24 @@ These events are sent from the server to your client.
 | `message.pinned` | `{ messageId, channelId, pinnedBy }` | A message was pinned. |
 | `message.unpinned` | `{ messageId, channelId }` | A message was unpinned. |
 
+### Notifications
+
+| Type | Payload | Description |
+|------|---------|-------------|
+| `notification.created` | `{ notificationId, recipientId, channelId, messageId, reason, authorName, channelName?, preview }` | The server decided to notify you of a message. |
+
+Every member of a channel receives `message.created`, including its author. Use `notification.created` to decide whether to alert a user, not `message.created`.
+
+The server sends a notification only to the member it is addressed to, and decides who that is from each member's preference for the channel:
+
+| Preference | Notified of |
+|------------|-------------|
+| `all` (default) | Every message. `reason` is `mention` when the message mentions you, otherwise `message`. |
+| `mentions` | Only messages that mention you. |
+| `nothing` | Nothing, mentions included. |
+
+You are never notified of your own messages. `channelName` is absent for direct messages. `preview` holds up to 200 characters of the message and is empty when the message carries only files.
+
 ## Client Events
 
 You can send these events from your client to the server.
@@ -114,6 +132,8 @@ ws://gateway.example.com/ws?access_token=<JWT>&lastEventId=evt_018f3e...
 The server replays all events that occurred after the given event ID. This works because event IDs are UUIDv7 values, which are both unique and chronologically ordered.
 
 If too many events have accumulated (more than the server's replay buffer), the server sends a `sync.required` event, indicating that your client should re-fetch state from the REST API.
+
+Notifications are not replayed: one missed while disconnected is stale by the time you reconnect, and the message itself is. They carry a `notificationId` rather than an event ID, so do not use one as `lastEventId`.
 
 ## Connection Lifecycle
 

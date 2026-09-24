@@ -235,6 +235,13 @@ async fn handle_client_message(
 }
 
 fn should_forward(event: &ServerEvent, self_user_id: Uuid, memberships: &HashSet<Uuid>) -> bool {
+    // A notification belongs to one member and reaches no one else.
+    if let ServerEvent::NotificationCreated { recipient_id, .. } = event {
+        return parse_prefixed_id(recipient_id, "usr_")
+            .or_else(|| Uuid::parse_str(recipient_id).ok())
+            == Some(self_user_id);
+    }
+
     // Typing events are not sent back to the sender
     match event {
         ServerEvent::TypingStart { user_id, .. } | ServerEvent::TypingStop { user_id, .. } => {
@@ -302,5 +309,40 @@ fn presence_event(user_id: Uuid, status: &str) -> ServerEvent {
         event_id: burst_core::id::new_id().to_string(),
         user_id: format_user_id(user_id),
         status: status.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn notification(recipient: Uuid, channel: Uuid) -> ServerEvent {
+        ServerEvent::NotificationCreated {
+            notification_id: "n".into(),
+            recipient_id: format_user_id(recipient),
+            channel_id: format_channel_id(channel),
+            message_id: "msg_x".into(),
+            reason: "message".into(),
+            author_name: "alice".into(),
+            channel_name: None,
+            preview: String::new(),
+        }
+    }
+
+    #[test]
+    fn a_notification_reaches_its_recipient() {
+        let (me, channel) = (Uuid::from_u128(1), Uuid::from_u128(9));
+        let members = HashSet::from([channel]);
+        assert!(should_forward(&notification(me, channel), me, &members));
+    }
+
+    #[test]
+    fn a_notification_does_not_reach_another_member_of_the_channel() {
+        let (me, other, channel) = (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(9));
+        let members = HashSet::from([channel]);
+        assert!(
+            !should_forward(&notification(other, channel), me, &members),
+            "membership of the channel must not be enough to receive someone else's notification"
+        );
     }
 }

@@ -406,6 +406,8 @@ async fn trigger_incoming(
     )
     .await?;
 
+    let mentioned = crate::api::channels::persist_mentions(&state, id, &content).await?;
+
     let response = build_message_response_simple(&message, vec![]);
     let ev = crate::ws::ServerEvent::MessageCreated {
         event_id: burst_core::id::new_id().to_string(),
@@ -414,6 +416,8 @@ async fn trigger_incoming(
     };
     services::broadcast(&state, ev).await;
     crate::metrics::message_created();
+    services::notifications::notify_new_message(&state, webhook.channel_id, &message, &mentioned)
+        .await;
 
     Ok((axum::http::StatusCode::CREATED, Json(response)))
 }

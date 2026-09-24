@@ -93,6 +93,26 @@ pub enum ServerEvent {
         event_id: String,
         channel_id: String,
     },
+    /// A notification for one member, decided by `burst_core::notify`.
+    ///
+    /// Delivered only to `recipient_id`, and published without entering the
+    /// event buffer: a notification missed while disconnected is stale by the
+    /// time the client reconnects, and gap-fill already replays the message.
+    /// It carries `notificationId` rather than `eventId` for the same reason,
+    /// since the client adopts any `eventId` as its gap-fill cursor and one the
+    /// buffer does not hold would force a full refetch on the next reconnect.
+    #[serde(rename = "notification.created", rename_all = "camelCase")]
+    NotificationCreated {
+        notification_id: String,
+        recipient_id: String,
+        channel_id: String,
+        message_id: String,
+        reason: String,
+        author_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        channel_name: Option<String>,
+        preview: String,
+    },
 }
 
 impl ServerEvent {
@@ -110,6 +130,9 @@ impl ServerEvent {
             ServerEvent::MessagePinned { event_id, .. } => event_id,
             ServerEvent::MessageUnpinned { event_id, .. } => event_id,
             ServerEvent::ChannelUpdated { event_id, .. } => event_id,
+            ServerEvent::NotificationCreated {
+                notification_id, ..
+            } => notification_id,
         }
     }
 
@@ -127,6 +150,7 @@ impl ServerEvent {
             ServerEvent::MessagePinned { channel_id, .. } => Some(channel_id),
             ServerEvent::MessageUnpinned { channel_id, .. } => Some(channel_id),
             ServerEvent::ChannelUpdated { channel_id, .. } => Some(channel_id),
+            ServerEvent::NotificationCreated { channel_id, .. } => Some(channel_id),
         }
     }
 }

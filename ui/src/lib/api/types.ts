@@ -72,6 +72,24 @@ export interface Message {
   createdAt: string;
 }
 
+/**
+ * A notification addressed to the current user. The server decides who is
+ * notified, from each member's channel preference and the message's mentions,
+ * and sends this only to the recipient.
+ */
+export interface NotificationEvent {
+  type: "notification.created";
+  notificationId: string;
+  recipientId: string;
+  channelId: string;
+  messageId: string;
+  reason: "mention" | "message";
+  authorName: string;
+  /** Absent for direct messages, which have no name. */
+  channelName?: string;
+  preview: string;
+}
+
 export interface SearchResult {
   id: string;
   channelId: string;

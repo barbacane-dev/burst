@@ -26,16 +26,22 @@ fn event_type(event: &ServerEvent) -> &'static str {
         ServerEvent::MessagePinned { .. } => "message.pinned",
         ServerEvent::MessageUnpinned { .. } => "message.unpinned",
         ServerEvent::ChannelUpdated { .. } => "channel.updated",
+        ServerEvent::NotificationCreated { .. } => "notification.created",
     }
 }
 
 /// Returns true if the event should be delivered to outgoing webhooks.
+///
+/// Notifications are excluded: each is addressed to one member, so delivering
+/// them would tell an external service who is notified of what, and would post
+/// once per member for every message.
 fn is_deliverable(event: &ServerEvent) -> bool {
     !matches!(
         event,
         ServerEvent::TypingStart { .. }
             | ServerEvent::TypingStop { .. }
             | ServerEvent::PresenceUpdate { .. }
+            | ServerEvent::NotificationCreated { .. }
     )
 }
 
@@ -209,5 +215,30 @@ mod signature_tests {
             hex::encode(mac.finalize().into_bytes()),
             "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843"
         );
+    }
+
+    #[test]
+    fn notifications_are_never_delivered_to_outgoing_webhooks() {
+        let event = ServerEvent::NotificationCreated {
+            notification_id: "n".into(),
+            recipient_id: "usr_x".into(),
+            channel_id: "ch_x".into(),
+            message_id: "msg_x".into(),
+            reason: "mention".into(),
+            author_name: "alice".into(),
+            channel_name: None,
+            preview: String::new(),
+        };
+        assert!(!is_deliverable(&event));
+    }
+
+    #[test]
+    fn a_created_message_is_still_delivered_to_outgoing_webhooks() {
+        let event = ServerEvent::MessageDeleted {
+            event_id: "e".into(),
+            channel_id: "ch_x".into(),
+            message_id: "msg_x".into(),
+        };
+        assert!(is_deliverable(&event));
     }
 }

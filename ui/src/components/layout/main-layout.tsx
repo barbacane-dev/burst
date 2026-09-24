@@ -1,21 +1,31 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, useNavigate } from "react-router-dom";
 import { Sidebar } from "./sidebar";
 import { MessageSquare } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "../../lib/ws/hooks";
 import { showBrowserNotification } from "../../lib/notifications";
-import type { Message } from "../../lib/api/types";
+import type { Message, NotificationEvent } from "../../lib/api/types";
 
 export function MainLayout() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
+  // Keeps unread counts current. It does not notify: every member receives
+  // this event, including the author, whatever their channel preference.
   useWsEvent<{ type: string; channelId: string; message: Message }>(
     "message.created",
-    (ev) => {
-      showBrowserNotification("New message", ev.message.content);
+    () => {
       queryClient.invalidateQueries({ queryKey: ["channels"] });
     },
   );
+
+  // The server sends this only to the member it has decided to notify.
+  useWsEvent<NotificationEvent>("notification.created", (ev) => {
+    showBrowserNotification(notificationTitle(ev), ev.preview || "sent a file", {
+      tag: ev.channelId,
+      onClick: () => navigate(`/channels/${ev.channelId}`),
+    });
+  });
 
   return (
     <div className="flex h-screen bg-white dark:bg-gray-950">
@@ -45,4 +55,9 @@ export function WelcomeView() {
       </div>
     </div>
   );
+}
+
+/** "Alice in #general", or just "Alice" for a direct message. */
+function notificationTitle(ev: NotificationEvent): string {
+  return ev.channelName ? `${ev.authorName} in #${ev.channelName}` : ev.authorName;
 }

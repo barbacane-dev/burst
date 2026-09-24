@@ -594,12 +594,7 @@ async fn send_message(
         attachment_responses.push(attachment_to_response(&att));
     }
 
-    // Parse @mentions and persist them.
-    let mentioned_usernames: Vec<String> = parse_mentions(&content);
-    if !mentioned_usernames.is_empty() {
-        let mention_ids = db::users::find_ids_by_usernames(&state.db, &mentioned_usernames).await?;
-        db::mentions::insert_mentions(&state.db, id, &mention_ids).await?;
-    }
+    let mentioned = persist_mentions(&state, id, &content).await?;
 
     let response = build_message_response_simple(&message, attachment_responses);
     let ev = crate::ws::ServerEvent::MessageCreated {
@@ -609,6 +604,7 @@ async fn send_message(
     };
     services::broadcast(&state, ev).await;
     crate::metrics::message_created();
+    services::notifications::notify_new_message(&state, ch_id, &message, &mentioned).await;
 
     Ok((axum::http::StatusCode::CREATED, Json(response)))
 }
@@ -1110,28 +1106,19 @@ fn slugify(name: &str) -> String {
         .join("-")
 }
 
-/// Extracts unique @username mentions from message content.
-fn parse_mentions(content: &str) -> Vec<String> {
-    let mut usernames = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    let chars: Vec<char> = content.chars().collect();
-    let mut i = 0;
-    while i < chars.len() {
-        if chars[i] == '@' && (i == 0 || !chars[i - 1].is_alphanumeric()) {
-            i += 1;
-            let start = i;
-            while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
-                i += 1;
-            }
-            if i > start {
-                let username: String = chars[start..i].iter().collect();
-                if seen.insert(username.clone()) {
-                    usernames.push(username);
-                }
-            }
-        } else {
-            i += 1;
-        }
+/// Persists the users `content` mentions and returns their ids.
+///
+/// Names that match no user are dropped, as they always were.
+pub(crate) async fn persist_mentions(
+    state: &AppState,
+    message_id: Uuid,
+    content: &str,
+) -> Result<std::collections::HashSet<Uuid>, ApiError> {
+    let usernames = burst_core::mentions::parse(content);
+    if usernames.is_empty() {
+        return Ok(std::collections::HashSet::new());
     }
-    usernames
+    let ids = db::users::find_ids_by_usernames(&state.db, &usernames).await?;
+    db::mentions::insert_mentions(&state.db, message_id, &ids).await?;
+    Ok(ids.into_iter().collect())
 }
