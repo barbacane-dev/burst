@@ -1,3 +1,9 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Display size. Text, spacing and icons are sized in rem, so scaling the root
+   scales the whole interface. Percentages keep the browser's font preference. */
+html[data-density="large"] { font-size: 112.5%; }
+html[data-density="compact"] { font-size: 87.5%; }
+html[data-density="dense"] { font-size: 81.25%; }

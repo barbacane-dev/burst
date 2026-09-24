@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../lib/auth/use-auth";
 import { useTheme } from "../lib/use-theme";
+import { DENSITIES, useDensity } from "../lib/density";
 import {
   clearMyStatus,
   getMyDoNotDisturb,
@@ -315,8 +316,38 @@ function AppearanceSection({
             ))}
           </div>
         </fieldset>
+        <DisplaySize />
       </div>
     </section>
+  );
+}
+
+function DisplaySize() {
+  const [density, setDensity] = useDensity();
+  return (
+    <fieldset className="mt-6">
+      <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        Display size
+      </legend>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" role="radiogroup" aria-label="Display size">
+        {DENSITIES.map((opt) => (
+          <button
+            key={opt.value}
+            role="radio"
+            aria-checked={density === opt.value}
+            onClick={() => setDensity(opt.value)}
+            className={`rounded-md border px-3 py-2 text-left transition-colors ${
+              density === opt.value
+                ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:border-indigo-400 dark:bg-indigo-900/30 dark:text-indigo-300"
+                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            }`}
+          >
+            <span className="block text-sm font-medium">{opt.label}</span>
+            <span className="block text-xs opacity-70">{opt.hint}</span>
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
