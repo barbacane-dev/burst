@@ -4,7 +4,7 @@ Prioritised development roadmap for Burst.
 
 ## What ships as v1.0?
 
-v1.0 is the public release. It covers Milestones 1–9 (the messaging core, integration surface and SSO) plus Milestones 10–13: a standalone deployment tier that runs as one binary with PostgreSQL, local accounts, and the public release itself. Milestones 1–9 are complete.
+v1.0 is the public release. It covers Milestones 1–9 (the messaging core, integration surface and SSO) plus Milestones 10–13: a standalone deployment tier that runs as one binary with PostgreSQL, local accounts, the remainder of the [ADR-002](adr/002-core-feature-set.md) feature set, and the public release itself. Milestones 1–9 are complete.
 
 **v1.0 is not a feature-complete product.** It is the smallest version that proves the core hypothesis: a focused, fully open-source messaging tool with no feature gating and no user cap beats the alternatives for teams that need reliability and operational simplicity over breadth.
 
@@ -20,9 +20,11 @@ v1.0 is the public release. It covers Milestones 1–9 (the messaging core, inte
 - No link unfurling. Links are rendered as plain clickable text in v1.
 - Bot accounts require the gateway tier. Standalone bot credentials are planned for M14.
 - Local accounts and an external IdP cannot both be active behind the gateway until the gateway supports two issuers on one route ([ADR-015](adr/015-local-accounts.md)).
+- No desktop client. The web app is the only client, so notifications stop when the tab is closed. A Tauri shell is an M14 candidate (see Future Considerations).
 
 **Pre-release gates (must complete before tagging v1.0):**
 - Licensing ADR completed and committed. Done.
+- `moderator` and `guest` resolved. Both are in the public API's role enum and in `UserRole`, and no handler, extractor or gateway ACL distinguishes either: the ACLs name `admin` and `integrator` only. A deployer granting `guest` gets a full member. Enforce them or remove them from the API before it is public.
 - Milestones 10–13 complete.
 - Repo made public.
 
@@ -295,9 +297,30 @@ Sign in without an identity provider (ADR-015).
 
 ---
 
-## Milestone 13 — Public Release (v1.0)
+## Milestone 13 — Declared Scope & Public Release (v1.0)
 
-- [ ] README rewritten around the standalone quick start and the two-tier model; positioning against user caps and SSO gating in the alternatives
+Finishes the ADR-002 feature set, then ships.
+
+### Declared scope (ADR-002)
+
+Named in the feature set and carried by no earlier milestone. Promoted into v1.0 on 2026-09-24 rather than deferred, because shipping a declared scope short of itself is the thing the positioning cannot afford.
+
+- [ ] `@channel` and `@here`: parse and persist channel-wide mentions, route notifications honouring per-channel preferences (ADR-002, ADR-007)
+- [ ] Mention autocomplete offers `@channel` and `@here`, both highlighted in rendered messages (ADR-013)
+- [ ] Search filters: `from`, `before`, `after` and `hasFile` on `GET /api/search/messages` (ADR-002)
+- [ ] Search over file names: attachment names indexed and returned beside message hits (ADR-002, ADR-011)
+- [ ] Search UI: filter controls, file results distinguished from message results (ADR-013)
+- [ ] Do-not-disturb: user-level mute with a daily schedule, suppressing notification delivery (ADR-002)
+- [ ] Do-not-disturb UI: toggle and schedule in settings, indicator beside the avatar (ADR-013)
+- [ ] Custom status: status text and emoji on the user, broadcast as a presence event (ADR-002, ADR-004)
+- [ ] Custom status UI: set and clear, shown in the member list and on profiles (ADR-013)
+- [ ] Data export: admin-triggered export of messages and files, run as an async job with a download, scoped to the instance or one channel (ADR-002, ADR-011)
+- [ ] Data export UI: admin panel tab to request, follow and download an export (ADR-013)
+
+### Release
+
+- [ ] Footprint comparison published: resident memory, process count, installed packages and cold start for standalone Burst against a Zulip install at the same daily active user count, on the same hardware ([ADR-016](adr/016-competitive-position-reassessment.md)). The deliverable is the measurement, whatever it shows
+- [ ] README rewritten around the standalone quick start and the two-tier model; positioning against user caps and SSO gating in the alternatives, and against the footprint of the fully open alternative
 - [ ] Release workflow publishes the standalone image alongside the gateway-tier images
 - [ ] Repo made public; v1.0 tagged
 - [ ] Announcement and a place for feedback (discussions or issues templates)
@@ -314,7 +337,7 @@ Not committed — revisit when demand or opportunity arises.
 | Standalone bot credentials (M14 candidate) | API keys issued and hashed in Burst, validated by the ADR-014 auth path, so bots work without the gateway. Needs a credential table, issuance/rotation/revocation endpoints and admin UI. | ADR-014 |
 | Mobile push notifications | Browser notifications cover v1. Native push (APNs, FCM) requires per-platform cert management, service workers, and a notification relay service. Add when mobile usage data justifies the engineering cost. | ADR-002 |
 | Link unfurling | In-scope in ADR-002 but deferred from v1. Requires an async fetch pipeline, timeout handling, and content sanitisation to do safely. Add in a post-v1 polish milestone. | ADR-002 |
-| Tauri desktop app | Lightweight alternative to Electron | ADR-003 |
+| Tauri desktop app (M14 candidate) | The only client is the browser, so notifications stop with the tab, which is a weak position for a tool asking to be a team's primary one. Every alternative ships a desktop app and the two open-source ones wrap Electron, so a Tauri build extends the footprint argument of ADR-016 to the client. The shell is mostly configuration over the existing Vite build; the real cost is distribution: Apple notarization, a Windows signing certificate and an update channel. | ADR-003, ADR-016 |
 | RobustMQ broker | Rust-native alternative to PG LISTEN/NOTIFY when production-ready | ADR-004 |
 | Barbacane websocket dispatcher | Could simplify WS proxying topology | NOTES |
 | E2E encryption | Boundary consideration from ADR-002 | ADR-002 |

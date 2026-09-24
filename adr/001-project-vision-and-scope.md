@@ -1,6 +1,6 @@
 # ADR-001: Project Vision & Scope
 
-**Status:** Accepted
+**Status:** Accepted, amended by [ADR-016](016-competitive-position-reassessment.md) (2026-09-24): the "clear gap" in Context does not hold, since Zulip is fully open with ungated SSO. The five principles stand; the differentiator is restated as a familiar messaging model in one binary plus a database.
 **Date:** 2026-03-06
 
 ## Context

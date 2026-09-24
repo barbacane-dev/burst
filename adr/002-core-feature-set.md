@@ -1,6 +1,6 @@
 # ADR-002: Core Feature Set
 
-**Status:** Accepted, amended by [ADR-014](014-gateway-optional-deployment.md) (2026-09-15): the Barbacane gateway is the recommended production front door, not a requirement.
+**Status:** Accepted, amended by [ADR-014](014-gateway-optional-deployment.md) (2026-09-15): the Barbacane gateway is the recommended production front door, not a requirement. Amended by [ADR-016](016-competitive-position-reassessment.md) (2026-09-24): the third Consequence, that ungated LDAP/SSO and audit logs are a differentiator, is withdrawn. They are table stakes; keeping them ungated remains correct.
 **Date:** 2026-03-06
 
 ## Context
