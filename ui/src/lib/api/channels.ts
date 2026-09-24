@@ -51,6 +51,43 @@ export async function joinChannel(channelId: string): Promise<void> {
   });
 }
 
+/** Adds someone to a channel. The caller must be a member and not a guest. */
+export async function addMember(channelId: string, userId: string): Promise<void> {
+  await apiFetch<void>(`/channels/${channelId}/members`, {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+}
+
+/** Removes another member. The caller must moderate the channel and outrank them. */
+export async function removeMember(channelId: string, userId: string): Promise<void> {
+  await apiFetch<void>(`/channels/${channelId}/members/${userId}`, { method: "DELETE" });
+}
+
+/** Appoints a channel moderator, or makes one a member again. Owner or admin only. */
+export async function setMemberRole(
+  channelId: string,
+  userId: string,
+  role: "moderator" | "member",
+): Promise<ChannelMember> {
+  return apiFetch<ChannelMember>(`/channels/${channelId}/members/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function leaveChannel(channelId: string): Promise<void> {
+  await apiFetch<void>(`/channels/${channelId}/members/me`, { method: "DELETE" });
+}
+
+export async function archiveChannel(channelId: string): Promise<Channel> {
+  return apiFetch<Channel>(`/channels/${channelId}/archive`, { method: "POST" });
+}
+
+export async function unarchiveChannel(channelId: string): Promise<Channel> {
+  return apiFetch<Channel>(`/channels/${channelId}/unarchive`, { method: "POST" });
+}
+
 export async function markChannelRead(channelId: string): Promise<void> {
   await apiFetch<void>(`/channels/${channelId}/members/me/last-read`, {
     method: "PATCH",

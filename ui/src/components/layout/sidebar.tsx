@@ -4,6 +4,7 @@ import { Hash, LogOut, MessageSquare, Plus, X, MessageCircle, Search, Sun, Moon,
 import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "../../lib/ws/hooks";
 import { useAuth } from "../../lib/auth/use-auth";
+import { can } from "../../lib/permissions";
 import { useTheme } from "../../lib/use-theme";
 import { listChannels, listMembers, createChannel, createDm, createGroupDm, browseChannels, joinChannel } from "../../lib/api/channels";
 import { listUsers } from "../../lib/api/users";
@@ -44,15 +45,28 @@ export function Sidebar() {
     queryFn: listChannels,
   });
 
-  // Refresh the channel list when a new DM is created and this user is added.
+  // Refresh the channel list when this user is added to a channel, whether a
+  // new direct message or someone adding them, or leaves or is removed.
   useWsEvent("channel.joined", () => {
     queryClient.invalidateQueries({ queryKey: ["channels"] });
+  });
+  useWsEvent<{ channelId: string; userId: string }>("channel.left", (ev) => {
+    queryClient.invalidateQueries({ queryKey: ["channels"] });
+    queryClient.invalidateQueries({ queryKey: ["members", ev.channelId] });
+    // Removed from the channel on screen: it is no longer theirs to read.
+    if (ev.userId === user?.id && channelId === ev.channelId) navigate("/");
   });
 
   const publicChannels = data?.items.filter((ch) => ch.kind === "public" || ch.kind === "private") ?? [];
   const dmChannels = data?.items.filter((ch) => ch.kind === "dm" || ch.kind === "group_dm") ?? [];
 
   const { usersById } = useUsersById();
+  // A guest finds channels only by being added, and does not start
+  // conversations; the server refuses these, so they are not offered.
+  const self = { instance: user?.role ?? "guest" } as const;
+  const mayBrowse = can(self, "browsePublicChannels");
+  const mayCreate = can(self, "createChannel");
+  const mayStartDm = can(self, "startDirectMessage");
 
   const dmMembersQueries = useQueries({
     queries: dmChannels.map((ch) => ({
@@ -100,6 +114,7 @@ export function Sidebar() {
             Channels
           </h2>
           <div className="flex items-center gap-0.5">
+            {mayBrowse && (
             <button
               onClick={() => setShowBrowse(true)}
               className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
@@ -107,6 +122,8 @@ export function Sidebar() {
             >
               <Search className="h-4 w-4" />
             </button>
+            )}
+            {mayCreate && (
             <button
               onClick={() => setShowCreate(true)}
               className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
@@ -114,6 +131,7 @@ export function Sidebar() {
             >
               <Plus className="h-4 w-4" />
             </button>
+            )}
           </div>
         </div>
 
@@ -139,6 +157,7 @@ export function Sidebar() {
           <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
             Direct Messages
           </h2>
+          {mayStartDm && (
           <button
             onClick={() => setShowDm(true)}
             className="rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
@@ -146,6 +165,7 @@ export function Sidebar() {
           >
             <Plus className="h-4 w-4" />
           </button>
+          )}
         </div>
 
         {dmChannels.length === 0 && (

@@ -7,7 +7,7 @@ import {
 } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Hash, MessageCircle, Pin } from "lucide-react";
+import { Hash, MessageCircle, Pin, Users } from "lucide-react";
 import {
   getChannel,
   listMembers,
@@ -20,6 +20,7 @@ import { MessageBubble } from "../components/message/message-bubble";
 import { MessageComposer } from "../components/message/message-composer";
 import { ThreadPanel } from "../components/channel/thread-panel";
 import { PinnedMessagesPanel } from "../components/channel/pinned-messages-panel";
+import { MembersPanel } from "../components/channel/members-panel";
 import { useUsersById } from "../lib/hooks/use-users-by-id";
 import { useChannelWsSync } from "../lib/hooks/use-channel-ws-sync";
 import { resolveDmPartnerName } from "../lib/hooks/use-dm-label";
@@ -33,6 +34,7 @@ export function ChannelPage() {
   const queryClient = useQueryClient();
   const [threadMessageId, setThreadMessageId] = useState<string | null>(null);
   const [showPins, setShowPins] = useState(false);
+  const [showMembers, setShowMembers] = useState(false);
 
   const cachedChannels = queryClient.getQueryData<PaginatedResponse<Channel>>(["channels"]);
   const cachedChannel = cachedChannels?.items.find((ch) => ch.id === channelId);
@@ -126,9 +128,23 @@ export function ChannelPage() {
               {channel.topic}
             </span>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1">
             <button
-              onClick={() => setShowPins((p) => !p)}
+              onClick={() => {
+                setShowMembers((m) => !m);
+                setShowPins(false);
+              }}
+              className={`rounded p-1.5 ${showMembers ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"}`}
+              title="Members"
+              aria-label="Toggle members"
+            >
+              <Users className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => {
+                setShowPins((p) => !p);
+                setShowMembers(false);
+              }}
               className={`rounded p-1.5 ${showPins ? "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" : "text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800"}`}
               title="Pinned messages"
               aria-label="Toggle pinned messages"
@@ -197,6 +213,15 @@ export function ChannelPage() {
           currentUserId={user?.id ?? ""}
           usersById={usersById}
           onClose={closeThread}
+        />
+      )}
+
+      {showMembers && channel && user && !threadMessageId && (
+        <MembersPanel
+          channel={channel}
+          currentUser={user}
+          users={users}
+          onClose={() => setShowMembers(false)}
         />
       )}
 

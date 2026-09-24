@@ -39,7 +39,7 @@ export interface Channel {
 
 export interface ChannelMember {
   userId: string;
-  role: string;
+  role: "owner" | "moderator" | "member";
   joinedAt: string;
 }
 
