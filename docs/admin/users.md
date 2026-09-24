@@ -1,17 +1,18 @@
 ## User Management
 
-Burst has four roles that control what a user can do across the application.
+Burst has five roles that control what a user can do across the application.
 
 ## Roles
 
 | Role | Permissions |
 |------|-------------|
 | **admin** | Full access. Manage users, channels, settings. Access the admin panel. |
-| **moderator** | Delete any message, archive channels, manage channel members. |
-| **member** | Send messages, create channels, upload files. Default role for new users. |
-| **guest** | Read and send messages in channels they are explicitly invited to. Cannot browse or create channels. |
+| **integrator** | Everything a member can do, plus managing webhooks and bots. |
+| **moderator** | Everything a member can do, plus moderating every channel they are a member of: deleting anyone's message, removing members, archiving. No reach into channels they are not in. |
+| **member** | Send messages, create channels, browse and join public channels, add people to channels they are in. Default role for new users. |
+| **guest** | Read and send only in channels someone added them to. Cannot browse, join, create channels or start a direct message, and cannot add people, pin, edit a channel's settings or moderate. |
 
-Roles are hierarchical: each role inherits the permissions of the roles below it.
+A channel also has roles of its own: its **owner**, and any **moderators** the owner appoints. See [Channels](../guide/channels.md#moderators).
 
 ## Admin Panel
 

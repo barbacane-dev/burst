@@ -21,6 +21,7 @@ fn event_type(event: &ServerEvent) -> &'static str {
         ServerEvent::TypingStop { .. } => "typing.stop",
         ServerEvent::PresenceUpdate { .. } => "presence.update",
         ServerEvent::ChannelJoined { .. } => "channel.joined",
+        ServerEvent::ChannelLeft { .. } => "channel.left",
         ServerEvent::ReactionAdded { .. } => "reaction.added",
         ServerEvent::ReactionRemoved { .. } => "reaction.removed",
         ServerEvent::MessagePinned { .. } => "message.pinned",

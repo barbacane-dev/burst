@@ -330,7 +330,8 @@ paths:
         - `?joined=true` — channels the authenticated user is a member of,
           with per-channel `unreadCount`. Use this for the sidebar.
         - `?joined=false` (default) — all public channels, for discovery.
-          `unreadCount` is always `0` in this mode.
+          `unreadCount` is always `0` in this mode. Empty for a guest, who
+          finds channels only by being added to them.
       tags:
         - Channels
       security:
@@ -399,7 +400,7 @@ paths:
     post:
       operationId: createChannel
       summary: Create a channel
-      description: Creates a new public or private channel. The creator is automatically added as owner.
+      description: Creates a new public or private channel. The creator is automatically added as owner. Guests cannot create channels.
       tags:
         - Channels
       security:
@@ -440,6 +441,8 @@ paths:
           $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "409":
           description: Channel slug already exists
           headers:
@@ -464,7 +467,7 @@ paths:
     get:
       operationId: getChannel
       summary: Get a channel
-      description: Returns a channel by ID. Private channels require membership.
+      description: Returns a channel by ID. Private channels require membership, and so do public ones for a guest. A channel the caller may not see is reported as not found.
       tags:
         - Channels
       security:
@@ -517,7 +520,7 @@ paths:
     patch:
       operationId: updateChannel
       summary: Update a channel
-      description: Updates channel name, topic, or description. Requires membership.
+      description: Updates channel name, topic, or description. Requires membership; guests cannot.
       tags:
         - Channels
       security:
@@ -568,7 +571,7 @@ paths:
     post:
       operationId: createOrGetDm
       summary: Create or retrieve a direct message channel
-      description: Returns an existing DM channel with the given user, or creates one if it does not exist.
+      description: Returns an existing DM channel with the given user, or creates one if it does not exist. Guests cannot start one; they take part in those others start with them.
       tags:
         - Channels
       security:
@@ -604,6 +607,8 @@ paths:
           $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: Target user not found
           headers:
@@ -665,8 +670,13 @@ paths:
           $ref: "#/components/responses/InternalError"
     post:
       operationId: joinChannel
-      summary: Join a channel
-      description: Adds the current user to a public channel.
+      summary: Join a channel, or add someone to it
+      description: >-
+        Without a body, or without `userId`, adds the current user to a public
+        channel; guests cannot join on their own. With `userId`, adds that user
+        to a public or private channel; the caller must be a member and not a
+        guest. This is the only way into a private channel, and the only way a
+        guest enters any channel. Direct messages keep their members.
       tags:
         - Channels
       security:
@@ -677,9 +687,15 @@ paths:
           url: "env://BURST_UPSTREAM_URL"
       parameters:
         - $ref: "#/components/parameters/ChannelId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddChannelMemberRequest"
       responses:
         "204":
-          description: Joined successfully
+          description: Joined, or the user was added
           headers:
             X-RateLimit-Limit:
               $ref: "#/components/headers/X-RateLimit-Limit"
@@ -691,8 +707,12 @@ paths:
               $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "403":
-          description: Cannot join non-public channel
+          description: >-
+            Joining a channel that is not public, joining as a guest, or adding
+            someone without being a member or as a guest
           headers:
             X-RateLimit-Limit:
               $ref: "#/components/headers/X-RateLimit-Limit"
@@ -742,6 +762,104 @@ paths:
               $ref: "#/components/headers/X-RateLimit-Policy"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/channels/{channelId}/members/{userId}:
+    delete:
+      operationId: removeChannelMember
+      summary: Remove a member
+      description: >-
+        Removes another member from the channel. The caller must moderate the
+        channel (its owner, a channel moderator, or an instance moderator who
+        is a member) and outrank the member, so moderators cannot remove one
+        another. Nobody removes the owner. To leave, use
+        `DELETE /api/channels/{channelId}/members/me`.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "204":
+          description: Removed
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    patch:
+      operationId: updateChannelMemberRole
+      summary: Appoint or remove a channel moderator
+      description: >-
+        Sets a member's role to `moderator` or `member`. Only the channel owner
+        or an admin may. The owner's role cannot change and ownership cannot be
+        given this way. A guest cannot be made a moderator.
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      parameters:
+        - $ref: "#/components/parameters/ChannelId"
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChannelMemberRoleRequest"
+      responses:
+        "200":
+          description: The member's updated membership
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelMember"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimited"
         "500":
@@ -989,7 +1107,7 @@ paths:
     delete:
       operationId: deleteMessage
       summary: Delete a message
-      description: Soft-deletes a message (content cleared, row preserved). Only the author can delete.
+      description: Soft-deletes a message (content cleared, row preserved). The author can delete their own; someone who moderates the channel can delete anyone's, which is recorded in the audit log. Others get 404.
       tags:
         - Messages
       security:
@@ -1382,7 +1500,7 @@ paths:
     put:
       operationId: pinMessage
       summary: Pin a message
-      description: Pins a message in the channel. Requires channel membership.
+      description: Pins a message in the channel. Requires channel membership; guests cannot.
       tags:
         - Pins
       security:
@@ -1399,6 +1517,8 @@ paths:
           description: Message pinned
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: Channel or message not found
           content:
@@ -1412,7 +1532,7 @@ paths:
     delete:
       operationId: unpinMessage
       summary: Unpin a message
-      description: Removes a pin from a message in the channel.
+      description: Removes a pin from a message in the channel. Requires channel membership; guests cannot.
       tags:
         - Pins
       security:
@@ -1429,6 +1549,8 @@ paths:
           description: Message unpinned
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           description: Pin not found
           content:
@@ -1476,8 +1598,9 @@ paths:
       operationId: archiveChannel
       summary: Archive a channel
       description: >-
-        Archives a channel, making it read-only. Requires admin role or
-        channel ownership.
+        Archives a channel, making it read-only. Requires moderating the
+        channel (its owner, a channel moderator, or an instance moderator who
+        is a member) or the admin role.
       tags:
         - Channels
       security:
@@ -1512,7 +1635,7 @@ paths:
     post:
       operationId: unarchiveChannel
       summary: Unarchive a channel
-      description: Restores an archived channel to normal read-write mode.
+      description: Restores an archived channel to normal read-write mode. Requires moderating the channel or the admin role.
       tags:
         - Channels
       security:
@@ -2651,6 +2774,16 @@ components:
         OIDC server (localhost:9099).
 
   parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: User ID (prefixed with usr_ or raw UUID)
+      schema:
+        type: string
+        pattern: "^(usr_)?[0-9a-f-]{36}$"
+        maxLength: 40
+        example: "usr_0193a5e0-7c1a-7000-8000-000000000002"
     ChannelId:
       name: channelId
       in: path
@@ -3420,6 +3553,32 @@ components:
             maxLength: 40
           example:
             - "usr_0193a5e0-7c1a-7000-8000-000000000001"
+
+    AddChannelMemberRequest:
+      type: object
+      description: >-
+        Who to add. Omit `userId`, or send your own, to join a public channel
+        yourself.
+      properties:
+        userId:
+          type: string
+          pattern: "^(usr_)?[0-9a-f-]{36}$"
+          maxLength: 40
+          description: ID of the user to add.
+          example: "usr_0193a5e0-7c1a-7000-8000-000000000002"
+
+    UpdateChannelMemberRoleRequest:
+      type: object
+      description: The role to give a member.
+      required:
+        - role
+      properties:
+        role:
+          type: string
+          enum:
+            - moderator
+            - member
+          description: "`owner` cannot be given; ownership does not transfer this way."
 
     CreateDmRequest:
       type: object

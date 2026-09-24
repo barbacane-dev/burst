@@ -154,6 +154,11 @@ async fn handle_socket(
                                 break;
                             }
                         }
+                        // Forwarded first, so the departing user learns of it,
+                        // then dropped, so nothing more from that channel follows.
+                        if let Some(ch_id) = left_channel(&ev, user_id) {
+                            channel_ids.remove(&ch_id);
+                        }
                     }
                     Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
                         // We dropped events — tell client to re-fetch via REST
@@ -232,6 +237,23 @@ async fn handle_client_message(
             }
         }
     }
+}
+
+/// The channel `user_id` has just left, if `event` says so.
+fn left_channel(event: &ServerEvent, user_id: Uuid) -> Option<Uuid> {
+    let ServerEvent::ChannelLeft {
+        user_id: uid,
+        channel_id,
+        ..
+    } = event
+    else {
+        return None;
+    };
+    let uid = parse_prefixed_id(uid, "usr_").or_else(|| Uuid::parse_str(uid).ok())?;
+    if uid != user_id {
+        return None;
+    }
+    parse_prefixed_id(channel_id, "ch_").or_else(|| Uuid::parse_str(channel_id).ok())
 }
 
 fn should_forward(event: &ServerEvent, self_user_id: Uuid, memberships: &HashSet<Uuid>) -> bool {
@@ -344,5 +366,39 @@ mod tests {
             !should_forward(&notification(other, channel), me, &members),
             "membership of the channel must not be enough to receive someone else's notification"
         );
+    }
+}
+
+#[cfg(test)]
+mod left_channel_tests {
+    use super::*;
+
+    fn left(user: Uuid, channel: Uuid) -> ServerEvent {
+        ServerEvent::ChannelLeft {
+            event_id: "e".into(),
+            channel_id: format_channel_id(channel),
+            user_id: format_user_id(user),
+        }
+    }
+
+    #[test]
+    fn a_socket_drops_a_channel_its_own_user_left() {
+        let (me, channel) = (Uuid::from_u128(1), Uuid::from_u128(9));
+        assert_eq!(left_channel(&left(me, channel), me), Some(channel));
+    }
+
+    #[test]
+    fn someone_else_leaving_changes_nothing_for_this_socket() {
+        let (me, other, channel) = (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(9));
+        assert_eq!(left_channel(&left(other, channel), me), None);
+    }
+
+    #[test]
+    fn the_departing_user_is_still_told_before_the_channel_is_dropped() {
+        // Forwarding is decided against the membership as it stands, which
+        // still includes the channel, so the user's client can react.
+        let (me, channel) = (Uuid::from_u128(1), Uuid::from_u128(9));
+        let members = HashSet::from([channel]);
+        assert!(should_forward(&left(me, channel), me, &members));
     }
 }

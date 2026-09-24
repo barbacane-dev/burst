@@ -48,3 +48,7 @@ reqwest.workspace = true
 tempfile = "3"
 # Sending a real SIGTERM in the process-lifecycle test.
 libc = "0.2"
+# A real WebSocket client, for tests of what a connected socket receives.
+# Both are already in the tree through axum.
+tokio-tungstenite = "0.29"
+futures-util = "0.3"

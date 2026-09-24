@@ -464,3 +464,38 @@ pub async fn update_last_read(
     .await?;
     Ok(())
 }
+
+/// Returns one user's membership of a channel, if they are a member.
+pub async fn find_member(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> Result<Option<ChannelMemberRow>, sqlx::Error> {
+    sqlx::query_as::<_, ChannelMemberRow>(
+        "SELECT channel_id, user_id, role, notify, joined_at \
+         FROM channel_members WHERE channel_id = $1 AND user_id = $2",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Changes a member's role in a channel.
+pub async fn update_member_role(
+    pool: &PgPool,
+    channel_id: Uuid,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Option<ChannelMemberRow>, sqlx::Error> {
+    sqlx::query_as::<_, ChannelMemberRow>(
+        "UPDATE channel_members SET role = $3 \
+         WHERE channel_id = $1 AND user_id = $2 \
+         RETURNING channel_id, user_id, role, notify, joined_at",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .bind(role)
+    .fetch_optional(pool)
+    .await
+}

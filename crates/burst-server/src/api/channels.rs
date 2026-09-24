@@ -15,6 +15,34 @@ use crate::api::extractors::{AuthUser, PaginationParams};
 use crate::db;
 use crate::error::ApiError;
 use crate::services;
+use burst_core::models::channel::ChannelMemberRole;
+use burst_core::permissions::{Action, Actor, InstanceRole};
+
+/// The caller as the permission matrix sees them in `channel_id`.
+async fn actor_in(state: &AppState, auth: &AuthUser, channel_id: Uuid) -> Result<Actor, ApiError> {
+    let member = db::channels::find_member(&state.db, channel_id, auth.user_id).await?;
+    Ok(Actor {
+        instance: InstanceRole::parse(&auth.user_role),
+        // A stored role the enum does not know is still a membership.
+        channel: member.map(|m| m.role.parse().unwrap_or(ChannelMemberRole::Member)),
+    })
+}
+
+/// The caller for decisions that involve no particular channel.
+fn instance_actor(auth: &AuthUser) -> Actor {
+    Actor {
+        instance: InstanceRole::parse(&auth.user_role),
+        channel: None,
+    }
+}
+
+fn require(actor: &Actor, action: Action) -> Result<(), ApiError> {
+    if actor.can(action) {
+        Ok(())
+    } else {
+        Err(ApiError::Forbidden)
+    }
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -29,6 +57,10 @@ pub fn router() -> Router<AppState> {
             get(list_members).post(join_channel),
         )
         .route("/channels/{channel_id}/members/me", delete(leave_channel))
+        .route(
+            "/channels/{channel_id}/members/{user_id}",
+            delete(remove_member).patch(update_member_role),
+        )
         .route(
             "/channels/{channel_id}/members/me/last-read",
             axum::routing::patch(mark_read),
@@ -93,6 +125,28 @@ pub struct ChannelMemberResponse {
     pub user_id: String,
     pub role: String,
     pub joined_at: String,
+}
+
+fn member_to_response(m: &db::channels::ChannelMemberRow) -> ChannelMemberResponse {
+    ChannelMemberResponse {
+        user_id: burst_core::id::format_user_id(m.user_id),
+        role: m.role.clone(),
+        joined_at: m.joined_at.to_rfc3339(),
+    }
+}
+
+/// Adds someone to a channel. Without `userId`, or with the caller's own, the
+/// caller joins a public channel themselves.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddMemberRequest {
+    pub user_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateMemberRoleRequest {
+    pub role: String,
 }
 
 fn channel_with_unread_to_response(row: &db::channels::ChannelWithUnreadRow) -> ChannelResponse {
@@ -196,6 +250,7 @@ async fn create_channel(
     State(state): State<AppState>,
     Json(body): Json<CreateChannelRequest>,
 ) -> Result<(axum::http::StatusCode, Json<ChannelResponse>), ApiError> {
+    require(&instance_actor(&auth), Action::CreateChannel)?;
     let kind = body.kind.as_deref().unwrap_or("public");
     if !matches!(kind, "public" | "private") {
         return Err(ApiError::BadRequest(
@@ -268,6 +323,13 @@ async fn list_channels(
         };
         Ok(Json(PaginatedResponse { items, cursor }))
     } else {
+        // A guest finds channels only by being added to them.
+        if !instance_actor(&auth).can(Action::BrowsePublicChannels) {
+            return Ok(Json(PaginatedResponse {
+                items: vec![],
+                cursor: None,
+            }));
+        }
         let channels = db::channels::list_public(&state.db, cursor, limit + 1).await?;
         let has_more = channels.len() as i64 > limit;
         let items: Vec<_> = channels
@@ -307,7 +369,12 @@ async fn get_channel(
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
 
-    if channel.kind == "private" && !db::channels::is_member(&state.db, id, auth.user_id).await? {
+    // A channel the caller may not see is reported missing, not forbidden, so
+    // its existence does not leak.
+    let actor = actor_in(&state, &auth, id).await?;
+    let visible = actor.channel.is_some()
+        || (channel.kind == "public" && actor.can(Action::ViewPublicChannel));
+    if !visible {
         return Err(ApiError::NotFound("Channel".into()));
     }
 
@@ -330,6 +397,7 @@ async fn update_channel(
 ) -> Result<Json<ChannelResponse>, ApiError> {
     let id = parse_channel_id(&channel_id)?;
     services::require_membership(&state.db, id, auth.user_id).await?;
+    require(&actor_in(&state, &auth, id).await?, Action::EditChannel)?;
 
     let channel = db::channels::update(
         &state.db,
@@ -352,6 +420,9 @@ async fn join_channel(
     auth: AuthUser,
     State(state): State<AppState>,
     Path(channel_id): Path<String>,
+    // Absent, `null` or without `userId`: the caller joins. Clients have sent
+    // both of the first two, so both keep meaning that.
+    body: Option<Json<Option<AddMemberRequest>>>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let id = parse_channel_id(&channel_id)?;
 
@@ -359,12 +430,141 @@ async fn join_channel(
         .await?
         .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
 
-    if channel.kind != "public" {
+    let target = match body.and_then(|Json(b)| b).and_then(|b| b.user_id) {
+        Some(raw) => Some(parse_user_id(&raw)?),
+        None => None,
+    }
+    .filter(|user| *user != auth.user_id);
+
+    let joining = match target {
+        // Joining yourself: only a public channel, and not as a guest.
+        None => {
+            if channel.kind != "public" {
+                return Err(ApiError::Forbidden);
+            }
+            require(&instance_actor(&auth), Action::JoinPublicChannel)?;
+            auth.user_id
+        }
+        // Adding someone else: the way into a private channel, and the only
+        // way a guest enters any channel. Direct messages keep their members.
+        Some(user) => {
+            if !matches!(channel.kind.as_str(), "public" | "private") {
+                return Err(ApiError::BadRequest(
+                    "members are added only to public and private channels".into(),
+                ));
+            }
+            require(&actor_in(&state, &auth, id).await?, Action::AddMember)?;
+            let added = db::users::find_by_id(&state.db, user)
+                .await?
+                .filter(|u| u.deactivated_at.is_none())
+                .ok_or_else(|| ApiError::NotFound("User".into()))?;
+            added.id
+        }
+    };
+
+    db::channels::add_member(&state.db, id, joining, "member").await?;
+    // The new member's open sockets start forwarding this channel on this.
+    services::broadcast(
+        &state,
+        crate::ws::ServerEvent::ChannelJoined {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: burst_core::id::format_channel_id(id),
+            user_id: burst_core::id::format_user_id(joining),
+        },
+    )
+    .await;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+/// Announces that `user` is no longer a member of `channel`.
+async fn announce_left(state: &AppState, channel: Uuid, user: Uuid) {
+    services::broadcast(
+        state,
+        crate::ws::ServerEvent::ChannelLeft {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: burst_core::id::format_channel_id(channel),
+            user_id: burst_core::id::format_user_id(user),
+        },
+    )
+    .await;
+}
+
+/// Removes another member. Leaving is `leave_channel`.
+async fn remove_member(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((channel_id, user_id)): Path<(String, String)>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    let id = parse_channel_id(&channel_id)?;
+    let user = parse_user_id(&user_id)?;
+    if user == auth.user_id {
+        return Err(ApiError::BadRequest(
+            "use DELETE /channels/{channelId}/members/me to leave".into(),
+        ));
+    }
+    let actor = actor_in(&state, &auth, id).await?;
+    let target = db::channels::find_member(&state.db, id, user)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Member".into()))?;
+    let target_role = target.role.parse().unwrap_or(ChannelMemberRole::Member);
+    if !actor.can_remove(target_role) {
         return Err(ApiError::Forbidden);
     }
 
-    db::channels::add_member(&state.db, id, auth.user_id, "member").await?;
+    db::channels::remove_member(&state.db, id, user).await?;
+    announce_left(&state, id, user).await;
     Ok(axum::http::StatusCode::NO_CONTENT)
+}
+
+/// Makes a member a moderator of the channel, or a member again.
+async fn update_member_role(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Path((channel_id, user_id)): Path<(String, String)>,
+    Json(body): Json<UpdateMemberRoleRequest>,
+) -> Result<Json<ChannelMemberResponse>, ApiError> {
+    let id = parse_channel_id(&channel_id)?;
+    let user = parse_user_id(&user_id)?;
+    let new_role: ChannelMemberRole = body
+        .role
+        .parse()
+        .ok()
+        .filter(|r| *r != ChannelMemberRole::Owner)
+        .ok_or_else(|| ApiError::BadRequest("role must be 'moderator' or 'member'".into()))?;
+
+    let actor = actor_in(&state, &auth, id).await?;
+    let target = db::channels::find_member(&state.db, id, user)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Member".into()))?;
+    let current = target.role.parse().unwrap_or(ChannelMemberRole::Member);
+    if !actor.can_set_role(current, new_role) {
+        return Err(ApiError::Forbidden);
+    }
+    // A guest reads and sends; the matrix would ignore the role anyway, and
+    // storing it would suggest otherwise.
+    if new_role == ChannelMemberRole::Moderator {
+        let is_guest = db::users::find_by_id(&state.db, user)
+            .await?
+            .is_some_and(|u| InstanceRole::parse(&u.role) == InstanceRole::Guest);
+        if is_guest {
+            return Err(ApiError::BadRequest(
+                "a guest cannot moderate a channel".into(),
+            ));
+        }
+    }
+
+    let updated = db::channels::update_member_role(&state.db, id, user, new_role.as_str())
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Member".into()))?;
+    services::broadcast(
+        &state,
+        crate::ws::ServerEvent::ChannelUpdated {
+            event_id: burst_core::id::new_id().to_string(),
+            channel_id: burst_core::id::format_channel_id(id),
+        },
+    )
+    .await;
+    Ok(Json(member_to_response(&updated)))
 }
 
 async fn leave_channel(
@@ -373,7 +573,9 @@ async fn leave_channel(
     Path(channel_id): Path<String>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let id = parse_channel_id(&channel_id)?;
-    db::channels::remove_member(&state.db, id, auth.user_id).await?;
+    if db::channels::remove_member(&state.db, id, auth.user_id).await? {
+        announce_left(&state, id, auth.user_id).await;
+    }
     Ok(axum::http::StatusCode::NO_CONTENT)
 }
 
@@ -386,14 +588,7 @@ async fn list_members(
     services::require_membership(&state.db, id, auth.user_id).await?;
 
     let members = db::channels::list_members(&state.db, id).await?;
-    let items = members
-        .iter()
-        .map(|m| ChannelMemberResponse {
-            user_id: burst_core::id::format_user_id(m.user_id),
-            role: m.role.clone(),
-            joined_at: m.joined_at.to_rfc3339(),
-        })
-        .collect();
+    let items = members.iter().map(member_to_response).collect();
     Ok(Json(PaginatedResponse {
         items,
         cursor: None,
@@ -426,6 +621,7 @@ async fn create_or_get_dm(
     State(state): State<AppState>,
     Json(body): Json<CreateDmRequest>,
 ) -> Result<(axum::http::StatusCode, Json<ChannelResponse>), ApiError> {
+    require(&instance_actor(&auth), Action::StartDirectMessage)?;
     // Resolve target user IDs from either field
     let raw_ids = match (body.user_ids, body.user_id) {
         (Some(ids), _) => ids,
@@ -847,9 +1043,34 @@ async fn delete_message(
     services::require_membership(&state.db, ch_id, auth.user_id).await?;
 
     let msg_id = parse_message_id(&message_id)?;
-    let deleted_msg = db::messages::soft_delete(&state.db, msg_id, auth.user_id)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("Message".into()))?;
+    let deleted_msg = match db::messages::soft_delete(&state.db, msg_id, auth.user_id).await? {
+        Some(msg) => msg,
+        // Not the author's own. A moderator may still remove it, and that is
+        // recorded, since it removes someone else's words.
+        None if actor_in(&state, &auth, ch_id)
+            .await?
+            .can(Action::DeleteOthersMessage) =>
+        {
+            let msg = db::messages::soft_delete_in_channel(&state.db, msg_id, ch_id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("Message".into()))?;
+            db::audit_log::insert(
+                &state.db,
+                burst_core::id::new_id(),
+                auth.user_id,
+                "message.deleted_by_moderator",
+                "message",
+                msg.id,
+                Some(serde_json::json!({
+                    "channelId": burst_core::id::format_channel_id(ch_id),
+                    "authorId": burst_core::id::format_user_id(msg.user_id),
+                })),
+            )
+            .await?;
+            msg
+        }
+        None => return Err(ApiError::NotFound("Message".into())),
+    };
 
     let ev = crate::ws::ServerEvent::MessageDeleted {
         event_id: burst_core::id::new_id().to_string(),
@@ -929,6 +1150,7 @@ async fn pin_message(
 ) -> Result<axum::http::StatusCode, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
     services::require_membership(&state.db, ch_id, auth.user_id).await?;
+    require(&actor_in(&state, &auth, ch_id).await?, Action::PinMessage)?;
 
     let msg_id = parse_message_id(&message_id)?;
     let message = db::messages::find_by_id(&state.db, msg_id)
@@ -959,6 +1181,7 @@ async fn unpin_message(
 ) -> Result<axum::http::StatusCode, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
     services::require_membership(&state.db, ch_id, auth.user_id).await?;
+    require(&actor_in(&state, &auth, ch_id).await?, Action::PinMessage)?;
 
     let msg_id = parse_message_id(&message_id)?;
     let removed = db::pinned_messages::unpin(&state.db, ch_id, msg_id).await?;
@@ -1010,17 +1233,10 @@ async fn archive_channel(
 ) -> Result<Json<ChannelResponse>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
 
-    // Only channel owners or instance admins can archive.
-    let member = db::channels::list_members(&state.db, ch_id)
-        .await?
-        .into_iter()
-        .find(|m| m.user_id == auth.user_id);
-
-    let is_channel_owner = member.as_ref().is_some_and(|m| m.role == "owner");
-    let is_admin = auth.user_role == "admin";
-    if !is_channel_owner && !is_admin {
-        return Err(ApiError::Forbidden);
-    }
+    require(
+        &actor_in(&state, &auth, ch_id).await?,
+        Action::ArchiveChannel,
+    )?;
 
     let channel = db::channels::archive(&state.db, ch_id)
         .await?
@@ -1042,16 +1258,10 @@ async fn unarchive_channel(
 ) -> Result<Json<ChannelResponse>, ApiError> {
     let ch_id = parse_channel_id(&channel_id)?;
 
-    let member = db::channels::list_members(&state.db, ch_id)
-        .await?
-        .into_iter()
-        .find(|m| m.user_id == auth.user_id);
-
-    let is_channel_owner = member.as_ref().is_some_and(|m| m.role == "owner");
-    let is_admin = auth.user_role == "admin";
-    if !is_channel_owner && !is_admin {
-        return Err(ApiError::Forbidden);
-    }
+    require(
+        &actor_in(&state, &auth, ch_id).await?,
+        Action::ArchiveChannel,
+    )?;
 
     let channel = db::channels::unarchive(&state.db, ch_id)
         .await?

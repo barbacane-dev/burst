@@ -328,3 +328,80 @@ pub async fn seed_webhook(
     .unwrap();
     (row, token)
 }
+
+// ── Live server and sockets ──────────────────────────────────────────────────
+
+pub type Socket =
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
+
+impl TestApp {
+    /// Serves the router on a real port, with the peer address attached the
+    /// way the binary does it, and returns that address.
+    pub async fn serve(&self) -> std::net::SocketAddr {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind a local port");
+        let addr = listener.local_addr().expect("local address");
+        let router = self.router.clone();
+        tokio::spawn(async move {
+            axum::serve(
+                listener,
+                router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+            )
+            .await
+            .expect("serve");
+        });
+        addr
+    }
+}
+
+/// Opens `/ws` as `external_id`, as the gateway would present them.
+pub async fn connect(addr: std::net::SocketAddr, external_id: &str) -> Socket {
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let mut request = format!("ws://{addr}/ws")
+        .into_client_request()
+        .expect("request");
+    request
+        .headers_mut()
+        .insert("x-auth-consumer", external_id.parse().expect("header"));
+    let (socket, _) = tokio_tungstenite::connect_async(request)
+        .await
+        .expect("websocket handshake");
+    socket
+}
+
+/// The next text frame the socket receives within `wait`, parsed.
+pub async fn next_event(
+    socket: &mut Socket,
+    wait: std::time::Duration,
+) -> Option<serde_json::Value> {
+    use futures_util::StreamExt;
+    loop {
+        match tokio::time::timeout(wait, socket.next()).await {
+            Ok(Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text)))) => {
+                return serde_json::from_str(&text).ok();
+            }
+            Ok(Some(Ok(_))) => continue,
+            _ => return None,
+        }
+    }
+}
+
+/// Reads events until one satisfies `pred`, or `wait` passes without one.
+pub async fn wait_for(
+    socket: &mut Socket,
+    wait: std::time::Duration,
+    pred: impl Fn(&serde_json::Value) -> bool,
+) -> Option<serde_json::Value> {
+    let deadline = tokio::time::Instant::now() + wait;
+    loop {
+        let left = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if left.is_zero() {
+            return None;
+        }
+        let event = next_event(socket, left).await?;
+        if pred(&event) {
+            return Some(event);
+        }
+    }
+}

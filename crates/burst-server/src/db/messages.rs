@@ -194,3 +194,22 @@ pub async fn soft_delete(
     .fetch_optional(pool)
     .await
 }
+
+/// Soft-deletes any message in a channel, whoever wrote it. For moderators;
+/// `soft_delete` is the author's own path.
+pub async fn soft_delete_in_channel(
+    pool: &PgPool,
+    id: Uuid,
+    channel_id: Uuid,
+) -> Result<Option<MessageRow>, sqlx::Error> {
+    sqlx::query_as::<_, MessageRow>(
+        "UPDATE messages SET content = '', deleted_at = now() \
+         WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL \
+         RETURNING id, channel_id, user_id, thread_id, content, \
+         edited_at, deleted_at, created_at",
+    )
+    .bind(id)
+    .bind(channel_id)
+    .fetch_optional(pool)
+    .await
+}

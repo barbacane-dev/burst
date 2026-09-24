@@ -59,6 +59,15 @@ pub enum ServerEvent {
         channel_id: String,
         user_id: String,
     },
+    /// A user left a channel or was removed from it. A socket receiving this
+    /// for its own user stops forwarding that channel's events, so a removed
+    /// member does not go on reading it until they reconnect.
+    #[serde(rename = "channel.left", rename_all = "camelCase")]
+    ChannelLeft {
+        event_id: String,
+        channel_id: String,
+        user_id: String,
+    },
     #[serde(rename = "reaction.added", rename_all = "camelCase")]
     ReactionAdded {
         event_id: String,
@@ -127,6 +136,7 @@ impl ServerEvent {
             ServerEvent::ReactionAdded { event_id, .. } => event_id,
             ServerEvent::ReactionRemoved { event_id, .. } => event_id,
             ServerEvent::ChannelJoined { event_id, .. } => event_id,
+            ServerEvent::ChannelLeft { event_id, .. } => event_id,
             ServerEvent::MessagePinned { event_id, .. } => event_id,
             ServerEvent::MessageUnpinned { event_id, .. } => event_id,
             ServerEvent::ChannelUpdated { event_id, .. } => event_id,
@@ -147,6 +157,7 @@ impl ServerEvent {
             ServerEvent::ReactionAdded { channel_id, .. } => Some(channel_id),
             ServerEvent::ReactionRemoved { channel_id, .. } => Some(channel_id),
             ServerEvent::ChannelJoined { channel_id, .. } => Some(channel_id),
+            ServerEvent::ChannelLeft { channel_id, .. } => Some(channel_id),
             ServerEvent::MessagePinned { channel_id, .. } => Some(channel_id),
             ServerEvent::MessageUnpinned { channel_id, .. } => Some(channel_id),
             ServerEvent::ChannelUpdated { channel_id, .. } => Some(channel_id),

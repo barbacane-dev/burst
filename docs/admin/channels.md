@@ -16,11 +16,13 @@ For each channel, the list displays the name, type (public/private), member coun
 
 The user who creates a channel is its **owner**. Ownership grants:
 
-- Full control over channel settings (name, topic, description).
-- Ability to archive and unarchive the channel.
-- Ability to manage the member list (invite, remove).
+- Everything a moderator of the channel can do: deleting anyone's message, removing members, archiving and unarchiving.
+- Appointing moderators of the channel, and making them members again.
+- Removing a moderator, which moderators cannot do to one another.
 
-Admins can perform all owner actions on any channel, regardless of ownership.
+Any member who is not a guest can edit the channel's settings and add people to it; that is not reserved to the owner. Nobody can remove the owner.
+
+Admins can perform all owner actions on any channel, regardless of ownership, except removing the owner.
 
 ## Archiving and Unarchiving
 

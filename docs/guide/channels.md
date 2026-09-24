@@ -4,8 +4,8 @@ Channels are where team conversations happen. Every channel has a name, an optio
 
 ## Channel Types
 
-- **Public** — Visible to everyone. Any member can browse and join.
-- **Private** — Visible only to members. Requires an invite to join.
+- **Public**: visible to everyone except guests. Anyone else can browse and join.
+- **Private**: visible only to members. The only way in is to be added by a member.
 
 ## Creating a Channel
 
@@ -19,17 +19,31 @@ Click the search icon next to "Channels" to browse all public channels. Each cha
 
 Private channels do not appear in the browse list.
 
+## Adding People
+
+Any member of a channel can add someone to it, except a guest. Adding someone is the only way into a private channel, and the only way a guest enters any channel. Deactivated users cannot be added.
+
 ## Channel Topic and Description
 
-Channel owners and members can update the topic and description via the channel settings. The topic appears in the channel header as a quick reference.
+Members can update the topic and description via the channel settings. Guests cannot. The topic appears in the channel header as a quick reference.
 
 ## Leaving a Channel
 
 Click the three-dot menu in the channel header and select **Leave channel**. You can rejoin public channels at any time from the browse dialog.
 
+## Moderators
+
+A channel's owner can make any member a **moderator** of that channel, and make them a member again. A moderator can:
+
+- delete anyone's message in the channel, which is recorded in the [audit log](../admin/audit-log.md);
+- remove members from the channel;
+- archive and unarchive it.
+
+Users with the instance-wide **moderator** role moderate every channel they are a member of, and no others. Nobody can remove a channel's owner, and moderators cannot remove one another; the owner can remove a moderator. A guest cannot be made a moderator.
+
 ## Archiving
 
-Channel owners and admins can archive a channel, making it **read-only**. Members can still read the message history but cannot send new messages.
+Anyone who moderates the channel, and admins, can archive it, making it **read-only**. Members can still read the message history but cannot send new messages.
 
 To archive: use the channel settings menu or the admin panel. Archived channels can be unarchived at any time.
 
