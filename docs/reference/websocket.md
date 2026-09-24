@@ -96,6 +96,8 @@ The server sends a notification only to the member it is addressed to, and decid
 | `mentions` | Only messages that mention you. |
 | `nothing` | Nothing, mentions included. |
 
+A message mentions you when it names you, when it contains `@channel`, or when it contains `@here` and you are online as it is sent.
+
 You are never notified of your own messages. `channelName` is absent for direct messages. `preview` holds up to 200 characters of the message and is empty when the message carries only files.
 
 ## Client Events

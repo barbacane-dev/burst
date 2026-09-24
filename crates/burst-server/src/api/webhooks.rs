@@ -406,7 +406,7 @@ async fn trigger_incoming(
     )
     .await?;
 
-    let mentioned = crate::api::channels::persist_mentions(&state, id, &content).await?;
+    let mentioned = crate::api::channels::persist_mentions(&state, &message).await?;
 
     let response = build_message_response_simple(&message, vec![]);
     let ev = crate::ws::ServerEvent::MessageCreated {

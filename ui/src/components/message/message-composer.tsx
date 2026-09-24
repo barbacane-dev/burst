@@ -206,7 +206,7 @@ export function MessageComposer({
         </div>
       )}
       <div className="relative flex items-end gap-2">
-        {mentionQuery !== null && users.length > 0 && (
+        {mentionQuery !== null && (
           <MentionAutocomplete
             query={mentionQuery}
             users={users}

@@ -594,7 +594,7 @@ async fn send_message(
         attachment_responses.push(attachment_to_response(&att));
     }
 
-    let mentioned = persist_mentions(&state, id, &content).await?;
+    let mentioned = persist_mentions(&state, &message).await?;
 
     let response = build_message_response_simple(&message, attachment_responses);
     let ev = crate::ws::ServerEvent::MessageCreated {
@@ -1106,19 +1106,44 @@ fn slugify(name: &str) -> String {
         .join("-")
 }
 
-/// Persists the users `content` mentions and returns their ids.
+/// Persists who a message mentions and returns their ids.
 ///
-/// Names that match no user are dropped, as they always were.
+/// `@username` resolves to that user; a name that matches no user is dropped.
+/// `@channel` adds every member of the channel and `@here` the members online
+/// as the message is sent, so a member offline at the time is mentioned by
+/// `@channel` and not by `@here`. The author is never added by a broadcast.
+///
+/// Online means connected to this node. With the in-process broker that is
+/// every connection; behind `pg_notify` a member connected only to another
+/// node is not counted, since presence is not shared between nodes.
 pub(crate) async fn persist_mentions(
     state: &AppState,
-    message_id: Uuid,
-    content: &str,
+    message: &db::messages::MessageRow,
 ) -> Result<std::collections::HashSet<Uuid>, ApiError> {
-    let usernames = burst_core::mentions::parse(content);
-    if usernames.is_empty() {
-        return Ok(std::collections::HashSet::new());
+    let parsed = burst_core::mentions::parse(&message.content);
+    let mut ids: std::collections::HashSet<Uuid> = if parsed.users.is_empty() {
+        std::collections::HashSet::new()
+    } else {
+        db::users::find_ids_by_usernames(&state.db, &parsed.users)
+            .await?
+            .into_iter()
+            .collect()
+    };
+
+    if parsed.is_broadcast() {
+        for member in db::channels::list_members(&state.db, message.channel_id).await? {
+            if member.user_id == message.user_id {
+                continue;
+            }
+            if parsed.channel || state.presence.is_online(member.user_id).await {
+                ids.insert(member.user_id);
+            }
+        }
     }
-    let ids = db::users::find_ids_by_usernames(&state.db, &usernames).await?;
-    db::mentions::insert_mentions(&state.db, message_id, &ids).await?;
-    Ok(ids.into_iter().collect())
+
+    if !ids.is_empty() {
+        let list: Vec<Uuid> = ids.iter().copied().collect();
+        db::mentions::insert_mentions(&state.db, message.id, &list).await?;
+    }
+    Ok(ids)
 }

@@ -1,10 +1,11 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { remarkMentions } from "../../lib/mentions";
 
 export function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={[remarkGfm, remarkMentions]}
       components={{
         p: ({ children }) => <p className="text-sm text-gray-800 dark:text-gray-200">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
