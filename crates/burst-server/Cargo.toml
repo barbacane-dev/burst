@@ -52,3 +52,5 @@ libc = "0.2"
 # Both are already in the tree through axum.
 tokio-tungstenite = "0.29"
 futures-util = "0.3"
+# Checking values against the patterns the spec declares, which the gateway enforces.
+regex = "1"

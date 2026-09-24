@@ -101,4 +101,6 @@ export interface SearchResult {
   content: string;
   headline: string;
   createdAt: string;
+  /** The attached file whose name matched, when one did. */
+  matchedFile?: string;
 }

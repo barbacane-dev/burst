@@ -1403,10 +1403,13 @@ paths:
       operationId: searchMessages
       summary: Full-text search across messages
       description: >-
-        Searches message content using PostgreSQL full-text search. Results are
-        scoped to channels the caller is a member of. Supports quoted phrases
-        and -exclude syntax via websearch_to_tsquery. Returns highlighted
-        snippets in the headline field.
+        Searches message content, matching word stems ("running" finds "run"),
+        and the names of the files attached to messages. Results are scoped to
+        channels the caller is a member of. The query accepts "quoted phrases"
+        and -excluded words. Matching terms are highlighted in the `headline`
+        field. File names match by case-insensitive substring, and a result
+        found that way names the file in `matchedFile`. Results are ordered by
+        relevance; `cursor` continues exactly where the previous page ended.
       tags:
         - Search
       security:
@@ -1433,13 +1436,47 @@ paths:
             pattern: "^(ch_)?[0-9a-f-]{36}$"
             maxLength: 39
             example: "ch_0193a5e0-7c1a-7000-8000-000000000010"
-        - name: cursor
+        - name: from
           in: query
-          description: Pagination cursor (opaque token from previous response)
+          description: Only messages written by this user
           schema:
             type: string
-            pattern: "^msg_[0-9a-f-]{36}$"
+            pattern: "^(usr_)?[0-9a-f-]{36}$"
             maxLength: 40
+            example: "usr_0193a5e0-7c1a-7000-8000-000000000001"
+        - name: after
+          in: query
+          description: Only messages sent at or after this instant (RFC 3339)
+          schema:
+            type: string
+            format: date-time
+            maxLength: 40
+            example: "2026-09-01T00:00:00+02:00"
+        - name: before
+          in: query
+          description: >-
+            Only messages sent before this instant (RFC 3339). Must be later
+            than `after` when both are given.
+          schema:
+            type: string
+            format: date-time
+            maxLength: 40
+            example: "2026-10-01T00:00:00+02:00"
+        - name: hasFile
+          in: query
+          description: Only messages carrying at least one file
+          schema:
+            type: string
+            enum:
+              - "true"
+              - "false"
+        - name: cursor
+          in: query
+          description: Pagination cursor (opaque token from the previous response)
+          schema:
+            type: string
+            pattern: "^[0-9.]+_[0-9a-f-]{36}$"
+            maxLength: 64
         - name: limit
           in: query
           description: Number of results per page
@@ -3731,6 +3768,13 @@ components:
         - headline
         - createdAt
       properties:
+        matchedFile:
+          type: string
+          maxLength: 255
+          description: >-
+            The name of the attached file that matched the query, present when
+            a file name matched.
+          example: "q3-report.pdf"
         id:
           type: string
           pattern: "^msg_[0-9a-f-]{36}$"

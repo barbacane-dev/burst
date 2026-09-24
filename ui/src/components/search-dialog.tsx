@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, X } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { Paperclip, Search, X } from "lucide-react";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { searchMessages } from "../lib/api/search";
+import { searchWindow } from "../lib/search-dates";
 import { Spinner } from "./ui/spinner";
 import { useUsersById } from "../lib/hooks/use-users-by-id";
 import type { SearchResult } from "../lib/api/types";
@@ -12,6 +13,10 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [from, setFrom] = useState("");
+  const [fromDay, setFromDay] = useState("");
+  const [toDay, setToDay] = useState("");
+  const [hasFile, setHasFile] = useState(false);
 
   // Debounce the search query by 300ms.
   useEffect(() => {
@@ -33,20 +38,28 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["search", debouncedQuery],
-    queryFn: () => searchMessages(debouncedQuery),
-    enabled: debouncedQuery.length > 0,
+  const filters = { from: from || undefined, ...searchWindow(fromDay, toDay), hasFile };
+  const backwards = fromDay !== "" && toDay !== "" && fromDay > toDay;
+
+  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ["search", debouncedQuery, filters],
+    queryFn: ({ pageParam }) =>
+      searchMessages(debouncedQuery, { ...filters, cursor: pageParam, limit: 20 }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.cursor ?? undefined,
+    enabled: debouncedQuery.length > 0 && !backwards,
   });
 
-  const { usersById } = useUsersById();
+  const { usersById, users } = useUsersById();
 
   function handleResultClick(result: SearchResult) {
     navigate(`/channels/${result.channelId}`);
     onClose();
   }
 
-  const items = data?.items ?? [];
+  const items = data?.pages.flatMap((page) => page.items) ?? [];
+  const filterClass =
+    "rounded border border-gray-300 bg-transparent px-1.5 py-0.5 text-xs text-gray-700 dark:border-gray-600 dark:text-gray-300";
 
   return (
     <div
@@ -77,9 +90,58 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <select
+            aria-label="Author"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className={filterClass}
+          >
+            <option value="">Anyone</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.displayName}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-1">
+            Sent
+            <input
+              type="date"
+              aria-label="On or after"
+              value={fromDay}
+              onChange={(e) => setFromDay(e.target.value)}
+              className={filterClass}
+            />
+          </label>
+          <label className="flex items-center gap-1">
+            to
+            <input
+              type="date"
+              aria-label="On or before"
+              value={toDay}
+              onChange={(e) => setToDay(e.target.value)}
+              className={filterClass}
+            />
+          </label>
+          <label className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={hasFile}
+              onChange={(e) => setHasFile(e.target.checked)}
+            />
+            Has file
+          </label>
+        </div>
+
         {/* Results */}
         <div className="max-h-80 overflow-y-auto">
-          {debouncedQuery.length === 0 ? (
+          {backwards ? (
+            <p className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">
+              The start date is after the end date
+            </p>
+          ) : debouncedQuery.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-gray-400 dark:text-gray-500">
               Type to search messages across all your channels
             </p>
@@ -117,10 +179,27 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                         className="text-sm text-gray-700 dark:text-gray-300 [&_mark]:rounded [&_mark]:bg-yellow-200/60 [&_mark]:px-0.5 dark:[&_mark]:bg-yellow-500/30"
                         dangerouslySetInnerHTML={{ __html: result.headline }}
                       />
+                      {result.matchedFile && (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                          <Paperclip className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{result.matchedFile}</span>
+                        </p>
+                      )}
                     </button>
                   </li>
                 );
               })}
+              {hasNextPage && (
+                <li className="px-4 py-2 text-center">
+                  <button
+                    onClick={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                    className="text-xs text-blue-600 hover:underline disabled:opacity-50 dark:text-blue-400"
+                  >
+                    {isFetchingNextPage ? "Loading..." : "Show more results"}
+                  </button>
+                </li>
+              )}
             </ul>
           )}
         </div>

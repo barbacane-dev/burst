@@ -130,7 +130,7 @@ The API is organized into the following groups. For full details on each endpoin
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/search/messages` | Full-text search across messages you have access to. |
+| `GET` | `/search/messages` | Full-text and file-name search across messages you have access to, filterable by channel, author, date and attachment. |
 
 ### Files
 

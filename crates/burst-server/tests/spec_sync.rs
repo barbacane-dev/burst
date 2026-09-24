@@ -223,6 +223,8 @@ fn example_search_result_response() -> SearchResultResponse {
         content: "matching content".into(),
         headline: "<mark>matching</mark> content".into(),
         created_at: "2026-01-01T00:00:00Z".into(),
+        // Set, so the field is serialised and checked against the spec.
+        matched_file: Some("q3-report.pdf".into()),
     }
 }
 

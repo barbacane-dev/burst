@@ -33,7 +33,7 @@ describe("searchMessages", () => {
   it("includes channelId when provided", async () => {
     mockSearchResponse();
 
-    await searchMessages("test", "ch-42");
+    await searchMessages("test", { channelId: "ch-42" });
 
     const [url] = vi.mocked(fetch).mock.calls[0];
     const parsed = new URL(url as string, "http://localhost");
@@ -43,7 +43,7 @@ describe("searchMessages", () => {
   it("includes cursor and limit params", async () => {
     mockSearchResponse();
 
-    await searchMessages("test", undefined, "cursor-abc", 25);
+    await searchMessages("test", { cursor: "cursor-abc", limit: 25 });
 
     const [url] = vi.mocked(fetch).mock.calls[0];
     const parsed = new URL(url as string, "http://localhost");
@@ -60,7 +60,37 @@ describe("searchMessages", () => {
     const parsed = new URL(url as string, "http://localhost");
     expect(parsed.searchParams.has("channelId")).toBe(false);
     expect(parsed.searchParams.has("cursor")).toBe(false);
+    for (const name of ["from", "after", "before", "hasFile"]) {
+      expect(parsed.searchParams.has(name)).toBe(false);
+    }
     expect(parsed.searchParams.get("q")).toBe("test");
     expect(parsed.searchParams.get("limit")).toBe("50");
+  });
+
+  it("sends the filters", async () => {
+    mockSearchResponse();
+
+    await searchMessages("test", {
+      from: "usr_bob",
+      after: "2026-09-01T00:00:00.000Z",
+      before: "2026-10-01T00:00:00.000Z",
+      hasFile: true,
+    });
+
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    const parsed = new URL(url as string, "http://localhost");
+    expect(parsed.searchParams.get("from")).toBe("usr_bob");
+    expect(parsed.searchParams.get("after")).toBe("2026-09-01T00:00:00.000Z");
+    expect(parsed.searchParams.get("before")).toBe("2026-10-01T00:00:00.000Z");
+    expect(parsed.searchParams.get("hasFile")).toBe("true");
+  });
+
+  it("leaves hasFile out when it is false", async () => {
+    mockSearchResponse();
+
+    await searchMessages("test", { hasFile: false });
+
+    const [url] = vi.mocked(fetch).mock.calls[0];
+    expect(new URL(url as string, "http://localhost").searchParams.has("hasFile")).toBe(false);
   });
 });
