@@ -53,6 +53,19 @@ pub enum ServerEvent {
         user_id: String,
         status: String,
     },
+    /// A user set or cleared their custom status. All three fields are absent
+    /// when it was cleared.
+    #[serde(rename = "user.status_changed", rename_all = "camelCase")]
+    UserStatusChanged {
+        event_id: String,
+        user_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        text: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        emoji: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        expires_at: Option<String>,
+    },
     #[serde(rename = "channel.joined", rename_all = "camelCase")]
     ChannelJoined {
         event_id: String,
@@ -133,6 +146,7 @@ impl ServerEvent {
             ServerEvent::TypingStart { event_id, .. } => event_id,
             ServerEvent::TypingStop { event_id, .. } => event_id,
             ServerEvent::PresenceUpdate { event_id, .. } => event_id,
+            ServerEvent::UserStatusChanged { event_id, .. } => event_id,
             ServerEvent::ReactionAdded { event_id, .. } => event_id,
             ServerEvent::ReactionRemoved { event_id, .. } => event_id,
             ServerEvent::ChannelJoined { event_id, .. } => event_id,
@@ -154,6 +168,7 @@ impl ServerEvent {
             ServerEvent::TypingStart { channel_id, .. } => Some(channel_id),
             ServerEvent::TypingStop { channel_id, .. } => Some(channel_id),
             ServerEvent::PresenceUpdate { .. } => None,
+            ServerEvent::UserStatusChanged { .. } => None,
             ServerEvent::ReactionAdded { channel_id, .. } => Some(channel_id),
             ServerEvent::ReactionRemoved { channel_id, .. } => Some(channel_id),
             ServerEvent::ChannelJoined { channel_id, .. } => Some(channel_id),

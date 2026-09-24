@@ -1,5 +1,5 @@
 use axum::extract::{Path, Query, State};
-use axum::routing::get;
+use axum::routing::{get, put};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -15,6 +15,7 @@ pub fn router() -> Router<AppState> {
         .route("/users", get(list_users))
         .route("/users/{user_id}", get(get_user))
         .route("/users/me", get(get_me).patch(update_me))
+        .route("/users/me/status", put(set_status).delete(clear_status))
 }
 
 #[derive(Debug, Serialize)]
@@ -28,11 +29,17 @@ pub struct UserResponse {
     pub role: String,
     pub status: String,
     pub status_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_emoji: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_expires_at: Option<String>,
     pub is_bot: bool,
     pub created_at: String,
 }
 
+/// A status past its expiry is reported as no status.
 fn user_to_response(row: &db::users::UserRow) -> UserResponse {
+    let status = burst_core::status::is_active(row.status_expires_at, chrono::Utc::now());
     UserResponse {
         id: burst_core::id::format_user_id(row.id),
         username: row.username.clone(),
@@ -41,7 +48,12 @@ fn user_to_response(row: &db::users::UserRow) -> UserResponse {
         avatar_url: row.avatar_url.clone(),
         role: row.role.clone(),
         status: row.status.clone(),
-        status_text: row.status_text.clone(),
+        status_text: row.status_text.clone().filter(|_| status),
+        status_emoji: row.status_emoji.clone().filter(|_| status),
+        status_expires_at: row
+            .status_expires_at
+            .filter(|_| status)
+            .map(|at| at.to_rfc3339()),
         is_bot: row.is_bot,
         created_at: row.created_at.to_rfc3339(),
     }
@@ -117,11 +129,81 @@ async fn update_me(
         status_text: body.status_text,
     };
 
+    let status_changed = update.status_text.is_some();
     let user = db::users::update(&state.db, auth.user_id, &update)
         .await?
         .ok_or_else(|| ApiError::NotFound("User".into()))?;
 
-    Ok(Json(user_to_response(&user)))
+    let response = user_to_response(&user);
+    if status_changed {
+        announce_status(&state, &response).await;
+    }
+    Ok(Json(response))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetStatusRequest {
+    text: Option<String>,
+    emoji: Option<String>,
+    expires_at: Option<String>,
+}
+
+async fn set_status(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Json(body): Json<SetStatusRequest>,
+) -> Result<Json<UserResponse>, ApiError> {
+    let expires_at = body
+        .expires_at
+        .as_deref()
+        .map(|at| {
+            chrono::DateTime::parse_from_rfc3339(at)
+                .map(|at| at.with_timezone(&chrono::Utc))
+                .map_err(|_| ApiError::BadRequest("expiresAt must be an RFC 3339 date-time".into()))
+        })
+        .transpose()?;
+    let status = burst_core::status::CustomStatus::new(
+        body.text.as_deref(),
+        body.emoji.as_deref(),
+        expires_at,
+        chrono::Utc::now(),
+    )
+    .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+
+    save_status(&state, auth.user_id, Some(&status)).await
+}
+
+async fn clear_status(
+    auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<UserResponse>, ApiError> {
+    save_status(&state, auth.user_id, None).await
+}
+
+async fn save_status(
+    state: &AppState,
+    user_id: Uuid,
+    status: Option<&burst_core::status::CustomStatus>,
+) -> Result<Json<UserResponse>, ApiError> {
+    let user = db::users::set_status(&state.db, user_id, status)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User".into()))?;
+    let response = user_to_response(&user);
+    announce_status(state, &response).await;
+    Ok(Json(response))
+}
+
+/// Tells every connected client the user's status as it now reads.
+async fn announce_status(state: &AppState, user: &UserResponse) {
+    let event = crate::ws::ServerEvent::UserStatusChanged {
+        event_id: burst_core::id::new_id().to_string(),
+        user_id: user.id.clone(),
+        text: user.status_text.clone(),
+        emoji: user.status_emoji.clone(),
+        expires_at: user.status_expires_at.clone(),
+    };
+    crate::services::broadcast(state, event).await;
 }
 
 /// JIT provisioning: create or return an existing user from an external identity.

@@ -13,6 +13,9 @@ export interface User {
   role: "admin" | "integrator" | "moderator" | "member" | "guest";
   status: "online" | "away" | "offline" | "dnd";
   statusText?: string;
+  statusEmoji?: string;
+  /** RFC 3339. Once past, the status is no longer shown. */
+  statusExpiresAt?: string;
   isBot: boolean;
   createdAt: string;
 }

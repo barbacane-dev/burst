@@ -20,6 +20,7 @@ fn event_type(event: &ServerEvent) -> &'static str {
         ServerEvent::TypingStart { .. } => "typing.start",
         ServerEvent::TypingStop { .. } => "typing.stop",
         ServerEvent::PresenceUpdate { .. } => "presence.update",
+        ServerEvent::UserStatusChanged { .. } => "user.status_changed",
         ServerEvent::ChannelJoined { .. } => "channel.joined",
         ServerEvent::ChannelLeft { .. } => "channel.left",
         ServerEvent::ReactionAdded { .. } => "reaction.added",
@@ -43,6 +44,7 @@ fn is_deliverable(event: &ServerEvent) -> bool {
             | ServerEvent::TypingStop { .. }
             | ServerEvent::PresenceUpdate { .. }
             | ServerEvent::NotificationCreated { .. }
+            | ServerEvent::UserStatusChanged { .. }
     )
 }
 

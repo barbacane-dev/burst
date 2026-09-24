@@ -13,6 +13,8 @@ pub struct UserRow {
     pub role: String,
     pub status: String,
     pub status_text: Option<String>,
+    pub status_emoji: Option<String>,
+    pub status_expires_at: Option<DateTime<Utc>>,
     pub password_hash: Option<String>,
     pub is_bot: bool,
     pub deactivated_at: Option<DateTime<Utc>>,
@@ -23,7 +25,7 @@ pub struct UserRow {
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE id = $1",
     )
@@ -35,7 +37,7 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE email = $1",
     )
@@ -50,7 +52,7 @@ pub async fn find_by_username(
 ) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE username = $1",
     )
@@ -65,7 +67,7 @@ pub async fn find_by_external_id(
 ) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE external_id = $1",
     )
@@ -89,7 +91,7 @@ pub async fn create(pool: &PgPool, user: &CreateUser) -> Result<UserRow, sqlx::E
         "INSERT INTO users (id, username, display_name, email, password_hash, external_id, role) \
          VALUES ($1, $2, $3, $4, $5, $6, $7) \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(user.id)
@@ -125,7 +127,7 @@ pub async fn create_or_get_by_external_id(
          VALUES ($1, $2, $3, $4, $5, $6, $7) \
          ON CONFLICT DO NOTHING \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(user.id)
@@ -154,7 +156,7 @@ pub async fn create_bot(
         "INSERT INTO users (id, username, display_name, role, is_bot) \
          VALUES ($1, $2, $3, 'member', TRUE) \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -167,7 +169,7 @@ pub async fn create_bot(
 pub async fn list_bots(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE is_bot = TRUE ORDER BY created_at DESC",
     )
@@ -184,7 +186,7 @@ pub async fn list(
         Some(cursor_id) => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users WHERE id > $1 ORDER BY id LIMIT $2",
             )
@@ -196,7 +198,7 @@ pub async fn list(
         None => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users ORDER BY id LIMIT $1",
             )
@@ -216,7 +218,7 @@ pub async fn update_role(
         "UPDATE users SET role = $2, updated_at = now() \
          WHERE id = $1 \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -230,7 +232,7 @@ pub async fn deactivate(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx
         "UPDATE users SET deactivated_at = now(), updated_at = now() \
          WHERE id = $1 AND deactivated_at IS NULL \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -243,7 +245,7 @@ pub async fn reactivate(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx
         "UPDATE users SET deactivated_at = NULL, updated_at = now() \
          WHERE id = $1 AND deactivated_at IS NOT NULL \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -260,7 +262,7 @@ pub async fn list_all(
         Some(cursor_id) => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users WHERE id > $1 ORDER BY id LIMIT $2",
             )
@@ -272,7 +274,7 @@ pub async fn list_all(
         None => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users ORDER BY id LIMIT $1",
             )
@@ -348,7 +350,7 @@ pub async fn update(
          updated_at = now() \
          WHERE id = $1 \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -356,6 +358,28 @@ pub async fn update(
     .bind(&update.email)
     .bind(&update.avatar_url)
     .bind(&update.status_text)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Sets a user's custom status, or clears it with `None`.
+pub async fn set_status(
+    pool: &PgPool,
+    id: Uuid,
+    status: Option<&burst_core::status::CustomStatus>,
+) -> Result<Option<UserRow>, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET status_text = $2, status_emoji = $3, status_expires_at = $4, \
+         updated_at = now() \
+         WHERE id = $1 \
+         RETURNING id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, \
+         deactivated_at, created_at, updated_at",
+    )
+    .bind(id)
+    .bind(status.and_then(|s| s.text.as_deref()))
+    .bind(status.and_then(|s| s.emoji.as_deref()))
+    .bind(status.and_then(|s| s.expires_at))
     .fetch_optional(pool)
     .await
 }

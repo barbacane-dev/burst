@@ -110,6 +110,17 @@ impl TestApp {
         self.request("PUT", uri, Some(external_id), None).await
     }
 
+    /// PUT `uri` with a JSON body, authenticated via external_id.
+    pub async fn put_json(
+        &self,
+        uri: &str,
+        external_id: &str,
+        body: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        self.request("PUT", uri, Some(external_id), Some(body))
+            .await
+    }
+
     /// DELETE `uri` authenticated via external_id.
     pub async fn delete(&self, uri: &str, external_id: &str) -> (StatusCode, serde_json::Value) {
         self.request("DELETE", uri, Some(external_id), None).await

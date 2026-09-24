@@ -65,6 +65,7 @@ These events are sent from the server to your client.
 | Type | Payload | Description |
 |------|---------|-------------|
 | `presence.update` | `{ userId, status }` | A user's presence changed (`online`, `away`, `offline`). |
+| `user.status_changed` | `{ userId, text?, emoji?, expiresAt? }` | A user set or cleared their custom status. All three fields are absent when it was cleared. Sent to every connected user. |
 
 ### Channels
 

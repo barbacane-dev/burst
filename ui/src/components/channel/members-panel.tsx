@@ -15,6 +15,7 @@ import { Avatar } from "../ui/avatar";
 import { Spinner } from "../ui/spinner";
 import { can, canRemove, canSetRole, type Actor, type ChannelRole } from "../../lib/permissions";
 import type { Channel, ChannelMember, User } from "../../lib/api/types";
+import { UserStatusLine } from "../ui/user-status";
 
 const ROLE_LABEL: Record<ChannelRole, string | null> = {
   owner: "Owner",
@@ -182,9 +183,12 @@ export function MembersPanel({
             return (
               <li key={m.userId} className="group flex items-center gap-2 rounded px-2 py-1">
                 <Avatar name={name} src={u?.avatarUrl} size="sm" />
-                <span className="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-100">
-                  {name}
-                  {isMe && <span className="text-gray-400"> (you)</span>}
+                <span className="min-w-0 flex-1 text-sm text-gray-900 dark:text-gray-100">
+                  <span className="block truncate">
+                    {name}
+                    {isMe && <span className="text-gray-400"> (you)</span>}
+                  </span>
+                  <UserStatusLine userId={m.userId} />
                 </span>
                 {label && (
                   <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">

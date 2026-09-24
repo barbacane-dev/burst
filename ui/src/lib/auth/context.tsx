@@ -4,6 +4,7 @@ import type { TokenResponse, User } from "../api/types";
 import { queryClient } from "../query-client";
 import { wsClient } from "../ws/client";
 import { AuthContext } from "./auth-context";
+import { withStatus, type StatusChangedEvent } from "../status";
 
 export { AuthContext } from "./auth-context";
 
@@ -51,6 +52,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [fetchMe, hasToken]);
 
+  // Keeps the signed-in user's own status current when it is changed elsewhere.
+  useEffect(
+    () =>
+      wsClient.on("user.status_changed", (e) => {
+        const event = e as StatusChangedEvent;
+        setUser((u) => (u && u.id === event.userId ? withStatus(u, event) : u));
+      }),
+    [],
+  );
+
   const login = useCallback(
     async (username: string, password: string) => {
       const params = new URLSearchParams({
@@ -97,7 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, loginWithToken, logout }}>
+    <AuthContext.Provider
+      value={{ user, isLoading, login, loginWithToken, logout, updateUser: setUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

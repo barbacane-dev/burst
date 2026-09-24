@@ -2,11 +2,18 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../lib/auth/use-auth";
 import { useTheme } from "../lib/use-theme";
-import { updateMe } from "../lib/api/users";
+import { clearMyStatus, setMyStatus, updateMe } from "../lib/api/users";
+import {
+  activeStatus,
+  applyToUserList,
+  CLEAR_AFTER_LABELS,
+  expiryFor,
+  type ClearAfter,
+} from "../lib/status";
 import { Avatar } from "../components/ui/avatar";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import type { User } from "../lib/api/types";
+import type { PaginatedResponse, User } from "../lib/api/types";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -20,6 +27,7 @@ export function SettingsPage() {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
 
         <ProfileSection user={user} />
+        <StatusSection user={user} />
         <AppearanceSection theme={theme} setTheme={setTheme} />
         <NotificationSection />
       </div>
@@ -32,7 +40,6 @@ function ProfileSection({ user }: { user: User }) {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState(user.displayName);
   const [email, setEmail] = useState(user.email ?? "");
-  const [statusText, setStatusText] = useState(user.statusText ?? "");
   const [saved, setSaved] = useState(false);
 
   const mutation = useMutation({
@@ -40,7 +47,6 @@ function ProfileSection({ user }: { user: User }) {
       updateMe({
         displayName: displayName !== user.displayName ? displayName : undefined,
         email: email !== (user.email ?? "") ? email || undefined : undefined,
-        statusText: statusText !== (user.statusText ?? "") ? statusText || undefined : undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -80,13 +86,6 @@ function ProfileSection({ user }: { user: User }) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <Input
-            id="status-text"
-            label="Status"
-            value={statusText}
-            onChange={(e) => setStatusText(e.target.value)}
-            placeholder="What are you working on?"
-          />
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? "Saving..." : "Save changes"}
@@ -105,6 +104,154 @@ function ProfileSection({ user }: { user: User }) {
             Log out
           </Button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+const PRESETS: { emoji: string; text: string; clearAfter: ClearAfter }[] = [
+  { emoji: "📅", text: "In a meeting", clearAfter: "1h" },
+  { emoji: "🚆", text: "Commuting", clearAfter: "30m" },
+  { emoji: "🏠", text: "Working remotely", clearAfter: "today" },
+  { emoji: "🤒", text: "Out sick", clearAfter: "today" },
+  { emoji: "🌴", text: "On vacation", clearAfter: "never" },
+];
+
+function StatusSection({ user }: { user: User }) {
+  const { updateUser } = useAuth();
+  const queryClient = useQueryClient();
+  const current = activeStatus(user);
+  const [emoji, setEmoji] = useState(current?.emoji ?? "");
+  const [text, setText] = useState(current?.text ?? "");
+  const [clearAfter, setClearAfter] = useState<ClearAfter>("never");
+
+  function applied(updated: User) {
+    updateUser(updated);
+    queryClient.setQueryData<PaginatedResponse<User>>(["users"], (list) =>
+      applyToUserList(list, {
+        userId: updated.id,
+        text: updated.statusText,
+        emoji: updated.statusEmoji,
+        expiresAt: updated.statusExpiresAt,
+      }),
+    );
+  }
+
+  const save = useMutation({
+    mutationFn: () =>
+      setMyStatus({
+        text: text.trim() || undefined,
+        emoji: emoji.trim() || undefined,
+        expiresAt: expiryFor(clearAfter),
+      }),
+    onSuccess: applied,
+  });
+
+  const clear = useMutation({
+    mutationFn: clearMyStatus,
+    onSuccess: (updated) => {
+      applied(updated);
+      setEmoji("");
+      setText("");
+      setClearAfter("never");
+    },
+  });
+
+  const blank = !text.trim() && !emoji.trim();
+  const error = save.error ?? clear.error;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!blank) save.mutate();
+  }
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Status</h2>
+      <div className="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+        <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
+          {current ? (
+            <>
+              Now showing: {current.emoji} {current.text}
+              {user.statusExpiresAt && (
+                <> until {new Date(user.statusExpiresAt).toLocaleString()}</>
+              )}
+            </>
+          ) : (
+            "No status set"
+          )}
+        </p>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {PRESETS.map((preset) => (
+            <button
+              key={preset.text}
+              type="button"
+              onClick={() => {
+                setEmoji(preset.emoji);
+                setText(preset.text);
+                setClearAfter(preset.clearAfter);
+              }}
+              className="rounded-full border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              {preset.emoji} {preset.text}
+            </button>
+          ))}
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex gap-3">
+            <div className="w-20">
+              <Input
+                id="status-emoji"
+                label="Emoji"
+                value={emoji}
+                onChange={(e) => setEmoji(e.target.value)}
+                maxLength={16}
+              />
+            </div>
+            <div className="flex-1">
+              <Input
+                id="status-text"
+                label="Status text"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                maxLength={100}
+                placeholder="What are you up to?"
+              />
+            </div>
+          </div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            Clear after
+            <select
+              value={clearAfter}
+              onChange={(e) => setClearAfter(e.target.value as ClearAfter)}
+              className="mt-1 block rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+            >
+              {(Object.keys(CLEAR_AFTER_LABELS) as ClearAfter[]).map((choice) => (
+                <option key={choice} value={choice}>
+                  {CLEAR_AFTER_LABELS[choice]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={blank || save.isPending}>
+              {save.isPending ? "Saving..." : "Set status"}
+            </Button>
+            {current && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => clear.mutate()}
+                disabled={clear.isPending}
+              >
+                Clear status
+              </Button>
+            )}
+            {error && (
+              <span className="text-sm text-red-600 dark:text-red-400">{error.message}</span>
+            )}
+          </div>
+        </form>
       </div>
     </section>
   );

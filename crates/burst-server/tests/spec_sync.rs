@@ -108,6 +108,8 @@ fn example_user_response() -> UserResponse {
         role: "member".into(),
         status: "online".into(),
         status_text: Some("Hello".into()),
+        status_emoji: Some("👋".into()),
+        status_expires_at: Some("2026-01-02T00:00:00+00:00".into()),
         is_bot: false,
         created_at: "2026-01-01T00:00:00Z".into(),
     }

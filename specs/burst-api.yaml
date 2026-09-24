@@ -257,6 +257,95 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/users/me/status:
+    put:
+      operationId: setMyStatus
+      summary: Set my custom status
+      description: >-
+        Sets the authenticated user's custom status: a text, an emoji, or both,
+        shown until `expiresAt` when given. Replaces any previous status and
+        sends a `user.status_changed` event to every connected client. Once
+        expired, the status is reported as absent.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetStatusRequest"
+            example:
+              text: "In a meeting"
+              emoji: "📅"
+              expiresAt: "2026-09-24T15:00:00Z"
+      responses:
+        "200":
+          description: The user with their new status
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: clearMyStatus
+      summary: Clear my custom status
+      description: >-
+        Removes the authenticated user's custom status and sends a
+        `user.status_changed` event without a status to every connected client.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      responses:
+        "200":
+          description: The user without a status
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/users/{userId}:
     get:
       operationId: getUser
@@ -3065,7 +3154,19 @@ components:
           type: string
           pattern: "^.*$"
           maxLength: 256
+          description: Custom status text. Absent when no status is set or it has expired.
           example: "In a meeting"
+        statusEmoji:
+          type: string
+          maxLength: 16
+          description: Custom status emoji. Absent when none is set or the status has expired.
+          example: "📅"
+        statusExpiresAt:
+          type: string
+          format: date-time
+          maxLength: 40
+          description: When the custom status stops showing. Absent when it has no end.
+          example: "2026-09-24T15:00:00Z"
         isBot:
           type: boolean
           example: false
@@ -3466,7 +3567,33 @@ components:
         statusText:
           type: string
           maxLength: 128
-          description: Short status text (e.g. "On vacation").
+          deprecated: true
+          description: >-
+            Short status text (e.g. "On vacation"). Use `PUT /api/users/me/status`,
+            which also sets an emoji and an expiry, and can clear the status.
+
+    SetStatusRequest:
+      type: object
+      description: A custom status. At least one of `text` and `emoji` must be non-blank.
+      minProperties: 1
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          maxLength: 100
+          description: Status text, trimmed.
+          example: "In a meeting"
+        emoji:
+          type: string
+          maxLength: 16
+          description: A single emoji, including ZWJ sequences, flags and skin tones.
+          example: "📅"
+        expiresAt:
+          type: string
+          format: date-time
+          maxLength: 40
+          description: When the status stops showing. Must be in the future.
+          example: "2026-09-24T15:00:00Z"
 
     SendMessageRequest:
       type: object

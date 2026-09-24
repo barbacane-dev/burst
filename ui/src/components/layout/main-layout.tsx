@@ -4,7 +4,8 @@ import { MessageSquare } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "../../lib/ws/hooks";
 import { showBrowserNotification } from "../../lib/notifications";
-import type { Message, NotificationEvent } from "../../lib/api/types";
+import { applyToUserList, type StatusChangedEvent } from "../../lib/status";
+import type { Message, NotificationEvent, PaginatedResponse, User } from "../../lib/api/types";
 
 export function MainLayout() {
   const queryClient = useQueryClient();
@@ -25,6 +26,12 @@ export function MainLayout() {
       tag: ev.channelId,
       onClick: () => navigate(`/channels/${ev.channelId}`),
     });
+  });
+
+  useWsEvent<StatusChangedEvent>("user.status_changed", (ev) => {
+    queryClient.setQueryData<PaginatedResponse<User>>(["users"], (list) =>
+      applyToUserList(list, ev),
+    );
   });
 
   return (

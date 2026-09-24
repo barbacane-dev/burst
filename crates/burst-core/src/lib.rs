@@ -4,3 +4,4 @@ pub mod mentions;
 pub mod models;
 pub mod notify;
 pub mod permissions;
+pub mod status;

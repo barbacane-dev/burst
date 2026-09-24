@@ -10,6 +10,7 @@ import { EmojiPickerDropdown } from "./emoji-picker-dropdown";
 import { MarkdownContent } from "./markdown-content";
 import { ReactionPill } from "./reaction-pill";
 import type { Message, PaginatedResponse } from "../../lib/api/types";
+import { UserStatusEmoji } from "../ui/user-status";
 
 export function MessageBubble({
   message,
@@ -91,6 +92,7 @@ export function MessageBubble({
           <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {displayName}
           </span>
+          <UserStatusEmoji userId={message.userId} />
           <time className="text-xs text-gray-400 dark:text-gray-500">
             {formatTime(message.createdAt)}
           </time>

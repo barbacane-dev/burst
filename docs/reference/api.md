@@ -121,7 +121,9 @@ The API is organized into the following groups. For full details on each endpoin
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/users/me` | Get your profile. |
-| `PATCH` | `/users/me` | Update your display name or avatar. |
+| `PATCH` | `/users/me` | Update your display name or email. |
+| `PUT` | `/users/me/status` | Set your custom status: text, emoji, optional expiry. |
+| `DELETE` | `/users/me/status` | Clear your custom status. |
 | `GET` | `/users/{userId}` | Get another user's profile. |
 
 ### Search

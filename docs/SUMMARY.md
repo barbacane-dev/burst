@@ -12,6 +12,7 @@
 - [Search](guide/search.md)
 - [File Sharing](guide/files.md)
 - [Notifications](guide/notifications.md)
+- [Custom Status](guide/status.md)
 
 # Deployment
 
