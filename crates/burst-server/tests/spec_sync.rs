@@ -189,6 +189,22 @@ fn do_not_disturb_matches_spec() {
 }
 
 #[test]
+fn export_response_matches_spec() {
+    let example = burst_server::api::admin::ExportResponse {
+        id: "exp_00000000-0000-0000-0000-000000000001".into(),
+        scope: "channel".into(),
+        channel_id: Some("ch_00000000-0000-0000-0000-000000000010".into()),
+        status: "completed".into(),
+        requested_by: "usr_00000000-0000-0000-0000-000000000001".into(),
+        size_bytes: Some(1024),
+        error: Some("interrupted".into()),
+        created_at: "2026-01-01T00:00:00Z".into(),
+        completed_at: Some("2026-01-01T00:01:00Z".into()),
+    };
+    assert_fields_match("ExportResponse", "Export", &example);
+}
+
+#[test]
 fn user_response_matches_spec() {
     assert_fields_match("UserResponse", "User", &example_user_response());
 }

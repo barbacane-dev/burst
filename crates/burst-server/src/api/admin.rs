@@ -27,6 +27,12 @@ pub fn router() -> Router<AppState> {
         .route("/emojis", get(list_emojis))
         .route("/admin/bots", get(list_bots).post(create_bot))
         .route("/admin/bots/{bot_id}", patch(update_bot).delete(delete_bot))
+        .route("/admin/exports", get(list_exports).post(create_export))
+        .route(
+            "/admin/exports/{export_id}",
+            get(get_export).delete(delete_export),
+        )
+        .route("/admin/exports/{export_id}/download", get(download_export))
 }
 
 // ── Response types ──
@@ -680,4 +686,207 @@ async fn list_audit_log(
     };
 
     Ok(Json(PaginatedResponse { items, cursor }))
+}
+
+// ── Data exports ──
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportResponse {
+    pub id: String,
+    pub scope: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_id: Option<String>,
+    pub status: String,
+    pub requested_by: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+}
+
+fn export_to_response(row: &db::exports::ExportRow) -> ExportResponse {
+    ExportResponse {
+        id: burst_core::id::format_export_id(row.id),
+        scope: row.scope.clone(),
+        channel_id: row.channel_id.map(burst_core::id::format_channel_id),
+        status: row.status.clone(),
+        requested_by: burst_core::id::format_user_id(row.requested_by),
+        size_bytes: row.size_bytes,
+        error: row.error.clone(),
+        created_at: row.created_at.to_rfc3339(),
+        completed_at: row.completed_at.map(|at| at.to_rfc3339()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CreateExportRequest {
+    /// One channel; the whole instance when absent.
+    channel_id: Option<String>,
+}
+
+/// Exports that stopped making progress are failed first, so they neither
+/// show as running nor block a new export.
+async fn fail_stalled_exports(state: &AppState) -> Result<(), ApiError> {
+    let before = chrono::Utc::now() - crate::services::export::STALL_AFTER;
+    db::exports::fail_stalled(&state.db, before).await?;
+    Ok(())
+}
+
+fn parse_export_id(raw: &str) -> Result<uuid::Uuid, ApiError> {
+    burst_core::id::parse_prefixed_id(raw, "exp_")
+        .ok_or_else(|| ApiError::BadRequest("invalid export ID".into()))
+}
+
+async fn create_export(
+    admin: AdminUser,
+    State(state): State<AppState>,
+    body: Option<Json<CreateExportRequest>>,
+) -> Result<(axum::http::StatusCode, Json<ExportResponse>), ApiError> {
+    let channel_id = match body.and_then(|Json(b)| b.channel_id) {
+        Some(raw) => {
+            let id = crate::services::parse_id(&raw, "ch_", "channel")?;
+            db::channels::find_by_id(&state.db, id)
+                .await?
+                .ok_or_else(|| ApiError::NotFound("Channel".into()))?;
+            Some(id)
+        }
+        None => None,
+    };
+
+    fail_stalled_exports(&state).await?;
+    let export = db::exports::create(
+        &state.db,
+        burst_core::id::new_id(),
+        admin.user_id,
+        channel_id,
+    )
+    .await?
+    .ok_or_else(|| ApiError::Conflict("an export is already in progress".into()))?;
+
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        admin.user_id,
+        "export.requested",
+        "export",
+        export.id,
+        Some(serde_json::json!({
+            "scope": export.scope,
+            "channelId": channel_id.map(burst_core::id::format_channel_id),
+        })),
+    )
+    .await?;
+
+    let response = export_to_response(&export);
+    crate::services::export::spawn(state, export);
+    Ok((axum::http::StatusCode::ACCEPTED, Json(response)))
+}
+
+async fn list_exports(
+    _admin: AdminUser,
+    State(state): State<AppState>,
+) -> Result<Json<PaginatedResponse<ExportResponse>>, ApiError> {
+    fail_stalled_exports(&state).await?;
+    let rows = db::exports::list(&state.db, 50).await?;
+    Ok(Json(PaginatedResponse {
+        items: rows.iter().map(export_to_response).collect(),
+        cursor: None,
+    }))
+}
+
+async fn get_export(
+    _admin: AdminUser,
+    State(state): State<AppState>,
+    Path(export_id): Path<String>,
+) -> Result<Json<ExportResponse>, ApiError> {
+    fail_stalled_exports(&state).await?;
+    let export = db::exports::find(&state.db, parse_export_id(&export_id)?)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Export".into()))?;
+    Ok(Json(export_to_response(&export)))
+}
+
+async fn download_export(
+    admin: AdminUser,
+    State(state): State<AppState>,
+    Path(export_id): Path<String>,
+) -> Result<axum::response::Response, ApiError> {
+    let export = db::exports::find(&state.db, parse_export_id(&export_id)?)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Export".into()))?;
+    let key = match (export.status.as_str(), &export.storage_key) {
+        ("completed", Some(key)) => key.clone(),
+        _ => return Err(ApiError::Conflict("the export is not complete".into())),
+    };
+    let (stream, len) = state.storage.get_stream(&key).await.map_err(|e| match e {
+        crate::storage::StorageError::NotFound(_) => ApiError::NotFound("Export file".into()),
+        e => ApiError::Internal(e.to_string()),
+    })?;
+
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        admin.user_id,
+        "export.downloaded",
+        "export",
+        export.id,
+        None,
+    )
+    .await?;
+
+    let file_name = format!(
+        "burst-export-{}-{}.zip",
+        export.created_at.format("%Y%m%d"),
+        &export.id.simple().to_string()[..8]
+    );
+    let mut response = axum::response::Response::builder()
+        .header(axum::http::header::CONTENT_TYPE, "application/zip")
+        .header(
+            axum::http::header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{file_name}\""),
+        );
+    if let Some(len) = len {
+        response = response.header(axum::http::header::CONTENT_LENGTH, len);
+    }
+    response
+        .body(axum::body::Body::from_stream(stream))
+        .map_err(|e| ApiError::Internal(e.to_string()))
+}
+
+async fn delete_export(
+    admin: AdminUser,
+    State(state): State<AppState>,
+    Path(export_id): Path<String>,
+) -> Result<axum::http::StatusCode, ApiError> {
+    fail_stalled_exports(&state).await?;
+    let export = db::exports::find(&state.db, parse_export_id(&export_id)?)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Export".into()))?;
+    if matches!(export.status.as_str(), "pending" | "running") {
+        return Err(ApiError::Conflict("the export is still in progress".into()));
+    }
+    if let Some(key) = &export.storage_key {
+        state
+            .storage
+            .delete(key)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    }
+    db::exports::delete(&state.db, export.id).await?;
+    db::audit_log::insert(
+        &state.db,
+        burst_core::id::new_id(),
+        admin.user_id,
+        "export.deleted",
+        "export",
+        export.id,
+        None,
+    )
+    .await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
 }

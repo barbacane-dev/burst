@@ -24,6 +24,10 @@ pub fn format_webhook_id(id: Uuid) -> String {
     format!("wh_{id}")
 }
 
+pub fn format_export_id(id: Uuid) -> String {
+    format!("exp_{id}")
+}
+
 pub fn parse_prefixed_id(s: &str, prefix: &str) -> Option<Uuid> {
     s.strip_prefix(prefix)
         .and_then(|id| Uuid::parse_str(id).ok())

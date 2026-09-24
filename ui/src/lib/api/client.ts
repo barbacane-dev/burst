@@ -96,3 +96,23 @@ export async function apiFetchFormData<T>(
 
   return response.json();
 }
+
+/** Fetches a binary response, with the file name the server suggests. */
+export async function apiFetchBlob(path: string): Promise<{ blob: Blob; fileName?: string }> {
+  const headers: Record<string, string> = {};
+  if (_accessToken) {
+    headers["Authorization"] = `Bearer ${_accessToken}`;
+  }
+  const response = await fetch(`/api${path}`, { headers });
+  if (!response.ok) {
+    const problem: ProblemDetails = await response.json().catch(() => ({
+      type: "urn:burst:error:internal-error",
+      title: "Request failed",
+      status: response.status,
+    }));
+    throw new ApiError(problem);
+  }
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const fileName = /filename="([^"]+)"/.exec(disposition)?.[1];
+  return { blob: await response.blob(), fileName };
+}

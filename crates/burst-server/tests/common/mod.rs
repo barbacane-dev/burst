@@ -126,6 +126,27 @@ impl TestApp {
         self.request("DELETE", uri, Some(external_id), None).await
     }
 
+    /// GET `uri` and return the raw response, for bodies that are not JSON.
+    pub async fn get_raw(
+        &self,
+        uri: &str,
+        external_id: &str,
+    ) -> (StatusCode, axum::http::HeaderMap, bytes::Bytes) {
+        let req = with_peer(Request::builder(), "127.0.0.1:54321")
+            .method("GET")
+            .uri(uri)
+            .header("x-auth-consumer", external_id)
+            .body(Body::empty())
+            .unwrap();
+        let response = self.router.clone().oneshot(req).await.unwrap();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        (status, headers, bytes)
+    }
+
     /// Send a request without authentication (no X-Auth-Consumer header).
     pub async fn post_unauthenticated(
         &self,

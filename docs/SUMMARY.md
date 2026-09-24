@@ -30,6 +30,7 @@
 - [OIDC & SSO](admin/oidc.md)
 - [Monitoring & Observability](admin/monitoring.md)
 - [Audit Log](admin/audit-log.md)
+- [Data Export](admin/data-export.md)
 
 # Reference
 

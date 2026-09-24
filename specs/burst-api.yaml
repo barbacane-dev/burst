@@ -2233,6 +2233,255 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
 
+  # ── Data Exports (Admin) ──
+
+  /api/admin/exports:
+    get:
+      operationId: listExports
+      summary: List data exports
+      description: The 50 most recent exports, newest first.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      responses:
+        "200":
+          description: Exports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    post:
+      operationId: createExport
+      summary: Request a data export
+      description: >-
+        Starts building an archive of messages and files in the background:
+        the whole instance (every channel, private channels and direct messages
+        included) or one channel. Deleted messages are left out. Poll the export
+        until its status is `completed`, then download it. One export runs at a
+        time. The request is recorded in the audit log.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExportRequest"
+            example:
+              channelId: "ch_0193a5e0-7c1a-7000-8000-000000000010"
+      responses:
+        "202":
+          description: The export, pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Export"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Another export is in progress
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/admin/exports/{exportId}:
+    get:
+      operationId: getExport
+      summary: Get a data export
+      description: >-
+        An export's status. One that stopped making progress for ten minutes
+        (its server restarted) is reported as failed with the error
+        `interrupted`.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          description: Prefixed export ID.
+          schema:
+            type: string
+            pattern: "^exp_[0-9a-f-]{36}$"
+            maxLength: 40
+      responses:
+        "200":
+          description: The export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Export"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    delete:
+      operationId: deleteExport
+      summary: Delete a data export
+      description: Deletes a finished export and its archive. Recorded in the audit log.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          description: Prefixed export ID.
+          schema:
+            type: string
+            pattern: "^exp_[0-9a-f-]{36}$"
+            maxLength: 40
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The export is still in progress
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /api/admin/exports/{exportId}/download:
+    get:
+      operationId: downloadExport
+      summary: Download a data export
+      description: >-
+        The archive, as a zip: `export.json` (what was exported), `users.json`,
+        `channels/<channel id>/channel.json` and `messages.jsonl` (one message
+        per line, oldest first), and `files/<attachment id>/<file name>`.
+        Recorded in the audit log.
+      tags:
+        - Admin
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: acl
+          config:
+            allow:
+              - admin
+      parameters:
+        - name: exportId
+          in: path
+          required: true
+          description: Prefixed export ID.
+          schema:
+            type: string
+            pattern: "^exp_[0-9a-f-]{36}$"
+            maxLength: 40
+      responses:
+        "200":
+          description: The zip archive
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+                maxLength: 17179869184
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The export is not complete
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   # ── Custom Emojis (Admin) ──
 
   /api/admin/emojis:
@@ -3805,6 +4054,76 @@ components:
           description: Must be in the future.
         schedule:
           $ref: "#/components/schemas/DoNotDisturbSchedule"
+
+    Export:
+      type: object
+      description: A data export and its progress.
+      required:
+        - id
+        - scope
+        - status
+        - requestedBy
+        - createdAt
+      properties:
+        id:
+          type: string
+          pattern: "^exp_[0-9a-f-]{36}$"
+          maxLength: 40
+        scope:
+          type: string
+          enum: [instance, channel]
+        channelId:
+          type: string
+          maxLength: 40
+          description: The exported channel, for a channel export.
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        requestedBy:
+          type: string
+          maxLength: 40
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          maximum: 9223372036854775807
+          description: Size of the archive, once completed.
+        error:
+          type: string
+          maxLength: 2048
+          description: Why the export failed.
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 40
+        completedAt:
+          type: string
+          format: date-time
+          maxLength: 40
+
+    ExportList:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/Export"
+        cursor:
+          type: string
+          maxLength: 64
+
+    CreateExportRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        channelId:
+          type: string
+          pattern: "^ch_[0-9a-f-]{36}$"
+          maxLength: 40
+          description: One channel to export. The whole instance when absent.
 
     SendMessageRequest:
       type: object

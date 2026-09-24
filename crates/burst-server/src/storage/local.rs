@@ -47,6 +47,30 @@ impl LocalStorage {
         Ok((Bytes::from(data), content_type))
     }
 
+    pub async fn put_file(&self, key: &str, source: &Path) -> Result<(), StorageError> {
+        let path = self.resolve(key);
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+        tokio::fs::copy(source, &path).await?;
+        Ok(())
+    }
+
+    pub async fn get_stream(
+        &self,
+        key: &str,
+    ) -> Result<(super::ByteStream, Option<u64>), StorageError> {
+        let file = match tokio::fs::File::open(self.resolve(key)).await {
+            Ok(file) => file,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(StorageError::NotFound(key.to_string()));
+            }
+            Err(e) => return Err(e.into()),
+        };
+        let len = file.metadata().await?.len();
+        Ok((Box::pin(tokio_util::io::ReaderStream::new(file)), Some(len)))
+    }
+
     pub async fn delete(&self, key: &str) -> Result<(), StorageError> {
         let path = self.resolve(key);
         match tokio::fs::remove_file(&path).await {

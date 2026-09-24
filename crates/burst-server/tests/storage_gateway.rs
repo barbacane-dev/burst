@@ -206,3 +206,43 @@ async fn deeply_nested_key_roundtrip() {
         Err(StorageError::NotFound(_))
     ));
 }
+
+#[tokio::test]
+async fn a_file_is_uploaded_and_read_back_as_streams() {
+    use futures_util::TryStreamExt;
+
+    let (base_url, store) = start_mock_server().await;
+    let storage = GatewayStorage::new(&base_url, None);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("archive.zip");
+    let content: Vec<u8> = (0..200_000u32).map(|i| (i % 251) as u8).collect();
+    std::fs::write(&path, &content).unwrap();
+
+    storage
+        .put_file("exports/a.zip", &path, "application/zip")
+        .await
+        .unwrap();
+    let (stored, content_type) = store
+        .read()
+        .await
+        .get("exports/a.zip")
+        .cloned()
+        .expect("uploaded");
+    assert_eq!(stored.as_ref(), content.as_slice());
+    assert_eq!(content_type, "application/zip");
+
+    let (stream, len) = storage.get_stream("exports/a.zip").await.unwrap();
+    assert_eq!(len, Some(content.len() as u64));
+    let chunks: Vec<Bytes> = stream.try_collect().await.unwrap();
+    assert_eq!(chunks.concat(), content);
+}
+
+#[tokio::test]
+async fn streaming_a_missing_object_is_not_found() {
+    let (base_url, _store) = start_mock_server().await;
+    let storage = GatewayStorage::new(&base_url, None);
+    assert!(matches!(
+        storage.get_stream("nope.zip").await,
+        Err(StorageError::NotFound(_))
+    ));
+}

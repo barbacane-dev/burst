@@ -1,4 +1,7 @@
+use std::path::Path;
+
 use bytes::Bytes;
+use futures_util::TryStreamExt;
 
 use super::StorageError;
 
@@ -98,6 +101,63 @@ impl GatewayStorage {
             .map_err(|e| StorageError::Gateway(e.to_string()))?;
 
         Ok((data, content_type))
+    }
+
+    /// Uploads a file as a single streamed PUT.
+    pub async fn put_file(
+        &self,
+        key: &str,
+        path: &Path,
+        content_type: &str,
+    ) -> Result<(), StorageError> {
+        let file = tokio::fs::File::open(path).await?;
+        let len = file.metadata().await?.len();
+        let body = reqwest::Body::wrap_stream(tokio_util::io::ReaderStream::new(file));
+        let req = self
+            .client
+            .put(self.url(key))
+            .header("content-type", content_type)
+            .header("content-length", len)
+            .body(body);
+        let resp = self
+            .with_auth(req)
+            .send()
+            .await
+            .map_err(|e| StorageError::Gateway(e.to_string()))?;
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            Err(StorageError::Gateway(format!(
+                "PUT {} returned {}",
+                key,
+                resp.status()
+            )))
+        }
+    }
+
+    pub async fn get_stream(
+        &self,
+        key: &str,
+    ) -> Result<(super::ByteStream, Option<u64>), StorageError> {
+        let req = self.client.get(self.url(key));
+        let resp = self
+            .with_auth(req)
+            .send()
+            .await
+            .map_err(|e| StorageError::Gateway(e.to_string()))?;
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(StorageError::NotFound(key.to_string()));
+        }
+        if !resp.status().is_success() {
+            return Err(StorageError::Gateway(format!(
+                "GET {} returned {}",
+                key,
+                resp.status()
+            )));
+        }
+        let len = resp.content_length();
+        let stream = resp.bytes_stream().map_err(std::io::Error::other);
+        Ok((Box::pin(stream), len))
     }
 
     pub async fn delete(&self, key: &str) -> Result<(), StorageError> {

@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Shield, Users, Hash, FileText, Smile, Webhook, Bot } from "lucide-react";
+import { Shield, Users, Hash, FileText, Smile, Webhook, Bot, Archive } from "lucide-react";
 import { useAuth } from "../lib/auth/use-auth";
 import {
   listAdminUsers,
@@ -32,11 +32,20 @@ import {
   createBot,
   deleteBot,
 } from "../lib/api/bots";
+import {
+  createExport,
+  deleteExport,
+  downloadExport,
+  formatSize,
+  isInProgress,
+  listExports,
+  type DataExport,
+} from "../lib/api/exports";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import type { PaginatedResponse } from "../lib/api/types";
 
-type Tab = "users" | "channels" | "webhooks" | "bots" | "emojis" | "audit";
+type Tab = "users" | "channels" | "webhooks" | "bots" | "emojis" | "exports" | "audit";
 
 const allTabs: { key: Tab; label: string; icon: React.ReactNode; adminOnly: boolean }[] = [
   { key: "users", label: "Users", icon: <Users className="h-4 w-4" />, adminOnly: true },
@@ -44,6 +53,7 @@ const allTabs: { key: Tab; label: string; icon: React.ReactNode; adminOnly: bool
   { key: "webhooks", label: "Webhooks", icon: <Webhook className="h-4 w-4" />, adminOnly: false },
   { key: "bots", label: "Bots", icon: <Bot className="h-4 w-4" />, adminOnly: false },
   { key: "emojis", label: "Emojis", icon: <Smile className="h-4 w-4" />, adminOnly: true },
+  { key: "exports", label: "Exports", icon: <Archive className="h-4 w-4" />, adminOnly: true },
   { key: "audit", label: "Audit Log", icon: <FileText className="h-4 w-4" />, adminOnly: true },
 ];
 
@@ -86,6 +96,7 @@ export function AdminPage() {
         {tab === "webhooks" && <WebhooksTab />}
         {tab === "bots" && <BotsTab />}
         {tab === "emojis" && <EmojisTab />}
+        {tab === "exports" && <ExportsTab />}
         {tab === "audit" && <AuditTab />}
       </div>
     </div>
@@ -276,6 +287,130 @@ function AuditTab() {
           </time>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Exports Tab ──
+
+const STATUS_LABEL: Record<DataExport["status"], string> = {
+  pending: "Queued",
+  running: "Building",
+  completed: "Ready",
+  failed: "Failed",
+};
+
+export function ExportsTab() {
+  const queryClient = useQueryClient();
+  const [channelId, setChannelId] = useState("");
+  const [downloadError, setDownloadError] = useState<string>();
+
+  const { data, isLoading } = useQuery<PaginatedResponse<DataExport>>({
+    queryKey: ["admin-exports"],
+    queryFn: listExports,
+    // Follows an export while it is being built.
+    refetchInterval: (query) => (query.state.data?.items.some(isInProgress) ? 2000 : false),
+  });
+  const { data: channels } = useQuery<PaginatedResponse<AdminChannel>>({
+    queryKey: ["admin-channels"],
+    queryFn: () => listAdminChannels(),
+  });
+
+  const create = useMutation({
+    mutationFn: () => createExport(channelId || undefined),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-exports"] }),
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => deleteExport(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-exports"] }),
+  });
+
+  const exports = data?.items ?? [];
+  const busy = exports.some(isInProgress);
+  const channelName = (id?: string) => {
+    const c = channels?.items.find((ch) => ch.id === id);
+    return c?.name ? `#${c.name}` : "a deleted channel";
+  };
+
+  async function download(id: string) {
+    setDownloadError(undefined);
+    try {
+      await downloadExport(id);
+    } catch (e) {
+      setDownloadError(e instanceof Error ? e.message : "Download failed");
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+        <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+          An export is a zip of messages and files, for compliance or to move elsewhere. The whole
+          instance includes private channels and direct messages. Deleted messages are left out.
+          Requests and downloads are recorded in the audit log.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="What to export"
+            value={channelId}
+            onChange={(e) => setChannelId(e.target.value)}
+            className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+          >
+            <option value="">Whole instance</option>
+            {(channels?.items ?? [])
+              .filter((c) => c.name)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  #{c.name}
+                </option>
+              ))}
+          </select>
+          <Button onClick={() => create.mutate()} disabled={busy || create.isPending}>
+            {busy ? "Export in progress" : "Start export"}
+          </Button>
+          {create.isError && (
+            <span className="text-sm text-red-600 dark:text-red-400">{create.error.message}</span>
+          )}
+        </div>
+      </div>
+
+      {downloadError && <p className="text-sm text-red-600 dark:text-red-400">{downloadError}</p>}
+      {isLoading && <p className="text-sm text-gray-400">Loading exports...</p>}
+      {exports.length === 0 && !isLoading && <p className="text-sm text-gray-400">No exports yet.</p>}
+      <ul className="space-y-2" aria-label="Exports">
+        {exports.map((e) => (
+          <li
+            key={e.id}
+            className="flex items-center justify-between gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                {e.scope === "instance" ? "Whole instance" : channelName(e.channelId)}
+                <span className="ml-2 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  {STATUS_LABEL[e.status]}
+                </span>
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {new Date(e.createdAt).toLocaleString()}
+                {e.sizeBytes !== undefined && ` · ${formatSize(e.sizeBytes)}`}
+                {e.error && ` · ${e.error}`}
+              </p>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              {e.status === "completed" && (
+                <Button variant="secondary" onClick={() => download(e.id)}>
+                  Download
+                </Button>
+              )}
+              {!isInProgress(e) && (
+                <Button variant="secondary" onClick={() => remove.mutate(e.id)} disabled={remove.isPending}>
+                  Delete
+                </Button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

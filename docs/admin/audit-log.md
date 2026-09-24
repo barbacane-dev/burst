@@ -14,6 +14,9 @@ The audit log captures actions that change the security posture or structure of 
 | `channel.archived` | A channel was put into read-only mode. |
 | `channel.unarchived` | A channel was restored from read-only mode. |
 | `channel.deleted` | A channel and its messages were permanently deleted. |
+| `export.requested` | A [data export](data-export.md) was started. The metadata holds its scope and channel. |
+| `export.downloaded` | A data export archive was downloaded. |
+| `export.deleted` | A data export and its archive were deleted. |
 
 Each entry records:
 

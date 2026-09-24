@@ -34,6 +34,8 @@ rand.workspace = true
 sha2.workspace = true
 hmac.workspace = true
 hex.workspace = true
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 burst-core.workspace = true
