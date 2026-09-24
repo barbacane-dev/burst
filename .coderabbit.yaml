@@ -1,0 +1,113 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+tone_instructions: "Be concise and technical. Focus on correctness, safety, and adherence to the project conventions. Skip nitpicks already enforced by rustfmt/clippy/eslint/vacuum."
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  poem: false
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  changed_files_summary: true
+
+  auto_review:
+    # No review on push. With `enabled: false`, a positive entry in `labels` is
+    # what opts a pull request in, so applying `deep-review` is the request.
+    # A local model reviews every push.
+    enabled: false
+    labels:
+      - "deep-review"
+    drafts: false
+    base_branches:
+      - "main"
+
+  # Generated, vendored, or lockfile noise.
+  path_filters:
+    - "!**/target/**"
+    - "!**/*.lock"
+    - "!**/Cargo.lock"
+    - "!ui/package-lock.json"
+    - "!ui/dist/**"
+    - "!**/*.bca"
+    - "!uploads/**"
+
+  path_instructions:
+    - path: "crates/**/*.rs"
+      instructions: >
+        Enforce the project's Rust conventions.
+        Flag any unwrap() or panic!() in production code (tests are exempt).
+        expect() is only acceptable for provably-infallible cases with a
+        justifying reason string. Prefer thiserror for library error types and
+        anyhow for binary code. Errors are RFC 9457 ProblemDetails with
+        `urn:burst:error:<type>` types. IDs are UUIDv7 with usr_, ch_, msg_, wh_
+        prefixes. Do not restate what rustfmt or clippy already enforce.
+    - path: "crates/burst-core/**/*.rs"
+      instructions: >
+        burst-core is pure domain logic: flag any I/O, database, network or
+        async runtime dependency. The permission matrix lives here; check that
+        every Action is covered and that guests never gain moderation rights.
+    - path: "crates/burst-server/src/api/**/*.rs"
+      instructions: >
+        Axum handlers. Check authorization on every route (channel membership,
+        role via the permission matrix, AdminUser / IntegrationUser extractors),
+        unvalidated input, and that each change emitted over WebSocket is
+        scoped to the users allowed to see it.
+    - path: "crates/burst-server/src/db/**/*.rs"
+      instructions: >
+        sqlx queries against PostgreSQL. Watch for SQL injection, missing
+        membership joins on reads, soft-deleted rows leaking into results, and
+        pagination that can skip or repeat rows.
+    - path: "crates/burst-server/src/ws/**/*.rs"
+      instructions: >
+        WebSocket fan-out. Every event must reach only the users entitled to
+        it; check should_forward for new event types and membership changes on
+        a live connection.
+    - path: "migrations/**/*.sql"
+      instructions: >
+        Migrations run on existing data. Flag destructive changes, locks on
+        large tables, and missing indexes for new foreign keys or filters.
+    - path: "specs/burst-api.yaml"
+      instructions: >
+        The OpenAPI spec is the single source of truth and configures the
+        Barbacane gateway, which validates requests against it. Check that
+        schemas match what the server accepts and returns, including patterns
+        on parameters the server generates (cursors, IDs).
+    - path: "ui/src/**/*.{ts,tsx}"
+      instructions: >
+        React 19 + TanStack Query UI. Flag any usage of `any`, unhandled promise
+        rejections, XSS-prone patterns (dangerouslySetInnerHTML with unescaped
+        input), and query keys that omit an input the query depends on. Do not
+        restate what eslint already enforces.
+    - path: "**/*.{yml,yaml}"
+      instructions: >
+        For GitHub Actions workflows, watch for unpinned third-party actions,
+        script injection via untrusted ${{ }} interpolation, and overly broad
+        GITHUB_TOKEN permissions.
+
+  tools:
+    clippy:
+      enabled: true
+    eslint:
+      enabled: true
+    hadolint:
+      enabled: true
+    actionlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: "auto"
