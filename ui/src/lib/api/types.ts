@@ -16,6 +16,8 @@ export interface User {
   statusEmoji?: string;
   /** RFC 3339. Once past, the status is no longer shown. */
   statusExpiresAt?: string;
+  /** RFC 3339: when the user's current do-not-disturb period ends. Absent when not quiet. */
+  doNotDisturbUntil?: string;
   isBot: boolean;
   createdAt: string;
 }
@@ -103,4 +105,22 @@ export interface SearchResult {
   createdAt: string;
   /** The attached file whose name matched, when one did. */
   matchedFile?: string;
+}
+
+export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+export interface DoNotDisturbSchedule {
+  /** HH:MM, local to `timeZone`. */
+  start: string;
+  end: string;
+  days: Weekday[];
+  /** IANA name. */
+  timeZone: string;
+}
+
+export interface DoNotDisturb {
+  snoozeUntil?: string;
+  schedule?: DoNotDisturbSchedule;
+  /** When the current quiet period ends; absent when not quiet. */
+  quietUntil?: string;
 }

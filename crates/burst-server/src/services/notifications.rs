@@ -45,7 +45,22 @@ async fn deliver(
         .map(|m| (m.user_id, Preference::parse(&m.notify)))
         .collect();
 
-    let recipients = notify::recipients(&members, message.user_id, mentioned);
+    let mut recipients = notify::recipients(&members, message.user_id, mentioned);
+    if recipients.is_empty() {
+        return Ok(());
+    }
+
+    // Do not disturb holds a notification back entirely; the message still
+    // counts as unread and a mention is still recorded.
+    let ids: Vec<Uuid> = recipients.iter().map(|(user, _)| *user).collect();
+    let now = chrono::Utc::now();
+    let quiet: HashSet<Uuid> = db::users::do_not_disturb_of(&state.db, &ids)
+        .await?
+        .into_iter()
+        .filter(|(_, dnd)| dnd.quiet_until(now).is_some())
+        .map(|(user, _)| user)
+        .collect();
+    recipients.retain(|(user, _)| !quiet.contains(user));
     if recipients.is_empty() {
         return Ok(());
     }

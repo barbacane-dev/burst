@@ -66,6 +66,15 @@ pub enum ServerEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         expires_at: Option<String>,
     },
+    /// A user's do-not-disturb changed. `until` is when their current quiet
+    /// period ends, absent when they are not quiet.
+    #[serde(rename = "user.dnd_changed", rename_all = "camelCase")]
+    UserDndChanged {
+        event_id: String,
+        user_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        until: Option<String>,
+    },
     #[serde(rename = "channel.joined", rename_all = "camelCase")]
     ChannelJoined {
         event_id: String,
@@ -147,6 +156,7 @@ impl ServerEvent {
             ServerEvent::TypingStop { event_id, .. } => event_id,
             ServerEvent::PresenceUpdate { event_id, .. } => event_id,
             ServerEvent::UserStatusChanged { event_id, .. } => event_id,
+            ServerEvent::UserDndChanged { event_id, .. } => event_id,
             ServerEvent::ReactionAdded { event_id, .. } => event_id,
             ServerEvent::ReactionRemoved { event_id, .. } => event_id,
             ServerEvent::ChannelJoined { event_id, .. } => event_id,
@@ -169,6 +179,7 @@ impl ServerEvent {
             ServerEvent::TypingStop { channel_id, .. } => Some(channel_id),
             ServerEvent::PresenceUpdate { .. } => None,
             ServerEvent::UserStatusChanged { .. } => None,
+            ServerEvent::UserDndChanged { .. } => None,
             ServerEvent::ReactionAdded { channel_id, .. } => Some(channel_id),
             ServerEvent::ReactionRemoved { channel_id, .. } => Some(channel_id),
             ServerEvent::ChannelJoined { channel_id, .. } => Some(channel_id),

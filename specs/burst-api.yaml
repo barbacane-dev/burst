@@ -346,6 +346,106 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /api/users/me/do-not-disturb:
+    get:
+      operationId: getMyDoNotDisturb
+      summary: Get my do-not-disturb settings
+      description: >-
+        Returns the authenticated user's snooze and quiet-hours schedule, and
+        when their current quiet period ends if they are quiet now.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      responses:
+        "200":
+          description: Do-not-disturb settings
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoNotDisturb"
+              example:
+                snoozeUntil: "2026-09-24T15:00:00+00:00"
+                schedule:
+                  start: "22:00"
+                  end: "07:00"
+                  days: ["mon", "tue", "wed", "thu", "fri"]
+                  timeZone: "Europe/Paris"
+                quietUntil: "2026-09-24T15:00:00+00:00"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      operationId: setMyDoNotDisturb
+      summary: Set my do-not-disturb settings
+      description: >-
+        Replaces the authenticated user's do-not-disturb settings: an omitted
+        `snoozeUntil` or `schedule` is cleared, so an empty object turns do not
+        disturb off. While quiet, the user receives no `notification.created`
+        events; messages still count as unread and mentions are still recorded.
+        Sends `user.dnd_changed` to every connected client.
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetDoNotDisturbRequest"
+            example:
+              schedule:
+                start: "22:00"
+                end: "07:00"
+                days: ["mon", "tue", "wed", "thu", "fri"]
+                timeZone: "Europe/Paris"
+      responses:
+        "200":
+          description: The new settings
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoNotDisturb"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /api/users/{userId}:
     get:
       operationId: getUser
@@ -3204,6 +3304,12 @@ components:
           maxLength: 40
           description: When the custom status stops showing. Absent when it has no end.
           example: "2026-09-24T15:00:00Z"
+        doNotDisturbUntil:
+          type: string
+          format: date-time
+          maxLength: 40
+          description: When the user's current do-not-disturb period ends. Absent when they are not quiet.
+          example: "2026-09-25T05:00:00+00:00"
         isBot:
           type: boolean
           example: false
@@ -3631,6 +3737,74 @@ components:
           maxLength: 40
           description: When the status stops showing. Must be in the future.
           example: "2026-09-24T15:00:00Z"
+
+    DoNotDisturbSchedule:
+      type: object
+      description: >-
+        Weekly quiet hours in the user's time zone. A window whose end is not
+        after its start runs past midnight and belongs to the day it starts on.
+      required:
+        - start
+        - end
+        - days
+        - timeZone
+      additionalProperties: false
+      properties:
+        start:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          maxLength: 5
+          example: "22:00"
+        end:
+          type: string
+          pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          maxLength: 5
+          example: "07:00"
+        days:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          description: Days a window starts on.
+          items:
+            type: string
+            enum: [mon, tue, wed, thu, fri, sat, sun]
+        timeZone:
+          type: string
+          maxLength: 64
+          pattern: "^[A-Za-z0-9_+/-]+$"
+          description: IANA time zone name.
+          example: "Europe/Paris"
+
+    DoNotDisturb:
+      type: object
+      description: A user's do-not-disturb settings.
+      properties:
+        snoozeUntil:
+          type: string
+          format: date-time
+          maxLength: 40
+          description: Notifications are held back until this time. Absent when not snoozed.
+        schedule:
+          $ref: "#/components/schemas/DoNotDisturbSchedule"
+        quietUntil:
+          type: string
+          format: date-time
+          maxLength: 40
+          description: When the current quiet period ends. Absent when not quiet now.
+
+    SetDoNotDisturbRequest:
+      type: object
+      description: The whole do-not-disturb setting. Omitted parts are cleared.
+      additionalProperties: false
+      properties:
+        snoozeUntil:
+          type: string
+          format: date-time
+          maxLength: 40
+          description: Must be in the future.
+        schedule:
+          $ref: "#/components/schemas/DoNotDisturbSchedule"
 
     SendMessageRequest:
       type: object

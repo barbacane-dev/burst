@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useWsEvent } from "../../lib/ws/hooks";
 import { showBrowserNotification } from "../../lib/notifications";
 import { applyToUserList, type StatusChangedEvent } from "../../lib/status";
+import { applyDndToUserList, type DndChangedEvent } from "../../lib/dnd";
 import type { Message, NotificationEvent, PaginatedResponse, User } from "../../lib/api/types";
 
 export function MainLayout() {
@@ -31,6 +32,12 @@ export function MainLayout() {
   useWsEvent<StatusChangedEvent>("user.status_changed", (ev) => {
     queryClient.setQueryData<PaginatedResponse<User>>(["users"], (list) =>
       applyToUserList(list, ev),
+    );
+  });
+
+  useWsEvent<DndChangedEvent>("user.dnd_changed", (ev) => {
+    queryClient.setQueryData<PaginatedResponse<User>>(["users"], (list) =>
+      applyDndToUserList(list, ev),
     );
   });
 

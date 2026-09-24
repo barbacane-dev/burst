@@ -15,6 +15,11 @@ pub struct UserRow {
     pub status_text: Option<String>,
     pub status_emoji: Option<String>,
     pub status_expires_at: Option<DateTime<Utc>>,
+    pub dnd_until: Option<DateTime<Utc>>,
+    pub dnd_start: Option<chrono::NaiveTime>,
+    pub dnd_end: Option<chrono::NaiveTime>,
+    pub dnd_days: Option<i16>,
+    pub dnd_time_zone: Option<String>,
     pub password_hash: Option<String>,
     pub is_bot: bool,
     pub deactivated_at: Option<DateTime<Utc>>,
@@ -25,7 +30,8 @@ pub struct UserRow {
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE id = $1",
     )
@@ -37,7 +43,8 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE email = $1",
     )
@@ -52,7 +59,8 @@ pub async fn find_by_username(
 ) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE username = $1",
     )
@@ -67,7 +75,8 @@ pub async fn find_by_external_id(
 ) -> Result<Option<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE external_id = $1",
     )
@@ -91,7 +100,8 @@ pub async fn create(pool: &PgPool, user: &CreateUser) -> Result<UserRow, sqlx::E
         "INSERT INTO users (id, username, display_name, email, password_hash, external_id, role) \
          VALUES ($1, $2, $3, $4, $5, $6, $7) \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(user.id)
@@ -127,7 +137,8 @@ pub async fn create_or_get_by_external_id(
          VALUES ($1, $2, $3, $4, $5, $6, $7) \
          ON CONFLICT DO NOTHING \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(user.id)
@@ -156,7 +167,8 @@ pub async fn create_bot(
         "INSERT INTO users (id, username, display_name, role, is_bot) \
          VALUES ($1, $2, $3, 'member', TRUE) \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -169,7 +181,8 @@ pub async fn create_bot(
 pub async fn list_bots(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at \
          FROM users WHERE is_bot = TRUE ORDER BY created_at DESC",
     )
@@ -186,7 +199,8 @@ pub async fn list(
         Some(cursor_id) => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users WHERE id > $1 ORDER BY id LIMIT $2",
             )
@@ -198,7 +212,8 @@ pub async fn list(
         None => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users ORDER BY id LIMIT $1",
             )
@@ -218,7 +233,8 @@ pub async fn update_role(
         "UPDATE users SET role = $2, updated_at = now() \
          WHERE id = $1 \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -232,7 +248,8 @@ pub async fn deactivate(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx
         "UPDATE users SET deactivated_at = now(), updated_at = now() \
          WHERE id = $1 AND deactivated_at IS NULL \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -245,7 +262,8 @@ pub async fn reactivate(pool: &PgPool, id: Uuid) -> Result<Option<UserRow>, sqlx
         "UPDATE users SET deactivated_at = NULL, updated_at = now() \
          WHERE id = $1 AND deactivated_at IS NOT NULL \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -262,7 +280,8 @@ pub async fn list_all(
         Some(cursor_id) => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users WHERE id > $1 ORDER BY id LIMIT $2",
             )
@@ -274,7 +293,8 @@ pub async fn list_all(
         None => {
             sqlx::query_as::<_, UserRow>(
                 "SELECT id, external_id, username, display_name, email, avatar_url, \
-                 role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+                 role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
                  created_at, updated_at \
                  FROM users ORDER BY id LIMIT $1",
             )
@@ -350,7 +370,8 @@ pub async fn update(
          updated_at = now() \
          WHERE id = $1 \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, deactivated_at, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, \
          created_at, updated_at",
     )
     .bind(id)
@@ -373,7 +394,8 @@ pub async fn set_status(
          updated_at = now() \
          WHERE id = $1 \
          RETURNING id, external_id, username, display_name, email, avatar_url, \
-         role, status, status_text, status_emoji, status_expires_at, password_hash, is_bot, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, dnd_end, \
+         dnd_days, dnd_time_zone, password_hash, is_bot, \
          deactivated_at, created_at, updated_at",
     )
     .bind(id)
@@ -382,6 +404,101 @@ pub async fn set_status(
     .bind(status.and_then(|s| s.expires_at))
     .fetch_optional(pool)
     .await
+}
+
+impl UserRow {
+    /// The user's do-not-disturb settings. A stored schedule that no longer
+    /// parses (an unknown time zone) is treated as none.
+    pub fn do_not_disturb(&self) -> burst_core::dnd::DoNotDisturb {
+        burst_core::dnd::DoNotDisturb {
+            snooze_until: self.dnd_until,
+            schedule: schedule_of(
+                self.dnd_start,
+                self.dnd_end,
+                self.dnd_days,
+                self.dnd_time_zone.as_deref(),
+            ),
+        }
+    }
+}
+
+fn schedule_of(
+    start: Option<chrono::NaiveTime>,
+    end: Option<chrono::NaiveTime>,
+    days: Option<i16>,
+    time_zone: Option<&str>,
+) -> Option<burst_core::dnd::Schedule> {
+    Some(burst_core::dnd::Schedule {
+        start: start?,
+        end: end?,
+        days: u8::try_from(days?).ok()?,
+        time_zone: time_zone?.parse().ok()?,
+    })
+}
+
+/// Replaces a user's do-not-disturb settings.
+pub async fn set_do_not_disturb(
+    pool: &PgPool,
+    id: Uuid,
+    dnd: &burst_core::dnd::DoNotDisturb,
+) -> Result<Option<UserRow>, sqlx::Error> {
+    let schedule = dnd.schedule.as_ref();
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET dnd_until = $2, dnd_start = $3, dnd_end = $4, dnd_days = $5, \
+         dnd_time_zone = $6, updated_at = now() \
+         WHERE id = $1 \
+         RETURNING id, external_id, username, display_name, email, avatar_url, \
+         role, status, status_text, status_emoji, status_expires_at, dnd_until, dnd_start, \
+         dnd_end, dnd_days, dnd_time_zone, password_hash, is_bot, deactivated_at, created_at, \
+         updated_at",
+    )
+    .bind(id)
+    .bind(dnd.snooze_until)
+    .bind(schedule.map(|s| s.start))
+    .bind(schedule.map(|s| s.end))
+    .bind(schedule.map(|s| i16::from(s.days)))
+    .bind(schedule.map(|s| s.time_zone.name()))
+    .fetch_optional(pool)
+    .await
+}
+
+/// The do-not-disturb settings of each of `ids`.
+pub async fn do_not_disturb_of(
+    pool: &PgPool,
+    ids: &[Uuid],
+) -> Result<Vec<(Uuid, burst_core::dnd::DoNotDisturb)>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, DndRow>(
+        "SELECT id, dnd_until, dnd_start, dnd_end, dnd_days, dnd_time_zone \
+         FROM users WHERE id = ANY($1)",
+    )
+    .bind(ids)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let dnd = burst_core::dnd::DoNotDisturb {
+                snooze_until: r.dnd_until,
+                schedule: schedule_of(
+                    r.dnd_start,
+                    r.dnd_end,
+                    r.dnd_days,
+                    r.dnd_time_zone.as_deref(),
+                ),
+            };
+            (r.id, dnd)
+        })
+        .collect())
+}
+
+#[derive(FromRow)]
+struct DndRow {
+    id: Uuid,
+    dnd_until: Option<DateTime<Utc>>,
+    dnd_start: Option<chrono::NaiveTime>,
+    dnd_end: Option<chrono::NaiveTime>,
+    dnd_days: Option<i16>,
+    dnd_time_zone: Option<String>,
 }
 
 /// Update avatar URL (used during JIT provisioning from OIDC picture claim).

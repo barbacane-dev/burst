@@ -1,8 +1,14 @@
 import { useState, type FormEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../lib/auth/use-auth";
 import { useTheme } from "../lib/use-theme";
-import { clearMyStatus, setMyStatus, updateMe } from "../lib/api/users";
+import {
+  clearMyStatus,
+  getMyDoNotDisturb,
+  setMyDoNotDisturb,
+  setMyStatus,
+  updateMe,
+} from "../lib/api/users";
 import {
   activeStatus,
   applyToUserList,
@@ -10,10 +16,24 @@ import {
   expiryFor,
   type ClearAfter,
 } from "../lib/status";
+import {
+  applyDndToUserList,
+  localTimeZone,
+  SNOOZE_LABELS,
+  snoozeEnd,
+  WEEKDAYS,
+  type SnoozeChoice,
+} from "../lib/dnd";
 import { Avatar } from "../components/ui/avatar";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import type { PaginatedResponse, User } from "../lib/api/types";
+import type {
+  DoNotDisturb,
+  DoNotDisturbSchedule,
+  PaginatedResponse,
+  User,
+  Weekday,
+} from "../lib/api/types";
 
 export function SettingsPage() {
   const { user } = useAuth();
@@ -30,6 +50,7 @@ export function SettingsPage() {
         <StatusSection user={user} />
         <AppearanceSection theme={theme} setTheme={setTheme} />
         <NotificationSection />
+        <DoNotDisturbSection user={user} />
       </div>
     </div>
   );
@@ -335,6 +356,185 @@ function NotificationSection() {
             </Button>
           )}
         </div>
+      </div>
+    </section>
+  );
+}
+
+const DEFAULT_SCHEDULE: DoNotDisturbSchedule = {
+  start: "22:00",
+  end: "08:00",
+  days: ["mon", "tue", "wed", "thu", "fri"],
+  timeZone: "UTC",
+};
+
+function formatUntil(iso: string): string {
+  return new Date(iso).toLocaleString([], {
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function DoNotDisturbSection({ user }: { user: User }) {
+  const { updateUser } = useAuth();
+  const queryClient = useQueryClient();
+  const { data: setting } = useQuery({
+    queryKey: ["do-not-disturb"],
+    queryFn: getMyDoNotDisturb,
+  });
+
+  const save = useMutation({
+    mutationFn: (next: { snoozeUntil?: string; schedule?: DoNotDisturbSchedule }) =>
+      setMyDoNotDisturb(next),
+    onSuccess: (next: DoNotDisturb) => {
+      queryClient.setQueryData(["do-not-disturb"], next);
+      updateUser({ ...user, doNotDisturbUntil: next.quietUntil });
+      queryClient.setQueryData<PaginatedResponse<User>>(["users"], (list) =>
+        applyDndToUserList(list, { userId: user.id, until: next.quietUntil }),
+      );
+    },
+  });
+
+  if (!setting) return null;
+  return (
+    <DoNotDisturbForm
+      key={JSON.stringify(setting.schedule ?? null)}
+      setting={setting}
+      pending={save.isPending}
+      error={save.error?.message}
+      onSave={(next) => save.mutate(next)}
+    />
+  );
+}
+
+function DoNotDisturbForm({
+  setting,
+  pending,
+  error,
+  onSave,
+}: {
+  setting: DoNotDisturb;
+  pending: boolean;
+  error?: string;
+  onSave: (next: { snoozeUntil?: string; schedule?: DoNotDisturbSchedule }) => void;
+}) {
+  const [enabled, setEnabled] = useState(Boolean(setting.schedule));
+  const [draft, setDraft] = useState<DoNotDisturbSchedule>(
+    setting.schedule ?? { ...DEFAULT_SCHEDULE, timeZone: localTimeZone() },
+  );
+
+  function toggleDay(day: Weekday) {
+    setDraft((d) => ({
+      ...d,
+      days: d.days.includes(day) ? d.days.filter((x) => x !== day) : [...d.days, day],
+    }));
+  }
+
+  const schedule = enabled ? draft : undefined;
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+        Do not disturb
+      </h2>
+      <div className="space-y-6 rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+        <p className="text-sm text-gray-600 dark:text-gray-300" role="status">
+          {setting.quietUntil
+            ? `Notifications paused until ${formatUntil(setting.quietUntil)}`
+            : "Notifications are on"}
+        </p>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Pause notifications</p>
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(SNOOZE_LABELS) as SnoozeChoice[]).map((choice) => (
+              <Button
+                key={choice}
+                type="button"
+                variant="secondary"
+                disabled={pending}
+                onClick={() => onSave({ snoozeUntil: snoozeEnd(choice), schedule: setting.schedule })}
+              >
+                {SNOOZE_LABELS[choice]}
+              </Button>
+            ))}
+            {setting.snoozeUntil && (
+              <Button
+                type="button"
+                disabled={pending}
+                onClick={() => onSave({ schedule: setting.schedule })}
+              >
+                Resume notifications
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave({ snoozeUntil: setting.snoozeUntil, schedule });
+          }}
+          className="space-y-3"
+        >
+          <label className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+            Quiet hours
+          </label>
+          {enabled && (
+            <>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                From
+                <input
+                  type="time"
+                  aria-label="Quiet from"
+                  value={draft.start}
+                  onChange={(e) => setDraft({ ...draft, start: e.target.value })}
+                  className="rounded border border-gray-300 bg-white px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
+                />
+                to
+                <input
+                  type="time"
+                  aria-label="Quiet until"
+                  value={draft.end}
+                  onChange={(e) => setDraft({ ...draft, end: e.target.value })}
+                  className="rounded border border-gray-300 bg-white px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
+                />
+                <span className="text-xs text-gray-500 dark:text-gray-400">({draft.timeZone})</span>
+              </div>
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Days">
+                {WEEKDAYS.map(({ day, label }) => (
+                  <button
+                    key={day}
+                    type="button"
+                    aria-pressed={draft.days.includes(day)}
+                    onClick={() => toggleDay(day)}
+                    className={`rounded-md border px-2 py-1 text-xs font-medium ${
+                      draft.days.includes(day)
+                        ? "border-indigo-600 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300"
+                        : "border-gray-300 text-gray-600 dark:border-gray-600 dark:text-gray-400"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                A window that ends earlier than it starts runs overnight, into the next day.
+              </p>
+            </>
+          )}
+          <div className="flex items-center gap-3">
+            <Button
+              type="submit"
+              disabled={pending || (enabled && (draft.days.length === 0 || draft.start === draft.end))}
+            >
+              Save quiet hours
+            </Button>
+            {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+          </div>
+        </form>
       </div>
     </section>
   );

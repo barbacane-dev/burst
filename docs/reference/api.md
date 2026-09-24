@@ -124,6 +124,8 @@ The API is organized into the following groups. For full details on each endpoin
 | `PATCH` | `/users/me` | Update your display name or email. |
 | `PUT` | `/users/me/status` | Set your custom status: text, emoji, optional expiry. |
 | `DELETE` | `/users/me/status` | Clear your custom status. |
+| `GET` | `/users/me/do-not-disturb` | Get your snooze and quiet hours. |
+| `PUT` | `/users/me/do-not-disturb` | Replace your snooze and quiet hours. |
 | `GET` | `/users/{userId}` | Get another user's profile. |
 
 ### Search

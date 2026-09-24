@@ -41,6 +41,8 @@ vi.mock("../../lib/api/users", () => ({
   updateMe: vi.fn(),
   setMyStatus: vi.fn(),
   clearMyStatus: vi.fn(),
+  getMyDoNotDisturb: vi.fn().mockResolvedValue({}),
+  setMyDoNotDisturb: vi.fn(),
 }));
 vi.mock("../../lib/use-theme", () => ({
   useTheme: () => ({ theme: "light", resolved: "light", setTheme: vi.fn() }),

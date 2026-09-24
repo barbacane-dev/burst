@@ -66,6 +66,7 @@ These events are sent from the server to your client.
 |------|---------|-------------|
 | `presence.update` | `{ userId, status }` | A user's presence changed (`online`, `away`, `offline`). |
 | `user.status_changed` | `{ userId, text?, emoji?, expiresAt? }` | A user set or cleared their custom status. All three fields are absent when it was cleared. Sent to every connected user. |
+| `user.dnd_changed` | `{ userId, until? }` | A user changed their do-not-disturb setting. `until` is when their current quiet period ends, absent when they are not quiet. A scheduled window starting or ending sends no event; user objects carry `doNotDisturbUntil`. |
 
 ### Channels
 
@@ -87,7 +88,7 @@ These events are sent from the server to your client.
 |------|---------|-------------|
 | `notification.created` | `{ notificationId, recipientId, channelId, messageId, reason, authorName, channelName?, preview }` | The server decided to notify you of a message. |
 
-Every member of a channel receives `message.created`, including its author. Use `notification.created` to decide whether to alert a user, not `message.created`.
+Every member of a channel receives `message.created`, including its author. Use `notification.created` to decide whether to alert a user, not `message.created`. It is not sent while the recipient has do not disturb on.
 
 The server sends a notification only to the member it is addressed to, and decides who that is from each member's preference for the channel:
 

@@ -1,6 +1,7 @@
 use axum::extract::{Path, Query, State};
 use axum::routing::{get, put};
 use axum::{Json, Router};
+use burst_core::dnd::{DoNotDisturb, Schedule};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -16,6 +17,10 @@ pub fn router() -> Router<AppState> {
         .route("/users/{user_id}", get(get_user))
         .route("/users/me", get(get_me).patch(update_me))
         .route("/users/me/status", put(set_status).delete(clear_status))
+        .route(
+            "/users/me/do-not-disturb",
+            get(get_do_not_disturb).put(set_do_not_disturb),
+        )
 }
 
 #[derive(Debug, Serialize)]
@@ -33,6 +38,9 @@ pub struct UserResponse {
     pub status_emoji: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status_expires_at: Option<String>,
+    /// When the user's current quiet period ends; absent when not quiet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub do_not_disturb_until: Option<String>,
     pub is_bot: bool,
     pub created_at: String,
 }
@@ -53,6 +61,10 @@ fn user_to_response(row: &db::users::UserRow) -> UserResponse {
         status_expires_at: row
             .status_expires_at
             .filter(|_| status)
+            .map(|at| at.to_rfc3339()),
+        do_not_disturb_until: row
+            .do_not_disturb()
+            .quiet_until(chrono::Utc::now())
             .map(|at| at.to_rfc3339()),
         is_bot: row.is_bot,
         created_at: row.created_at.to_rfc3339(),
@@ -204,6 +216,111 @@ async fn announce_status(state: &AppState, user: &UserResponse) {
         expires_at: user.status_expires_at.clone(),
     };
     crate::services::broadcast(state, event).await;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduleBody {
+    /// `HH:MM`, local to `time_zone`.
+    pub start: String,
+    pub end: String,
+    pub days: Vec<String>,
+    /// IANA name, e.g. `Europe/Paris`.
+    pub time_zone: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DoNotDisturbResponse {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snooze_until: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schedule: Option<ScheduleBody>,
+    /// When the current quiet period ends; absent when not quiet.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub quiet_until: Option<String>,
+}
+
+fn dnd_response(dnd: &DoNotDisturb) -> DoNotDisturbResponse {
+    let now = chrono::Utc::now();
+    DoNotDisturbResponse {
+        snooze_until: dnd
+            .snooze_until
+            .filter(|at| *at > now)
+            .map(|at| at.to_rfc3339()),
+        schedule: dnd.schedule.map(|s| ScheduleBody {
+            start: s.start.format("%H:%M").to_string(),
+            end: s.end.format("%H:%M").to_string(),
+            days: s.day_names().into_iter().map(String::from).collect(),
+            time_zone: s.time_zone.name().to_string(),
+        }),
+        quiet_until: dnd.quiet_until(now).map(|at| at.to_rfc3339()),
+    }
+}
+
+async fn get_do_not_disturb(
+    auth: AuthUser,
+    State(state): State<AppState>,
+) -> Result<Json<DoNotDisturbResponse>, ApiError> {
+    let user = db::users::find_by_id(&state.db, auth.user_id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User".into()))?;
+    Ok(Json(dnd_response(&user.do_not_disturb())))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetDoNotDisturbRequest {
+    snooze_until: Option<String>,
+    schedule: Option<ScheduleBody>,
+}
+
+/// Replaces the whole setting: an omitted snooze or schedule is cleared.
+async fn set_do_not_disturb(
+    auth: AuthUser,
+    State(state): State<AppState>,
+    Json(body): Json<SetDoNotDisturbRequest>,
+) -> Result<Json<DoNotDisturbResponse>, ApiError> {
+    let snooze_until = body
+        .snooze_until
+        .as_deref()
+        .map(|at| {
+            chrono::DateTime::parse_from_rfc3339(at)
+                .map(|at| at.with_timezone(&chrono::Utc))
+                .map_err(|_| {
+                    ApiError::BadRequest("snoozeUntil must be an RFC 3339 date-time".into())
+                })
+        })
+        .transpose()?;
+    if snooze_until.is_some_and(|at| at <= chrono::Utc::now()) {
+        return Err(ApiError::BadRequest(
+            burst_core::dnd::DndError::SnoozeInPast.to_string(),
+        ));
+    }
+    let schedule = body
+        .schedule
+        .map(|s| Schedule::parse(&s.start, &s.end, &s.days, &s.time_zone))
+        .transpose()
+        .map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    let dnd = DoNotDisturb {
+        snooze_until,
+        schedule,
+    };
+
+    let user = db::users::set_do_not_disturb(&state.db, auth.user_id, &dnd)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("User".into()))?;
+    let response = dnd_response(&user.do_not_disturb());
+    crate::services::broadcast(
+        &state,
+        crate::ws::ServerEvent::UserDndChanged {
+            event_id: burst_core::id::new_id().to_string(),
+            user_id: burst_core::id::format_user_id(auth.user_id),
+            until: response.quiet_until.clone(),
+        },
+    )
+    .await;
+    Ok(Json(response))
 }
 
 /// JIT provisioning: create or return an existing user from an external identity.

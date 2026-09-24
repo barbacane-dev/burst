@@ -15,6 +15,7 @@ import { SearchDialog } from "../search-dialog";
 import { useUsersById } from "../../lib/hooks/use-users-by-id";
 import { resolveDmPartnerName } from "../../lib/hooks/use-dm-label";
 import type { Channel, ChannelMember, PaginatedResponse, User } from "../../lib/api/types";
+import { DndIndicator } from "../ui/dnd-indicator";
 
 export function Sidebar() {
   const { user, logout } = useAuth();
@@ -195,8 +196,9 @@ export function Sidebar() {
               size="sm"
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                {user.displayName}
+              <p className="flex items-center gap-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+                <span className="truncate">{user.displayName}</span>
+                <DndIndicator user={user} />
               </p>
               <p className="truncate text-xs text-gray-500 dark:text-gray-400">
                 {user.username}

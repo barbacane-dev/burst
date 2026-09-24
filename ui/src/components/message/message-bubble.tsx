@@ -11,6 +11,7 @@ import { MarkdownContent } from "./markdown-content";
 import { ReactionPill } from "./reaction-pill";
 import type { Message, PaginatedResponse } from "../../lib/api/types";
 import { UserStatusEmoji } from "../ui/user-status";
+import { DndIndicator } from "../ui/dnd-indicator";
 
 export function MessageBubble({
   message,
@@ -93,6 +94,7 @@ export function MessageBubble({
             {displayName}
           </span>
           <UserStatusEmoji userId={message.userId} />
+          <DndIndicator userId={message.userId} />
           <time className="text-xs text-gray-400 dark:text-gray-500">
             {formatTime(message.createdAt)}
           </time>

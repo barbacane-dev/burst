@@ -41,6 +41,24 @@ A member who is offline is mentioned by `@channel` and not by `@here`. Use `@her
 
 Because `channel` and `here` always mean these two, a user with either as their username cannot be mentioned by name.
 
+## Do Not Disturb
+
+Do not disturb holds back all notifications, mentions included. Messages still count as unread, and mentions are still recorded, so nothing is lost: you just are not alerted. Others see a bell-off mark beside your name while you are quiet.
+
+Open **Settings** and find **Do not disturb**.
+
+### Pausing
+
+Click **30 minutes**, **1 hour**, **2 hours** or **Until tomorrow 9:00** to pause notifications now. **Resume notifications** ends a pause early.
+
+### Quiet Hours
+
+Tick **Quiet hours**, set the start and end times, choose the days, and click **Save quiet hours**. The times are in the time zone of the browser you set them from, shown beside them, and follow its daylight-saving changes.
+
+A window that ends earlier than it starts runs overnight: 22:00 to 07:00 on Friday covers Friday night into Saturday morning. The days are the days a window starts on.
+
+A pause and quiet hours can both be set. You are quiet while either one is in effect.
+
 ## Tips
 
 - Set noisy channels to **Mentions** to reduce notification fatigue. You will still hear `@channel`, and `@here` while you are online.

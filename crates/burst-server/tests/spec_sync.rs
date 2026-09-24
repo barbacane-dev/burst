@@ -96,7 +96,7 @@ use burst_server::api::channels::{
     ChannelMemberResponse, ChannelResponse, MessageResponse, ReactionResponse,
 };
 use burst_server::api::search::SearchResultResponse;
-use burst_server::api::users::UserResponse;
+use burst_server::api::users::{DoNotDisturbResponse, ScheduleBody, UserResponse};
 
 fn example_user_response() -> UserResponse {
     UserResponse {
@@ -110,6 +110,7 @@ fn example_user_response() -> UserResponse {
         status_text: Some("Hello".into()),
         status_emoji: Some("👋".into()),
         status_expires_at: Some("2026-01-02T00:00:00+00:00".into()),
+        do_not_disturb_until: Some("2026-01-02T00:00:00+00:00".into()),
         is_bot: false,
         created_at: "2026-01-01T00:00:00Z".into(),
     }
@@ -169,6 +170,23 @@ fn example_reaction_count() -> ReactionResponse {
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
+
+#[test]
+fn do_not_disturb_matches_spec() {
+    let schedule = ScheduleBody {
+        start: "22:00".into(),
+        end: "07:00".into(),
+        days: vec!["mon".into()],
+        time_zone: "Europe/Paris".into(),
+    };
+    assert_fields_match("ScheduleBody", "DoNotDisturbSchedule", &schedule);
+    let response = DoNotDisturbResponse {
+        snooze_until: Some("2026-01-02T00:00:00+00:00".into()),
+        schedule: Some(schedule),
+        quiet_until: Some("2026-01-02T00:00:00+00:00".into()),
+    };
+    assert_fields_match("DoNotDisturbResponse", "DoNotDisturb", &response);
+}
 
 #[test]
 fn user_response_matches_spec() {

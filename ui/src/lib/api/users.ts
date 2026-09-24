@@ -1,5 +1,5 @@
 import { apiFetch } from "./client";
-import type { PaginatedResponse, User } from "./types";
+import type { DoNotDisturb, DoNotDisturbSchedule, PaginatedResponse, User } from "./types";
 
 export async function listUsers(cursor?: string): Promise<PaginatedResponse<User>> {
   const params = new URLSearchParams();
@@ -38,4 +38,18 @@ export async function setMyStatus(status: StatusInput): Promise<User> {
 
 export async function clearMyStatus(): Promise<User> {
   return apiFetch<User>("/users/me/status", { method: "DELETE" });
+}
+export async function getMyDoNotDisturb(): Promise<DoNotDisturb> {
+  return apiFetch<DoNotDisturb>("/users/me/do-not-disturb");
+}
+
+/** Replaces the whole setting: an omitted snooze or schedule is cleared. */
+export async function setMyDoNotDisturb(setting: {
+  snoozeUntil?: string;
+  schedule?: DoNotDisturbSchedule;
+}): Promise<DoNotDisturb> {
+  return apiFetch<DoNotDisturb>("/users/me/do-not-disturb", {
+    method: "PUT",
+    body: JSON.stringify(setting),
+  });
 }

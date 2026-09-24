@@ -5,6 +5,7 @@ import { queryClient } from "../query-client";
 import { wsClient } from "../ws/client";
 import { AuthContext } from "./auth-context";
 import { withStatus, type StatusChangedEvent } from "../status";
+import { withDnd, type DndChangedEvent } from "../dnd";
 
 export { AuthContext } from "./auth-context";
 
@@ -58,6 +59,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       wsClient.on("user.status_changed", (e) => {
         const event = e as StatusChangedEvent;
         setUser((u) => (u && u.id === event.userId ? withStatus(u, event) : u));
+      }),
+    [],
+  );
+
+  // Keeps the signed-in user's own do-not-disturb current when it is changed elsewhere.
+  useEffect(
+    () =>
+      wsClient.on("user.dnd_changed", (e) => {
+        const event = e as DndChangedEvent;
+        setUser((u) => (u && u.id === event.userId ? withDnd(u, event) : u));
       }),
     [],
   );

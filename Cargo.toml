@@ -34,6 +34,7 @@ toml = "1.1"
 # IDs & time
 uuid = { version = "1", features = ["v7", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = "0.10"
 
 # Observability
 tracing = "0.1"

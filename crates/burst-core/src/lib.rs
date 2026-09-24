@@ -1,3 +1,4 @@
+pub mod dnd;
 pub mod error;
 pub mod id;
 pub mod mentions;
