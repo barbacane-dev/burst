@@ -51,8 +51,11 @@ paths:
             maxLength: 1024
       requestBody:
         required: true
+        description: >-
+          The file as uploaded, under its own content type, which is stored
+          with the object and returned on GET.
         content:
-          application/octet-stream:
+          "*/*":
             schema:
               type: string
               format: binary
