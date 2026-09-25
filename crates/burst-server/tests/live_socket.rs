@@ -100,6 +100,32 @@ async fn ready(
     panic!("the socket never became ready");
 }
 
+/// Posts in `room` until every socket has delivered one of the posts. A socket
+/// completes its handshake before it subscribes, so a single message sent
+/// straight after connecting can go out before a socket is listening.
+async fn warm_up(app: &common::TestApp, room: Uuid, sockets: &mut [&mut common::Socket]) {
+    let mut subscribed = vec![false; sockets.len()];
+    for attempt in 0..20 {
+        say(app, room, "alice", &format!("warm-up {attempt}")).await;
+        for (socket, done) in sockets.iter_mut().zip(subscribed.iter_mut()) {
+            if !*done {
+                *done = common::wait_for(socket, Duration::from_millis(200), |e| {
+                    e["type"] == "message.created"
+                        && e["message"]["content"]
+                            .as_str()
+                            .is_some_and(|c| c.starts_with("warm-up"))
+                })
+                .await
+                .is_some();
+            }
+        }
+        if subscribed.iter().all(|done| *done) {
+            return;
+        }
+    }
+    panic!("not every socket became ready: {subscribed:?}");
+}
+
 fn message_saying(text: &'static str) -> impl Fn(&Value) -> bool {
     move |e| e["type"] == "message.created" && e["message"]["content"] == text
 }
@@ -120,18 +146,7 @@ async fn a_removed_member_stops_receiving_the_channel_live(pool: sqlx::PgPool) {
     let mut bobs = common::connect(addr, &auth("bob")).await;
     let mut carols = common::connect(addr, &auth("carol")).await;
 
-    // Both sockets are subscribed once they have seen a message.
-    say(&app, room, "alice", "warm-up").await;
-    assert!(
-        common::wait_for(&mut bobs, ARRIVES, message_saying("warm-up"))
-            .await
-            .is_some()
-    );
-    assert!(
-        common::wait_for(&mut carols, ARRIVES, message_saying("warm-up"))
-            .await
-            .is_some()
-    );
+    warm_up(&app, room, &mut [&mut bobs, &mut carols]).await;
 
     let (status, _) = app
         .delete(
