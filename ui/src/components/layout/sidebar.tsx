@@ -188,7 +188,8 @@ export function Sidebar() {
       </nav>
 
       {user && (
-        <div className="border-t border-gray-200 p-3 dark:border-gray-700">
+        // Same minimum height as the message composer, so their top borders line up.
+        <div className="flex min-h-16 flex-col justify-center border-t border-gray-200 p-3 dark:border-gray-700">
           <div className="flex items-center gap-2">
             <Avatar
               name={user.displayName}

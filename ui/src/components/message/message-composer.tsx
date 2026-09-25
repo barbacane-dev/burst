@@ -178,7 +178,8 @@ export function MessageComposer({
       onSubmit={handleSubmit}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-      className="border-t border-gray-200 px-4 py-3 dark:border-gray-700"
+      // Same minimum height as the sidebar footer, so their top borders line up.
+      className="flex min-h-16 flex-col justify-center border-t border-gray-200 px-4 py-3 dark:border-gray-700"
     >
       {fileError && (
         <div className="mb-2 rounded-md bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400">
