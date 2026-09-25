@@ -21,12 +21,12 @@ else
   PROC_STOP  := true
 endif
 
-BARBACANE_VERSION ?= 0.11.0
+BARBACANE_VERSION ?= 0.12.1
 # Downloaded from the release by default. Point it at a local build to run
 # ahead of a release, which works while the change stays out of the plugins
 # and the artifact format:
 #   BARBACANE_BIN=../barbacane/target/release/barbacane make gateway
-BARBACANE_BIN     ?= .barbacane/bin/barbacane
+BARBACANE_BIN     ?= .barbacane/bin/barbacane-$(BARBACANE_VERSION)
 # The Procfile reads it too, and overmind inherits this process's environment,
 # so export it for `make BARBACANE_BIN=... all` as well as the env form.
 export BARBACANE_BIN

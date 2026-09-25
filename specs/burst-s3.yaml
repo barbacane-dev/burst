@@ -23,7 +23,7 @@ x-barbacane-middlewares:
       key_location: header
       header_name: X-Storage-Key
       keys:
-        env://BURST_S3_API_KEY:
+        - key: env://BURST_S3_API_KEY
           id: burst-server
 
 paths:

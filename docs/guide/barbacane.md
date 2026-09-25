@@ -178,10 +178,10 @@ asset by URL and checksum, so a compile fetches exactly the reviewed binary:
 ```yaml
 plugins:
   oidc-auth:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.11.0/oidc-auth.wasm
-    sha256: ded95c05c1eaeb4b307871a6f18c6289b9c31f73b6bd1a40fecc2817fdc2fb43
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/oidc-auth.wasm
+    sha256: 5453dd191433a7d6e793b46fdc447f1e07641d6e0bee0075f321bdc0fa35ec08
   rate-limit:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.11.0/rate-limit.wasm
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/rate-limit.wasm
     sha256: ...
 ```
 
