@@ -8,7 +8,6 @@ license.workspace = true
 burst-core.workspace = true
 axum.workspace = true
 tower.workspace = true
-tower-http.workspace = true
 tokio.workspace = true
 sqlx.workspace = true
 serde.workspace = true

@@ -283,7 +283,6 @@ dependencies = [
  "tokio-util",
  "toml",
  "tower",
- "tower-http",
  "tracing",
  "urlencoding",
  "uuid",
@@ -3149,7 +3148,6 @@ dependencies = [
  "tower",
  "tower-layer",
  "tower-service",
- "tracing",
  "url",
 ]
 
