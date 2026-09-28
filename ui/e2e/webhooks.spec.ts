@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { login, createChannel } from "./helpers";
+import { login } from "./helpers";
 
 const GATEWAY = "http://localhost:8080";
 const MOCK_OAUTH = "http://localhost:9099";

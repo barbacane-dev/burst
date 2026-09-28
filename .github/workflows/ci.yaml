@@ -28,6 +28,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       smoke: ${{ steps.filter.outputs.smoke }}
       chart: ${{ steps.filter.outputs.chart }}
+      ui: ${{ steps.filter.outputs.ui }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -59,6 +60,33 @@ jobs:
               - 'barbacane.yaml'
               - 'barbacane-s3.yaml'
               - '.github/workflows/ci.yaml'
+            ui:
+              - 'ui/**'
+              - '.github/workflows/ci.yaml'
+
+  # ── UI: lint, typecheck and build, unit tests ─────────────────────────────
+  ui:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.ui == 'true'
+    defaults:
+      run:
+        working-directory: ui
+    steps:
+      - uses: actions/checkout@v7
+      # The node major the web and all-in-one images build the UI with.
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck and build
+        run: npm run build
+      - name: Unit tests
+        run: npm test
 
   # ── Helm chart: lint, unit tests, schema validation, gateway image ────────
   chart:
