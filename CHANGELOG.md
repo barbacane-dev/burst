@@ -1,12 +1,8 @@
 # Changelog
 
-All notable changes to Burst are documented in this file.
-Format follows [Keep a Changelog](https://keepachangelog.com/).
-
-## [Unreleased]
-
-### Fixed
-- Custom emojis show as images in reactions and in message text, not as their `:shortcode:`. Code and link text are left as written.
+All notable changes to Burst are documented in this file. From 0.2.0 on, each
+release's section is written by release-please from the conventional commits
+it contains; earlier sections follow [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.1.1] - 2026-09-28
 
