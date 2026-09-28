@@ -1,0 +1,66 @@
+name: Release Please
+
+# Keeps a release PR open that bumps the version (Cargo.toml, the chart's
+# version and appVersion) and adds a CHANGELOG section from the conventional
+# commits merged since the last release. Merging it tags the release, and this
+# workflow then builds it: a tag created with GITHUB_TOKEN starts no workflow
+# of its own, so release.yaml is called from here.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      pr_branch: ${{ steps.release.outputs.pr && fromJSON(steps.release.outputs.pr).headBranchName }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # release-please cannot pick the workspace crates out of Cargo.lock, so the
+  # lockfile is brought in line on the release PR's branch.
+  lockfile:
+    runs-on: ubuntu-latest
+    needs: release-please
+    if: needs.release-please.outputs.pr_branch != ''
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.pr_branch }}
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Update the workspace crates in Cargo.lock
+        env:
+          BRANCH: ${{ needs.release-please.outputs.pr_branch }}
+        run: |
+          cargo update --workspace
+          if git diff --quiet Cargo.lock; then
+            echo "Cargo.lock already matches."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: update Cargo.lock for the release"
+          git push origin "HEAD:${BRANCH}"
+
+  release:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/release.yaml
+    with:
+      tag: ${{ needs.release-please.outputs.tag_name }}
+    secrets: inherit

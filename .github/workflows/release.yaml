@@ -3,9 +3,17 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # From release-please.yaml, with the tag it just created.
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
 
 env:
   CARGO_TERM_COLOR: always
+  # The release tag: the input when called, the pushed tag otherwise.
+  TAG: ${{ inputs.tag || github.ref_name }}
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
@@ -29,6 +37,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       - name: Install Rust toolchain
         run: rustup target add ${{ matrix.target }}
@@ -71,6 +81,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       - name: Install Rust toolchain
         run: rustup target add aarch64-apple-darwin
@@ -102,6 +114,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       - name: Download Linux artifacts
         uses: actions/download-artifact@v8
@@ -142,7 +156,7 @@ jobs:
 
       - name: Extract version from tag
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
       - name: Compute image tags
         id: tags
@@ -248,6 +262,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       - uses: azure/setup-helm@v4
         with:
@@ -256,8 +272,8 @@ jobs:
       - name: Check the chart's appVersion is this release
         run: |
           app=$(helm show chart deploy/helm/burst | sed -n 's/^appVersion: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p')
-          if [ "$app" != "${GITHUB_REF_NAME#v}" ]; then
-            echo "::error::Chart.yaml appVersion is ${app}, the tag is ${GITHUB_REF_NAME}"
+          if [ "$app" != "${TAG#v}" ]; then
+            echo "::error::Chart.yaml appVersion is ${app}, the tag is ${TAG}"
             exit 1
           fi
 
@@ -276,6 +292,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -285,7 +303,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          tag_name: ${{ env.TAG }}
+          # release-please writes the notes of the releases it creates.
+          generate_release_notes: ${{ github.event_name == 'push' }}
           files: |
             artifacts/burst-linux-amd64/burst-linux-amd64
             artifacts/burst-linux-arm64/burst-linux-arm64
