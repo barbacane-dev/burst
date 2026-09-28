@@ -22,7 +22,7 @@ The server believes the identity headers the gateway sets, so a NetworkPolicy le
 
 ## Requirements
 
-- Kubernetes 1.27 or later, with a [Gateway API](https://gateway-api.sigs.k8s.io/) implementation and a Gateway to attach the route to.
+- Kubernetes 1.30 or later, with a [Gateway API](https://gateway-api.sigs.k8s.io/) implementation and a Gateway to attach the route to.
 - An OIDC provider, with a client for the SPA whose redirect URI is `https://<your hostname>/callback`.
 - PostgreSQL, unless you use the bundled one to try Burst out.
 - For more than one server replica: an S3-compatible bucket.
@@ -75,6 +75,10 @@ With more than one server replica the chart switches the event broker to Postgre
 ## Values
 
 The chart refuses combinations that would install but not work: no OIDC issuer, no database, local storage with several replicas, S3 without an endpoint or credentials, a route with no Gateway to attach to. See `deploy/helm/burst/values.yaml` for every value, each with its default and what it does.
+
+## Rolling updates
+
+A stopping pod keeps serving for `drainSeconds` (5 by default) while its address leaves the Service's endpoints, so a rolling update sends no connection to a pod that has already exited. It uses the `preStop` sleep action, which is why the chart needs Kubernetes 1.30 or later.
 
 ## Monitoring
 

@@ -32,6 +32,7 @@ spec:
         - name: web
           image: {{ include "burst.image" (dict "root" . "image" .Values.web.image) }}
           imagePullPolicy: {{ .Values.web.image.pullPolicy }}
+          {{- include "burst.lifecycle" . | nindent 10 }}
           securityContext:
             allowPrivilegeEscalation: false
           ports:

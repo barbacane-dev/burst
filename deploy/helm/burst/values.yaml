@@ -163,6 +163,11 @@ httpRoute:
   #  - chat.example.com
   annotations: {}
 
+# Seconds a stopping pod keeps serving while it leaves its Service's endpoints,
+# so a rolling update does not send connections to a pod that has exited. 0
+# turns it off. Uses the preStop sleep action (Kubernetes 1.30 and later).
+drainSeconds: 5
+
 # ── Security and monitoring ───────────────────────────────────────────────────
 networkPolicy:
   enabled: true

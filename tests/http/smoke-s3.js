@@ -31,6 +31,9 @@ const GATEWAY = __ENV.GATEWAY_URL || "http://localhost:8080";
 const MOCK_OAUTH = __ENV.MOCK_OAUTH_URL || "http://localhost:9099";
 
 const SMALL_PNG = open("./fixtures/Digital_punk_pirate_avatar_small.png", "b");
+// 2.3 MB: well past the size at which signing an S3 upload in the gateway
+// needs the body hashed on the host (Barbacane 0.12.2 and later).
+const LARGE_PNG = open("./fixtures/Digital_punk_pirate_avatar.png", "b");
 
 export const options = {
   scenarios: {
@@ -108,5 +111,38 @@ export function s3smoke() {
       auth
     );
     check(del, { "Delete message → 204": (r) => r.status === 204 });
+  });
+
+  // ── 4. A large attachment round-trips intact ─────────────────────────
+
+  group("S3: Upload and download a large file", () => {
+    const ch = http.post(
+      `${GATEWAY}/api/channels`,
+      JSON.stringify({ name: `s3-large-${Date.now()}` }),
+      { headers: { ...auth.headers, "Content-Type": "application/json" } }
+    );
+    check(ch, { "Create channel → 201": (r) => r.status === 201 });
+    const channelId = JSON.parse(ch.body).id;
+
+    const pngHash = sha256(LARGE_PNG, "hex");
+    const msg = http.post(
+      `${GATEWAY}/api/channels/${channelId}/messages`,
+      {
+        content: http.file("large attachment", "content", "text/plain"),
+        files: http.file(LARGE_PNG, "large.png", "image/png"),
+      },
+      auth
+    );
+    check(msg, {
+      "Send message with a 2.3 MB attachment → 201": (r) => r.status === 201,
+    });
+    if (msg.status !== 201) return;
+
+    const attachment = JSON.parse(msg.body).attachments[0];
+    const dl = http.get(`${GATEWAY}/api/attachments/${attachment.id}`, auth);
+    check(dl, {
+      "Download large attachment → 200": (r) => r.status === 200,
+      "Large attachment SHA-256 matches": (r) => sha256(r.body, "hex") === pngHash,
+    });
   });
 }

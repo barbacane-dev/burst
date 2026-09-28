@@ -153,7 +153,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    # Also when only the smoke or chart inputs change: both end-to-end jobs
+    # run this build's binary.
+    if: >-
+      needs.changes.outputs.backend == 'true' ||
+      needs.changes.outputs.smoke == 'true' ||
+      needs.changes.outputs.chart == 'true'
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -382,6 +387,121 @@ jobs:
         run: |
           echo "::group::barbacane.log"; cat /tmp/barbacane.log || true; echo "::endgroup::"
           echo "::group::burst.log"; cat /tmp/burst.log || true; echo "::endgroup::"
+
+  # ── Helm chart on kind: install, sign in, smoke tests through the route ────
+  # The steps of deploy/helm/e2e/README.md: the local-storage profile, then
+  # the S3 profile (RustFS, two server replicas) as an upgrade.
+  helm-e2e:
+    runs-on: ubuntu-latest
+    needs: [changes, build]
+    if: >-
+      (needs.changes.outputs.chart == 'true' || needs.changes.outputs.smoke == 'true') &&
+      needs.build.result == 'success'
+    timeout-minutes: 30
+    env:
+      GATEWAY_URL: http://127.0.0.1:18080
+      # The provider stamps tokens with the address it is asked on, which must
+      # match oidc.issuerOverride in deploy/helm/e2e/values.yaml.
+      MOCK_OAUTH_URL: http://localhost:9099
+      BURST_URL: http://127.0.0.1:13000
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download release binary
+        uses: actions/download-artifact@v8
+        with:
+          name: burst-ci
+          path: ci-bin
+
+      - name: Build the images
+        run: |
+          mkdir -p bin/amd64
+          install -m 0755 ci-bin/burst bin/amd64/burst
+          docker build -t localhost/burst:e2e -f Dockerfile .
+          docker build -t localhost/burst-gateway:e2e -f docker/Dockerfile.gateway .
+          docker build -t localhost/burst-nginx:e2e -f docker/Dockerfile.nginx .
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.0
+
+      - uses: helm/kind-action@v1
+        with:
+          config: deploy/helm/e2e/kind.yaml
+          cluster_name: burst
+
+      - name: Load the images into kind
+        run: kind load docker-image localhost/burst:e2e localhost/burst-gateway:e2e localhost/burst-nginx:e2e --name burst
+
+      - name: Install Envoy Gateway
+        run: |
+          helm install eg oci://docker.io/envoyproxy/gateway-helm --version 1.9.1 \
+            -n envoy-gateway-system --create-namespace --wait --timeout 5m
+
+      - name: Install the chart
+        run: |
+          kubectl create namespace burst
+          kubectl apply -f deploy/helm/e2e/gateway.yaml -f deploy/helm/e2e/oidc.yaml
+          kubectl -n burst rollout status deploy/mock-oauth --timeout 3m
+          helm install chat deploy/helm/burst -n burst -f deploy/helm/e2e/values.yaml --wait --timeout 5m
+          # kind has no load balancer, so the Gateway gets no address and never
+          # reports Programmed. The port-forward needs it accepted and its proxy up.
+          kubectl -n burst wait --for=condition=Accepted gateway/public --timeout 3m
+          proxy='gateway.envoyproxy.io/owning-gateway-name=public'
+          timeout 180 sh -c "until kubectl -n envoy-gateway-system get deploy -l $proxy -o name | grep -q .; do sleep 2; done"
+          kubectl -n envoy-gateway-system wait --for=condition=Available deploy -l "$proxy" --timeout 3m
+
+      - name: Port-forward the Gateway, the provider and the database
+        run: |
+          gw=$(kubectl -n envoy-gateway-system get svc \
+            -l gateway.envoyproxy.io/owning-gateway-name=public -o name)
+          kubectl -n envoy-gateway-system port-forward "$gw" 18080:80 > /tmp/pf-gateway.log 2>&1 &
+          kubectl -n burst port-forward svc/mock-oauth 9099:8080 > /tmp/pf-oauth.log 2>&1 &
+          kubectl -n burst port-forward svc/chat-burst-server 13000:3000 > /tmp/pf-server.log 2>&1 &
+          kubectl -n burst port-forward svc/chat-burst-postgresql 15432:5432 > /tmp/pf-db.log 2>&1 &
+          for port in 18080 9099 13000 15432; do
+            for _ in $(seq 1 30); do
+              nc -z 127.0.0.1 "$port" && break
+              sleep 1
+            done
+            nc -z 127.0.0.1 "$port" || { echo "::error::port-forward on $port did not come up"; exit 1; }
+          done
+
+      - name: Seed the database
+        run: |
+          chmod +x ci-bin/examples/seed
+          password=$(kubectl -n burst get secret chat-burst -o jsonpath='{.data.postgres-password}' | base64 -d)
+          ci-bin/examples/seed "postgres://burst:${password}@127.0.0.1:15432/burst"
+
+      - name: Install k6
+        run: |
+          curl -fsSL https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz \
+            | tar xzf - --strip-components=1
+          sudo mv k6 /usr/local/bin/
+
+      - name: Smoke tests (local storage)
+        run: k6 run tests/http/smoke.js
+
+      - name: Switch to S3 storage
+        run: |
+          kubectl apply -f deploy/helm/e2e/s3.yaml
+          kubectl -n burst wait --for=condition=complete job/rustfs-bucket --timeout 3m
+          helm upgrade chat deploy/helm/burst -n burst \
+            -f deploy/helm/e2e/values.yaml -f deploy/helm/e2e/values-s3.yaml --wait --timeout 5m
+
+      - name: Smoke tests (S3 storage)
+        run: k6 run tests/http/smoke-s3.js
+
+      - name: Show cluster state and logs
+        if: failure()
+        run: |
+          echo "::group::pods"; kubectl get pods -A -o wide || true; echo "::endgroup::"
+          echo "::group::routes"; kubectl -n burst get gateway,httproute -o yaml || true; echo "::endgroup::"
+          echo "::group::events"; kubectl -n burst get events --sort-by=.lastTimestamp || true; echo "::endgroup::"
+          for pod in $(kubectl -n burst get pods -o name); do
+            echo "::group::$pod"; kubectl -n burst logs "$pod" --all-containers --tail=200 || true; echo "::endgroup::"
+          done
+          echo "::group::port-forwards"; tail -n 20 /tmp/pf-*.log || true; echo "::endgroup::"
 
   # ── Security audit ─────────────────────────────────────────────────────────
   audit:

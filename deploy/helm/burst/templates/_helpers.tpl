@@ -108,3 +108,17 @@ key: storage-api-key
 {{- fail "httpRoute.parentRefs must name the Gateway the route attaches to, or set httpRoute.enabled=false" }}
 {{- end }}
 {{- end }}
+
+{{/*
+A pod behind a Service keeps serving for drainSeconds after it is told to stop,
+while its address leaves the Service's endpoints; a connection sent to it after
+it exited would hang until the caller's timeout.
+*/}}
+{{- define "burst.lifecycle" -}}
+{{- if gt (int .Values.drainSeconds) 0 }}
+lifecycle:
+  preStop:
+    sleep:
+      seconds: {{ int .Values.drainSeconds }}
+{{- end }}
+{{- end }}

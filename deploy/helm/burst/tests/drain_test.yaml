@@ -1,0 +1,49 @@
+suite: drain
+templates:
+  - templates/server.yaml
+  - templates/gateway.yaml
+  - templates/web.yaml
+  - templates/storage.yaml
+  - templates/secret.yaml
+release:
+  name: chat
+set:
+  oidc.issuerUrl: https://id.example
+  database.existingSecret: db
+  httpRoute.enabled: false
+  storage.backend: s3
+  storage.s3.endpoint: https://s3.example
+  storage.s3.existingSecret: bucket
+tests:
+  - it: keeps each Deployment serving for drainSeconds after it is told to stop
+    documentSelector:
+      path: kind
+      value: Deployment
+      matchMany: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.preStop.sleep.seconds
+          value: 5
+
+  - it: takes the drain time from drainSeconds
+    documentSelector:
+      path: kind
+      value: Deployment
+      matchMany: true
+    set:
+      drainSeconds: 12
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].lifecycle.preStop.sleep.seconds
+          value: 12
+
+  - it: sets no preStop hook when drainSeconds is 0
+    documentSelector:
+      path: kind
+      value: Deployment
+      matchMany: true
+    set:
+      drainSeconds: 0
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].lifecycle
