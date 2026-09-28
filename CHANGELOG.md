@@ -4,6 +4,18 @@ All notable changes to Burst are documented in this file. From 0.2.0 on, each
 release's section is written by release-please from the conventional commits
 it contains; earlier sections follow [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.0](https://github.com/barbacane-dev/burst/compare/v0.1.1...v0.2.0) (2026-09-28)
+
+
+### Bug Fixes
+
+* **ui:** show custom emojis as images in reactions and message text ([#11](https://github.com/barbacane-dev/burst/issues/11)) ([349da05](https://github.com/barbacane-dev/burst/commit/349da05cf1b5ecede3eccd22a11eda7d3d50c1d3))
+
+
+### Continuous Integration
+
+* release with release-please ([da04481](https://github.com/barbacane-dev/burst/commit/da04481e6b62ccb40dcb0fa215124054d5f827c8))
+
 ## [0.1.1] - 2026-09-28
 
 Custom emoji images load, and an API path no operation matches is a 404 rather than an SPA lookup. Chart 0.1.3.
