@@ -486,8 +486,13 @@ jobs:
         run: |
           kubectl apply -f deploy/helm/e2e/s3.yaml
           kubectl -n burst wait --for=condition=complete job/rustfs-bucket --timeout 3m
+          old=$(kubectl -n burst get pods -l app.kubernetes.io/component=server -o name)
           helm upgrade chat deploy/helm/burst -n burst \
             -f deploy/helm/e2e/values.yaml -f deploy/helm/e2e/values-s3.yaml --wait --timeout 5m
+          # The old server pods keep serving through their drain time, and they
+          # store files locally: a file uploaded to one is missing from S3.
+          # shellcheck disable=SC2086
+          kubectl -n burst wait --for=delete $old --timeout 2m
 
       - name: Smoke tests (S3 storage)
         run: k6 run tests/http/smoke-s3.js
