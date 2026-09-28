@@ -1,5 +1,5 @@
 # ── Frontend build stage ──────────────────────────────────────────────────────
-FROM node:20-slim AS frontend
+FROM node:24-slim AS frontend
 
 WORKDIR /ui
 COPY ui/package.json ui/package-lock.json ./
