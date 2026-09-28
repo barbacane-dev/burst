@@ -208,6 +208,35 @@ jobs:
           push: true
           tags: ${{ steps.aio-tags.outputs.tags }}
 
+  # ── Helm chart, to oci://ghcr.io/<owner>/charts ───────────────────────────
+  # After the images, since the chart's image tags default to its appVersion.
+  chart:
+    runs-on: ubuntu-latest
+    needs: docker
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.0
+
+      - name: Check the chart's appVersion is this release
+        run: |
+          app=$(helm show chart deploy/helm/burst | sed -n 's/^appVersion: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p')
+          if [ "$app" != "${GITHUB_REF_NAME#v}" ]; then
+            echo "::error::Chart.yaml appVersion is ${app}, the tag is ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Package and push the chart
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GHCR_TOKEN" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          helm package deploy/helm/burst -d dist
+          helm push dist/burst-*.tgz "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts"
+
   # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
     runs-on: ubuntu-latest

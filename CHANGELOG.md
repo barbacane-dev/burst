@@ -5,17 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-28
+
+The v1.0 scope: people and roles in channels, mentions that reach who they address, search filters, custom status, do not disturb and an admin data export. Burst also installs on Kubernetes with a Helm chart routed by the Gateway API, and runs on Barbacane 0.12.2.
+
+### Added
+- **Kubernetes**: a Helm chart (`deploy/helm/burst`, published to `oci://ghcr.io/barbacane-dev/charts/burst`) with the Barbacane gateway, the web image, PostgreSQL or an existing database, local or S3 storage, a Gateway API `HTTPRoute`, a NetworkPolicy and an optional ServiceMonitor. It needs Kubernetes 1.30 or later. The `burst-gateway` image carries Barbacane with the compiled artifacts. (#140, #146)
+- **Channels**: add people to a channel; guests and moderators get the rights their role names; a members panel to add people, appoint moderators, leave and archive. (#130, #131)
+- **Mentions**: `@channel` and `@here` reach the members they address, and notifications follow each member's preference. (#127, #129)
+- **Search**: filters by author, date range and attachment, search by file name, and pages that follow relevance instead of skipping or repeating results. (#132)
+- **Custom status** with an emoji and an expiry, shown live in messages and the member list. (#134)
+- **Do not disturb**, with a snooze and weekly quiet hours. (#135)
+- **Data export**: an admin export of messages and files, run as a background job. (#136)
+- **Display size** setting, from Large to Dense. (#138)
+
 ### Changed
-- Bumped Barbacane to v0.11.0. The gateway now forwards only the request headers an operation admits, and refuses an operation that runs an authentication middleware without naming the security scheme carrying the credential. Two spec changes were needed:
-  - `specs/burst-s3.yaml` declares a `StorageKey` `apiKey` scheme naming `X-Storage-Key`, the header its global `apikey-auth` middleware reads. Without it the spec no longer compiles.
-  - `specs/burst-api.yaml` declares a `WebhookToken` bearer scheme on `POST /api/webhooks/{webhookId}/trigger`. That operation opts out of the OIDC chain and is authenticated by the upstream against the webhook's own token, so its `security: []` would have dropped the `Authorization` header and broken every incoming webhook.
-- Bumped Barbacane from v0.6.3 to v0.10.0 (plugin manifests, `barbacane-standalone` image, CI and Makefile). Barbacane 0.10 verifies plugin capability manifests at load and rejects artifacts built from pre-0.8.1 plugin binaries, so artifacts must be recompiled against the new manifests.
-- Gateway processes run with `BARBACANE_ALLOW_INTERNAL_EGRESS=true` (CI, Makefile, Procfile, compose files, all-in-one entrypoint). Barbacane 0.8+ blocks plugin egress to loopback and private addresses by default, which covers every Burst upstream (Burst API, S3 sidecar, RustFS, and an IdP on the same network); without it `oidc-auth` cannot fetch discovery/JWKS and every authenticated request is rejected.
-- CI prints the gateway and server logs when the smoke job fails.
+- Runs on Barbacane 0.12.2 (from 0.6.3): plugin manifests, the standalone image, CI and the Makefile. The gateway forwards only the request headers an operation declares, so `specs/burst-s3.yaml` declares the `X-Storage-Key` scheme and `specs/burst-api.yaml` the incoming-webhook bearer scheme. (#98, #101, #137, #141)
+- Gateway processes run with `BARBACANE_ALLOW_INTERNAL_EGRESS=true`, since every Burst upstream is a private address.
+- The server believes the identity headers only from a trusted peer (`auth.trusted_proxies`). (#103)
+- Every documented `BURST_*` variable is read, the event broker included. (#139)
+- The web and all-in-one images build the UI on Node 24.
 
 ### Fixed
-- File uploads larger than about 750 KB are stored instead of failing with 500. Barbacane 0.12.2's `s3` dispatcher hashes the body on the host instead of running out of fuel in WASM, so uploads up to the storage gateway's `--max-body-size` go through.
-- CI `openapi-lint` no longer hardcodes the Barbacane vacuum function list; it is read from the downloaded ruleset. The hardcoded list referenced a function Barbacane has since removed, which made the job fail on every run.
+- File uploads larger than about 750 KB are stored instead of failing with 500 (Barbacane 0.12.2 hashes the body on the host).
+- The storage gateway accepts any file type.
+- First-login provisioning is idempotent, and the groups re-sync no longer undoes a role an admin set. (#105, #112)
+- The Docker images generate a valid `env.js` and never pass the gateway an empty issuer override.
+- The sidebar footer lines up with the message composer.
 
 ## [0.0.7] - 2026-04-08
 
