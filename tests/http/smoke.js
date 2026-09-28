@@ -718,10 +718,14 @@ export function smoke() {
   group("17. Error Cases", () => {
     const fake = "ch_00000000-0000-7000-0000-000000000000";
 
-    const noRoute = http.get(`${GATEWAY}/api/no-such-operation`, authHeaders(aliceToken));
+    // No token: the operation declares no security, so the gateway would drop the header.
+    const noRoute = http.get(`${GATEWAY}/api/no-such-operation`);
     check(noRoute, {
       "Unknown API path → 404": (r) => r.status === 404,
-      "Unknown API path is a problem document": (r) => r.json().status === 404,
+      "Unknown API path is a problem document": (r) =>
+        (r.headers["Content-Type"] || "").startsWith("application/problem+json") &&
+        r.json().type === "urn:burst:error:not_found" &&
+        r.json().status === 404,
     });
 
     const notFound = http.get(
