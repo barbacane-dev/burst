@@ -1,11 +1,16 @@
 version: 2
 
+# Each ecosystem groups its minor and patch updates into one weekly pull
+# request; a major update comes on its own, since it may need changes.
 updates:
   - package-ecosystem: cargo
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    groups:
+      cargo-minor-and-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /ui
@@ -16,15 +21,24 @@ updates:
       # typescript-eslint supports TypeScript below 6.1; lint fails on 7.
       - dependency-name: typescript
         versions: [">=6.1.0"]
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: docker
-    directory: /
+    directories: [/, /docker]
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      docker-minor-and-patch:
+        update-types: [minor, patch]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      github-actions-minor-and-patch:
+        update-types: [minor, patch]
