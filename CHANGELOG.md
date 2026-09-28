@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- Custom emoji images load. A custom emoji's image was stored, but no route served it: the UI asked for `/api/attachments/emojis/<id>.<ext>`, which matched no operation and fell through to the SPA route. `GET /api/emojis/{emojiId}/image` serves it to any signed-in user (with `nosniff` and a sandboxing CSP, since SVG is accepted), and a CustomEmoji's `imageUrl` is that path. Deleting an emoji also deletes its image.
+- A GET on an `/api/` path that no operation matches answers 404 with a problem document, instead of being looked up as an SPA file.
+
 ## [0.1.0] - 2026-09-28
 
 The v1.0 scope: people and roles in channels, mentions that reach who they address, search filters, custom status, do not disturb and an admin data export. Burst also installs on Kubernetes with a Helm chart routed by the Gateway API, and runs on Barbacane 0.12.2.

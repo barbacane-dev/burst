@@ -1,6 +1,6 @@
 import { useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { listEmojis, type CustomEmoji } from "../../lib/api/emojis";
+import { emojiImageSrc, listEmojis, type CustomEmoji } from "../../lib/api/emojis";
 import type { PaginatedResponse } from "../../lib/api/types";
 
 const UNICODE_EMOJI = ["👍", "👎", "❤️", "😂", "😮", "😢", "🎉", "🚀", "👀", "🔥"];
@@ -52,7 +52,7 @@ export function EmojiPickerDropdown({
                 title={`:${emoji.shortcode}:`}
               >
                 <img
-                  src={`/api/attachments/${emoji.imageUrl}`}
+                  src={emojiImageSrc(emoji)}
                   alt={emoji.shortcode}
                   className="h-5 w-5 object-contain"
                 />

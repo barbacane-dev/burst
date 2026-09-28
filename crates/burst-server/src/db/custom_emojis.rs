@@ -6,6 +6,7 @@ use uuid::Uuid;
 pub struct CustomEmojiRow {
     pub id: Uuid,
     pub shortcode: String,
+    /// The image's storage key; clients load it from `GET /api/emojis/{id}/image`.
     pub image_url: String,
     pub created_by: Uuid,
     pub created_at: DateTime<Utc>,
@@ -31,13 +32,23 @@ pub async fn create(
     .await
 }
 
-pub async fn delete(pool: &PgPool, id: Uuid) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query("DELETE FROM custom_emojis WHERE id = $1")
+/// Deletes the emoji and returns the storage key of its image, or `None` when
+/// no emoji has that id.
+pub async fn delete(pool: &PgPool, id: Uuid) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar("DELETE FROM custom_emojis WHERE id = $1 RETURNING image_url")
         .bind(id)
-        .execute(pool)
-        .await?;
+        .fetch_optional(pool)
+        .await
+}
 
-    Ok(result.rows_affected() > 0)
+pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<Option<CustomEmojiRow>, sqlx::Error> {
+    sqlx::query_as::<_, CustomEmojiRow>(
+        "SELECT id, shortcode, image_url, created_by, created_at \
+         FROM custom_emojis WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
 }
 
 pub async fn list(pool: &PgPool) -> Result<Vec<CustomEmojiRow>, sqlx::Error> {

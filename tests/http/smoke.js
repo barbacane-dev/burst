@@ -678,9 +678,55 @@ export function smoke() {
     });
   });
 
+  // ── 16b. Custom Emojis ─────────────────────────────────────────────────
+  // The image is loaded the way an <img> does it: from the imageUrl the API
+  // gives, with the token as a query parameter.
+  group("16b. Custom Emojis", () => {
+    const shortcode = `smoke_${Date.now()}`;
+    const created = http.post(
+      `${GATEWAY}/api/admin/emojis`,
+      {
+        shortcode: shortcode,
+        image: http.file(SMALL_PNG, `${shortcode}.png`, "image/png"),
+      },
+      authHeaders(aliceToken),
+    );
+    check(created, { "Admin upload emoji → 201": (r) => r.status === 201 });
+    if (created.status !== 201) return;
+    const emoji = created.json();
+
+    const src = `${GATEWAY}${emoji.imageUrl}?access_token=${encodeURIComponent(bobToken)}`;
+    const image = http.get(src, { responseType: "binary" });
+    check(image, {
+      "Member loads the emoji image → 200": (r) => r.status === 200,
+      "Emoji image is the uploaded file": (r) =>
+        sha256(r.body, "hex") === sha256(SMALL_PNG, "hex"),
+      "Emoji image served as image/png": (r) =>
+        (r.headers["Content-Type"] || "").startsWith("image/png"),
+    });
+
+    const removed = http.del(
+      `${GATEWAY}/api/admin/emojis/${emoji.id}`,
+      null,
+      authHeaders(aliceToken),
+    );
+    check(removed, { "Admin delete emoji → 204": (r) => r.status === 204 });
+    check(http.get(src), { "Deleted emoji image → 404": (r) => r.status === 404 });
+  });
+
   // ── 17. Error Cases ────────────────────────────────────────────────────
   group("17. Error Cases", () => {
     const fake = "ch_00000000-0000-7000-0000-000000000000";
+
+    // No token: the operation declares no security, so the gateway would drop the header.
+    const noRoute = http.get(`${GATEWAY}/api/no-such-operation`);
+    check(noRoute, {
+      "Unknown API path → 404": (r) => r.status === 404,
+      "Unknown API path is a problem document": (r) =>
+        (r.headers["Content-Type"] || "").startsWith("application/problem+json") &&
+        r.json().type === "urn:burst:error:not_found" &&
+        r.json().status === 404,
+    });
 
     const notFound = http.get(
       `${GATEWAY}/api/channels/${fake}`,
