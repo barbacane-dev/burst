@@ -23,7 +23,7 @@ key in `burst.toml` (see [Configuration Reference](./configuration.md)).
 | `BURST_STORAGE_LOCAL_PATH` | `storage.local_path` | `./uploads` | Local storage directory |
 | `BURST_STORAGE_GATEWAY_URL` | `storage.gateway_url` | *none* | S3 sidecar URL |
 | `BURST_STORAGE_GATEWAY_API_KEY` | `storage.gateway_api_key` | *none* | S3 sidecar API key |
-| `BURST_STORAGE_MAX_FILE_SIZE` | `storage.max_file_size` | `50MB` | Max upload size |
+| `BURST_STORAGE_MAX_FILE_SIZE` | `storage.max_file_size` | `20971520` | Max upload size, in bytes |
 | `BURST_STORAGE_MAX_FILES_PER_MESSAGE` | `storage.max_files_per_message` | `10` | Max files per message |
 | `BURST_STORAGE_CLEANUP_INTERVAL_SECS` | `storage.cleanup_interval_secs` | `3600` | Cleanup task interval |
 | `BURST_STORAGE_CLEANUP_RETENTION_DAYS` | `storage.cleanup_retention_days` | `30` | Soft-delete retention |

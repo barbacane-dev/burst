@@ -261,7 +261,7 @@ impl Config {
             }
         };
 
-        apply_env(&mut config);
+        apply_env(&mut config)?;
         config.validate()?;
 
         Ok(config)
@@ -278,6 +278,12 @@ impl Config {
                 "auth.trusted_proxies (or BURST_AUTH_TRUSTED_PROXIES) is required in \
                  trusted-headers mode, as a comma-separated list of addresses or CIDR ranges",
             ));
+        }
+        if !matches!(self.broker.backend.as_str(), "in_process" | "pg_notify") {
+            return Err(ConfigError::Invalid(format!(
+                "broker.backend '{}' is not in_process or pg_notify",
+                self.broker.backend
+            )));
         }
         for entry in &self.auth.trusted_proxies {
             if !crate::api::trusted_peer::is_valid_entry(entry) {
@@ -298,22 +304,52 @@ impl Config {
     }
 }
 
-fn apply_env(config: &mut Config) {
-    if let Ok(v) = std::env::var("BURST_SERVER_LISTEN") {
+fn apply_env(config: &mut Config) -> Result<(), ConfigError> {
+    apply_overrides(config, |name| std::env::var(name).ok())
+}
+
+/// Applies each `BURST_*` override `var` returns. Split from `apply_env` so
+/// tests can supply the variables without touching the process environment.
+/// A number that does not parse is an error, not a silently kept default.
+fn apply_overrides(
+    config: &mut Config,
+    var: impl Fn(&str) -> Option<String>,
+) -> Result<(), ConfigError> {
+    fn parsed<T: std::str::FromStr>(
+        name: &str,
+        value: Option<String>,
+    ) -> Result<Option<T>, ConfigError> {
+        value
+            .map(|v| {
+                v.trim().parse().map_err(|_| {
+                    ConfigError::Invalid(format!("{name} '{v}' is not a valid number"))
+                })
+            })
+            .transpose()
+    }
+
+    if let Some(v) = var("BURST_SERVER_LISTEN") {
         config.server.listen = v;
     }
-    if let Ok(v) = std::env::var("BURST_SERVER_ADMIN_LISTEN") {
+    if let Some(v) = var("BURST_SERVER_ADMIN_LISTEN") {
         config.server.admin_listen = v;
     }
-    if let Ok(v) = std::env::var("BURST_DATABASE_URL") {
+    if let Some(n) = parsed(
+        "BURST_SERVER_SHUTDOWN_TIMEOUT_SECS",
+        var("BURST_SERVER_SHUTDOWN_TIMEOUT_SECS"),
+    )? {
+        config.server.shutdown_timeout_secs = n;
+    }
+    if let Some(v) = var("BURST_DATABASE_URL") {
         config.database.url = v;
     }
-    if let Ok(v) = std::env::var("BURST_DATABASE_MAX_CONNECTIONS")
-        && let Ok(n) = v.parse()
-    {
+    if let Some(n) = parsed(
+        "BURST_DATABASE_MAX_CONNECTIONS",
+        var("BURST_DATABASE_MAX_CONNECTIONS"),
+    )? {
         config.database.max_connections = n;
     }
-    if let Ok(v) = std::env::var("BURST_AUTH_TRUSTED_PROXIES") {
+    if let Some(v) = var("BURST_AUTH_TRUSTED_PROXIES") {
         config.auth.trusted_proxies = v
             .split(',')
             .map(str::trim)
@@ -321,18 +357,67 @@ fn apply_env(config: &mut Config) {
             .map(str::to_string)
             .collect();
     }
-    if let Ok(v) = std::env::var("BURST_STORAGE_BACKEND") {
+    if let Some(v) = var("BURST_BROKER_BACKEND") {
+        config.broker.backend = v;
+    }
+    if let Some(v) = var("BURST_STORAGE_BACKEND") {
         config.storage.backend = v;
     }
-    if let Ok(v) = std::env::var("BURST_STORAGE_LOCAL_PATH") {
+    if let Some(v) = var("BURST_STORAGE_LOCAL_PATH") {
         config.storage.local_path = v;
     }
-    if let Ok(v) = std::env::var("BURST_STORAGE_GATEWAY_URL") {
+    if let Some(v) = var("BURST_STORAGE_GATEWAY_URL") {
         config.storage.gateway_url = Some(v);
     }
-    if let Ok(v) = std::env::var("BURST_STORAGE_GATEWAY_API_KEY") {
+    if let Some(v) = var("BURST_STORAGE_GATEWAY_API_KEY") {
         config.storage.gateway_api_key = Some(v);
     }
+    if let Some(n) = parsed(
+        "BURST_STORAGE_MAX_FILE_SIZE",
+        var("BURST_STORAGE_MAX_FILE_SIZE"),
+    )? {
+        config.storage.max_file_size = n;
+    }
+    if let Some(n) = parsed(
+        "BURST_STORAGE_MAX_FILES_PER_MESSAGE",
+        var("BURST_STORAGE_MAX_FILES_PER_MESSAGE"),
+    )? {
+        config.storage.max_files_per_message = n;
+    }
+    if let Some(n) = parsed(
+        "BURST_STORAGE_CLEANUP_INTERVAL_SECS",
+        var("BURST_STORAGE_CLEANUP_INTERVAL_SECS"),
+    )? {
+        config.storage.cleanup_interval_secs = n;
+    }
+    if let Some(n) = parsed(
+        "BURST_STORAGE_CLEANUP_RETENTION_DAYS",
+        var("BURST_STORAGE_CLEANUP_RETENTION_DAYS"),
+    )? {
+        config.storage.cleanup_retention_days = n;
+    }
+    if let Some(n) = parsed(
+        "BURST_WEBSOCKET_BROADCAST_CAPACITY",
+        var("BURST_WEBSOCKET_BROADCAST_CAPACITY"),
+    )? {
+        config.websocket.broadcast_capacity = n;
+    }
+    if let Some(n) = parsed(
+        "BURST_WEBSOCKET_EVENT_BUFFER_CAPACITY",
+        var("BURST_WEBSOCKET_EVENT_BUFFER_CAPACITY"),
+    )? {
+        config.websocket.event_buffer_capacity = n;
+    }
+    if let Some(v) = var("BURST_TELEMETRY_OTLP_ENDPOINT") {
+        config.telemetry.otlp_endpoint = Some(v).filter(|e| !e.is_empty());
+    }
+    if let Some(n) = parsed(
+        "BURST_TELEMETRY_TRACE_SAMPLE_RATE",
+        var("BURST_TELEMETRY_TRACE_SAMPLE_RATE"),
+    )? {
+        config.telemetry.trace_sample_rate = n;
+    }
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -345,4 +430,115 @@ pub enum ConfigError {
     Missing(&'static str),
     #[error("invalid config: {0}")]
     Invalid(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn base() -> Config {
+        Config {
+            server: ServerConfig::default(),
+            database: DatabaseConfig {
+                url: "postgres://localhost/burst".into(),
+                max_connections: default_max_connections(),
+            },
+            storage: StorageConfig::default(),
+            websocket: WebSocketConfig::default(),
+            telemetry: TelemetryConfig::default(),
+            broker: BrokerConfig::default(),
+            auth: AuthConfig {
+                trusted_proxies: vec!["127.0.0.1/32".into()],
+                ..AuthConfig::default()
+            },
+        }
+    }
+
+    fn with(vars: &[(&str, &str)]) -> Config {
+        let vars: HashMap<String, String> = vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        let mut config = base();
+        apply_overrides(&mut config, |name| vars.get(name).cloned()).expect("valid overrides");
+        config
+    }
+
+    #[test]
+    fn the_broker_is_chosen_from_the_environment() {
+        assert_eq!(with(&[]).broker.backend, "in_process");
+        assert_eq!(
+            with(&[("BURST_BROKER_BACKEND", "pg_notify")])
+                .broker
+                .backend,
+            "pg_notify"
+        );
+    }
+
+    #[test]
+    fn an_unknown_broker_is_refused_rather_than_run_in_process() {
+        let config = with(&[("BURST_BROKER_BACKEND", "pg-notify")]);
+        assert!(matches!(config.validate(), Err(ConfigError::Invalid(_))));
+        assert!(
+            with(&[("BURST_BROKER_BACKEND", "pg_notify")])
+                .validate()
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn every_documented_setting_can_come_from_the_environment() {
+        let config = with(&[
+            ("BURST_SERVER_SHUTDOWN_TIMEOUT_SECS", "12"),
+            ("BURST_STORAGE_MAX_FILE_SIZE", "1048576"),
+            ("BURST_STORAGE_MAX_FILES_PER_MESSAGE", "3"),
+            ("BURST_STORAGE_CLEANUP_INTERVAL_SECS", "60"),
+            ("BURST_STORAGE_CLEANUP_RETENTION_DAYS", "7"),
+            ("BURST_WEBSOCKET_BROADCAST_CAPACITY", "2048"),
+            ("BURST_WEBSOCKET_EVENT_BUFFER_CAPACITY", "512"),
+            ("BURST_TELEMETRY_OTLP_ENDPOINT", "http://otel:4317"),
+            ("BURST_TELEMETRY_TRACE_SAMPLE_RATE", "0.25"),
+        ]);
+        assert_eq!(config.server.shutdown_timeout_secs, 12);
+        assert_eq!(config.storage.max_file_size, 1_048_576);
+        assert_eq!(config.storage.max_files_per_message, 3);
+        assert_eq!(config.storage.cleanup_interval_secs, 60);
+        assert_eq!(config.storage.cleanup_retention_days, 7);
+        assert_eq!(config.websocket.broadcast_capacity, 2048);
+        assert_eq!(config.websocket.event_buffer_capacity, 512);
+        assert_eq!(
+            config.telemetry.otlp_endpoint.as_deref(),
+            Some("http://otel:4317")
+        );
+        assert!((config.telemetry.trace_sample_rate - 0.25).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn a_number_that_does_not_parse_is_an_error_naming_the_variable() {
+        let mut config = base();
+        let err = apply_overrides(&mut config, |name| {
+            (name == "BURST_STORAGE_MAX_FILE_SIZE").then(|| "50MB".to_string())
+        })
+        .expect_err("50MB is not a number of bytes");
+        assert!(
+            err.to_string().contains("BURST_STORAGE_MAX_FILE_SIZE"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn the_other_overrides_still_apply() {
+        let config = with(&[
+            ("BURST_DATABASE_MAX_CONNECTIONS", "7"),
+            ("BURST_AUTH_TRUSTED_PROXIES", "10.0.0.0/8, 192.168.0.0/16"),
+            ("BURST_STORAGE_BACKEND", "gateway"),
+        ]);
+        assert_eq!(config.database.max_connections, 7);
+        assert_eq!(
+            config.auth.trusted_proxies,
+            vec!["10.0.0.0/8", "192.168.0.0/16"]
+        );
+        assert_eq!(config.storage.backend, "gateway");
+    }
 }
