@@ -1659,6 +1659,65 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
 
+  /api/emojis/{emojiId}/image:
+    get:
+      operationId: getCustomEmojiImage
+      summary: Custom emoji image
+      description: >-
+        Returns the image of a custom emoji, for any signed-in user. This is the
+        `imageUrl` a CustomEmoji carries. An `<img>` cannot send a bearer
+        header, so the token may come as the `access_token` query parameter.
+      tags:
+        - Reactions
+      security:
+        - BearerAuth: []
+      x-barbacane-dispatch:
+        name: http-upstream
+        config:
+          url: "env://BURST_UPSTREAM_URL"
+      x-barbacane-middlewares:
+        - name: oidc-auth
+          config:
+            issuer_url: "env://BURST_OIDC_ISSUER_URL"
+            issuer_override: "env://BURST_OIDC_ISSUER_OVERRIDE"
+            audience: "burst"
+            allow_query_token: true
+            groups_claim: "env://BURST_OIDC_GROUPS_CLAIM"
+        - name: rate-limit
+          config:
+            quota: 300
+            window: 60
+            partition_key: "context:auth.sub"
+      parameters:
+        - name: emojiId
+          in: path
+          required: true
+          description: Custom emoji ID (UUID)
+          schema:
+            type: string
+            pattern: "^[0-9a-f-]{36}$"
+            maxLength: 36
+            example: "0193a5e0-7c1a-7000-8000-000000000300"
+      responses:
+        "200":
+          description: The emoji image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+                maxLength: 262144
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: No custom emoji has this ID
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
   /api/attachments/{attachmentId}:
     get:
       operationId: downloadAttachment
@@ -3195,6 +3254,37 @@ paths:
         "302":
           description: Redirect to SPA
 
+  # An /api path no operation above matches is an API error, not a page of the
+  # SPA: without this, the catch-all below would look it up in the SPA bucket.
+  /api/{path+}:
+    get:
+      operationId: unknownApiPath
+      summary: No API operation at this path
+      tags:
+        - Frontend
+      x-barbacane-dispatch:
+        name: mock
+        config:
+          status: 404
+          body: '{"type":"urn:burst:error:not_found","title":"Not Found","status":404,"detail":"No API operation matches this path."}'
+          content_type: application/problem+json
+      x-barbacane-middlewares: []
+      parameters:
+        - name: path
+          in: path
+          required: true
+          allowReserved: true
+          schema:
+            type: string
+            maxLength: 1024
+      responses:
+        "404":
+          description: No API operation matches this path
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
   /{path+}:
     get:
       operationId: serveSpa
@@ -3931,8 +4021,10 @@ components:
         imageUrl:
           type: string
           maxLength: 2048
-          format: uri
-          description: URL to the emoji image.
+          format: uri-reference
+          description: >-
+            Path of the emoji image on this server
+            (`/api/emojis/{emojiId}/image`), fetched with the caller's token.
         createdBy:
           type: string
           maxLength: 40

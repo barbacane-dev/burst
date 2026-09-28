@@ -14,6 +14,7 @@ import {
   type AuditLogEntry,
 } from "../lib/api/admin";
 import {
+  emojiImageSrc,
   listAdminEmojis,
   createEmoji,
   deleteEmoji,
@@ -804,7 +805,7 @@ function EmojisTab() {
             className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900"
           >
             <img
-              src={`/api/attachments/${emoji.imageUrl}`}
+              src={emojiImageSrc(emoji)}
               alt={emoji.shortcode}
               className="h-6 w-6 object-contain"
             />

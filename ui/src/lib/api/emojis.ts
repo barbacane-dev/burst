@@ -1,4 +1,4 @@
-import { apiFetch, apiFetchFormData } from "./client";
+import { apiFetch, apiFetchFormData, getAccessToken } from "./client";
 import type { PaginatedResponse } from "./types";
 
 export interface CustomEmoji {
@@ -7,6 +7,15 @@ export interface CustomEmoji {
   imageUrl: string;
   createdBy: string;
   createdAt: string;
+}
+
+/**
+ * Where an `<img>` loads a custom emoji from. An image request cannot send the
+ * bearer header, so the token travels as `access_token`, as for attachments.
+ */
+export function emojiImageSrc(emoji: Pick<CustomEmoji, "imageUrl">): string {
+  const token = getAccessToken();
+  return token ? `${emoji.imageUrl}?access_token=${encodeURIComponent(token)}` : emoji.imageUrl;
 }
 
 export async function listEmojis(): Promise<PaginatedResponse<CustomEmoji>> {

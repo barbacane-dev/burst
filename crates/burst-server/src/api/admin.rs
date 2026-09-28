@@ -25,6 +25,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/emojis", get(list_emojis_admin).post(create_emoji))
         .route("/admin/emojis/{emoji_id}", delete(delete_emoji))
         .route("/emojis", get(list_emojis))
+        .route("/emojis/{emoji_id}/image", get(emoji_image))
         .route("/admin/bots", get(list_bots).post(create_bot))
         .route("/admin/bots/{bot_id}", patch(update_bot).delete(delete_bot))
         .route("/admin/exports", get(list_exports).post(create_export))
@@ -304,7 +305,7 @@ fn emoji_to_response(row: &db::custom_emojis::CustomEmojiRow) -> CustomEmojiResp
     CustomEmojiResponse {
         id: row.id.to_string(),
         shortcode: row.shortcode.clone(),
-        image_url: row.image_url.clone(),
+        image_url: format!("/api/emojis/{}/image", row.id),
         created_by: burst_core::id::format_user_id(row.created_by),
         created_at: row.created_at.to_rfc3339(),
     }
@@ -458,15 +459,54 @@ fn parse_emoji_id(s: &str) -> Result<uuid::Uuid, ApiError> {
     uuid::Uuid::parse_str(s).map_err(|_| ApiError::BadRequest("invalid emoji ID".into()))
 }
 
+/// The image of a custom emoji, for any signed-in user. Emojis are workspace
+/// wide, so there is no membership check. The CSP and `nosniff` keep an SVG
+/// from running script when opened directly.
+async fn emoji_image(
+    _auth: AuthUser,
+    State(state): State<AppState>,
+    Path(emoji_id): Path<String>,
+) -> Result<axum::response::Response, ApiError> {
+    use axum::http::header;
+    use axum::response::IntoResponse;
+
+    let id = parse_emoji_id(&emoji_id)?;
+    let emoji = db::custom_emojis::find_by_id(&state.db, id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Emoji".into()))?;
+    let (data, content_type) = state
+        .storage
+        .get(&emoji.image_url)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    Ok((
+        [
+            (header::CONTENT_TYPE, content_type),
+            (header::CACHE_CONTROL, "private, max-age=86400".to_string()),
+            (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()),
+            (
+                header::CONTENT_SECURITY_POLICY,
+                "default-src 'none'; style-src 'unsafe-inline'; sandbox".to_string(),
+            ),
+        ],
+        data,
+    )
+        .into_response())
+}
+
 async fn delete_emoji(
     admin: AdminUser,
     State(state): State<AppState>,
     Path(emoji_id): Path<String>,
 ) -> Result<axum::http::StatusCode, ApiError> {
     let id = parse_emoji_id(&emoji_id)?;
-    let removed = db::custom_emojis::delete(&state.db, id).await?;
-    if !removed {
-        return Err(ApiError::NotFound("Emoji".into()));
+    let storage_key = db::custom_emojis::delete(&state.db, id)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Emoji".into()))?;
+    // The emoji is gone either way; a file left behind only costs space.
+    if let Err(e) = state.storage.delete(&storage_key).await {
+        tracing::warn!(error = %e, key = %storage_key, "could not delete an emoji image");
     }
 
     db::audit_log::insert(
