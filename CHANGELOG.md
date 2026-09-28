@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-28
+
+Custom emoji images load, and an API path no operation matches is a 404 rather than an SPA lookup. Chart 0.1.3.
+
 ### Fixed
 - Custom emoji images load. A custom emoji's image was stored, but no route served it: the UI asked for `/api/attachments/emojis/<id>.<ext>`, which matched no operation and fell through to the SPA route. `GET /api/emojis/{emojiId}/image` serves it to any signed-in user (with `nosniff` and a sandboxing CSP, since SVG is accepted), and a CustomEmoji's `imageUrl` is that path. Deleting an emoji also deletes its image.
 - A GET on an `/api/` path that no operation matches answers 404 with a problem document, instead of being looked up as an SPA file.
