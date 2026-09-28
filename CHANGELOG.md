@@ -14,6 +14,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - CI prints the gateway and server logs when the smoke job fails.
 
 ### Fixed
+- File uploads larger than about 750 KB are stored instead of failing with 500. Barbacane 0.12.2's `s3` dispatcher hashes the body on the host instead of running out of fuel in WASM, so uploads up to the storage gateway's `--max-body-size` go through.
 - CI `openapi-lint` no longer hardcodes the Barbacane vacuum function list; it is read from the downloaded ruleset. The hardcoded list referenced a function Barbacane has since removed, which made the job fail on every run.
 
 ## [0.0.7] - 2026-04-08

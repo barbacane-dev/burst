@@ -1,3 +1,7 @@
+# Keep in step with BARBACANE_VERSION in the Makefile and the plugin URLs in
+# barbacane.yaml and barbacane-s3.yaml. The compile stage needs 0.12.2 or later.
+ARG BARBACANE_VERSION=0.12.2
+
 # ── Stage 1: Build frontend ───────────────────────────────────────────────────
 FROM node:20-slim AS frontend
 
@@ -8,26 +12,23 @@ COPY ui/ ./
 RUN npx vite build
 
 # ── Stage 2: Extract Barbacane binary ─────────────────────────────────────────
-FROM ghcr.io/barbacane-dev/barbacane-standalone:0.12.1 AS barbacane
+FROM ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION} AS barbacane
 
 # ── Stage 3: Compile .bca gateway artifacts ───────────────────────────────────
 FROM barbacane AS compiler
 
-# The image's HOME does not exist, and the compiler caches plugins under it.
-ENV HOME=/workspace
-
 COPY specs/ /specs/
-COPY barbacane.yaml barbacane-s3.yaml /
+COPY barbacane.yaml barbacane-s3.yaml /manifests/
 
 RUN barbacane compile \
       --spec /specs/burst-api.yaml \
-      --manifest /barbacane.yaml \
-      --output /burst-api.bca \
+      --manifest /manifests/barbacane.yaml \
+      --output /workspace/burst-api.bca \
       --allow-plaintext && \
     barbacane compile \
       --spec /specs/burst-s3.yaml \
-      --manifest /barbacane-s3.yaml \
-      --output /burst-s3.bca \
+      --manifest /manifests/barbacane-s3.yaml \
+      --output /workspace/burst-s3.bca \
       --allow-plaintext
 
 # ── Stage 4: Runtime ──────────────────────────────────────────────────────────
@@ -44,8 +45,8 @@ COPY bin/${TARGETARCH}/burst /usr/local/bin/burst
 COPY --from=barbacane /usr/local/bin/barbacane /usr/local/bin/barbacane
 
 # ── Copy compiled .bca artifacts ─────────────────────────────────────────────
-COPY --from=compiler /burst-api.bca /etc/barbacane/burst-api.bca
-COPY --from=compiler /burst-s3.bca /etc/barbacane/burst-s3.bca
+COPY --from=compiler /workspace/burst-api.bca /etc/barbacane/burst-api.bca
+COPY --from=compiler /workspace/burst-s3.bca /etc/barbacane/burst-s3.bca
 
 # ── Copy frontend static files (staged for upload to S3 at startup) ──────────
 COPY --from=frontend /ui/dist /usr/share/burst/html

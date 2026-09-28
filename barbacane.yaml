@@ -1,26 +1,26 @@
 # Barbacane manifest for Burst
 # Declares the gateway plugins required by specs/burst-api.yaml
-# Checksums: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/plugin-checksums.txt
+# Checksums: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/plugin-checksums.txt
 
 plugins:
   http-upstream:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/http-upstream.wasm
-    sha256: aefd4b2fbbb584930e4f2fcfafae1bce0b6b709b243a8c44cbd12e8a9dd72f4f
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/http-upstream.wasm
+    sha256: dab3b98cd88158a00805fd8de03af9427785ca27fe722d69e3d06f57c184589e
   ws-upstream:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/ws-upstream.wasm
-    sha256: c1f38b9a6bdd4d186f522879c7a82f6ba01603cbebcf7a506ae2d86d90fdab4f
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/ws-upstream.wasm
+    sha256: 36f84fa64432dc5637445368fed4db956b1e2480fc0df432fa4a73d78605d24b
   oidc-auth:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/oidc-auth.wasm
-    sha256: 5453dd191433a7d6e793b46fdc447f1e07641d6e0bee0075f321bdc0fa35ec08
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/oidc-auth.wasm
+    sha256: a6654864924eaa54807ad8685273fe25c7d569602970d4223df468d95ae97e51
   acl:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/acl.wasm
-    sha256: 963c55bf9cad14d1a6dcda468950681f9eaab624cd9e74e683f6b3045c90e8ed
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/acl.wasm
+    sha256: 09342f6f728b8ad67f5b9401063dc2ba5981b052b2faf1cb84808342f3f6e776
   rate-limit:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/rate-limit.wasm
-    sha256: 76597109277ffa9a2c08b1c5b1082151a2dea2997d21870228b8b2ba36e44b55
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/rate-limit.wasm
+    sha256: 0fc07a5f71010d4592f2fcf859eac27fd111d8f4c92c013ca8f3f45f335c9a39
   s3:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/s3.wasm
-    sha256: ccb1e2f01293ea3092b12cdcf547ab5543b6a61366bf63a2be273fd8e38152f8
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/s3.wasm
+    sha256: 8f313ac4330a00db6c6c093090ba19ddd32e7b6696ff3cfdb821bbb6855a781c
   mock:
-    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.1/mock.wasm
-    sha256: c8fd97bae7565847afdc81d98046e5dff0b4169a6ed50fef082f59722a57e5f9
+    url: https://github.com/barbacane-dev/barbacane/releases/download/v0.12.2/mock.wasm
+    sha256: 594bac6120502cabdb95ba9c394ca7febc265541ce369df581e854084a01d9b8

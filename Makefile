@@ -21,7 +21,7 @@ else
   PROC_STOP  := true
 endif
 
-BARBACANE_VERSION ?= 0.12.1
+BARBACANE_VERSION ?= 0.12.2
 # Downloaded from the release by default. Point it at a local build to run
 # ahead of a release, which works while the change stays out of the plugins
 # and the artifact format:
