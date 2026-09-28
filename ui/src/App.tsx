@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { CustomEmojisProvider } from "./components/custom-emojis-provider";
 import { AuthProvider } from "./lib/auth/context";
 import { useAuth } from "./lib/auth/use-auth";
 import { ThemeProvider } from "./lib/theme";
@@ -75,7 +76,9 @@ export default function App() {
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <AuthProvider>
-              <AppRoutes />
+              <CustomEmojisProvider>
+                <AppRoutes />
+              </CustomEmojisProvider>
             </AuthProvider>
           </BrowserRouter>
         </QueryClientProvider>
