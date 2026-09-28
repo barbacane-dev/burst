@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+- Custom emojis show as images in reactions and in message text, not as their `:shortcode:`. Code and link text are left as written.
+
 ## [0.1.1] - 2026-09-28
 
 Custom emoji images load, and an API path no operation matches is a 404 rather than an SPA lookup. Chart 0.1.3.

@@ -1,4 +1,5 @@
 import type { ReactionCount } from "../../lib/api/types";
+import { Emoji } from "../emoji";
 
 export function ReactionPill({
   reaction,
@@ -19,7 +20,9 @@ export function ReactionPill({
           : "border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
       }`}
     >
-      <span>{reaction.emoji}</span>
+      <span className="flex items-center">
+        <Emoji value={reaction.emoji} className="h-4 w-4 object-contain" />
+      </span>
       <span>{reaction.count}</span>
     </button>
   );

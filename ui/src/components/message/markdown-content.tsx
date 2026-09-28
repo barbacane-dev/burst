@@ -1,12 +1,30 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { remarkMentions } from "../../lib/mentions";
+import { remarkCustomEmojis } from "../../lib/custom-emojis";
+import { Emoji } from "../emoji";
 
 export function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMentions]}
+      remarkPlugins={[remarkGfm, remarkMentions, remarkCustomEmojis]}
       components={{
+        // Spans come from the mention and custom emoji plugins.
+        span: ({ className, children, ...props }) => {
+          const data = props as Record<string, unknown>;
+          if (typeof data["data-emoji"] === "string") {
+            return <Emoji value={`:${data["data-emoji"]}:`} />;
+          }
+          return (
+            <span
+              className={className}
+              data-mention={data["data-mention"] as string | undefined}
+              data-broadcast={data["data-broadcast"] as string | undefined}
+            >
+              {children}
+            </span>
+          );
+        },
         p: ({ children }) => <p className="text-sm text-gray-800 dark:text-gray-200">{children}</p>,
         strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
         em: ({ children }) => <em>{children}</em>,
