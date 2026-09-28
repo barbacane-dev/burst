@@ -1,0 +1,189 @@
+{{- $name := include "burst.componentName" (dict "root" . "component" "server") }}
+{{- $ctx := dict "root" . "component" "server" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "burst.componentLabels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.server.replicas }}
+  {{- if eq .Values.storage.backend "local" }}
+  # One pod owns the upload volume, so the old one stops before the new starts.
+  strategy:
+    type: Recreate
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "burst.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "burst.componentLabels" $ctx | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.server.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      # Long enough for the server to drain open requests and sockets.
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: server
+          image: {{ include "burst.image" (dict "root" . "image" .Values.server.image) }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: admin
+              containerPort: 3001
+          env:
+            - name: BURST_SERVER_LISTEN
+              value: "0.0.0.0:3000"
+            - name: BURST_SERVER_ADMIN_LISTEN
+              value: "0.0.0.0:3001"
+            - name: BURST_LOG
+              value: {{ .Values.server.logLevel | quote }}
+            {{- if .Values.database.existingSecret }}
+            - name: BURST_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.urlKey }}
+            {{- else }}
+            # The bundled database: its password is read from the key PostgreSQL
+            # itself is given, so the two cannot disagree.
+            - name: BURST_POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "burst.secretName" . }}
+                  key: postgres-password
+            - name: BURST_DATABASE_URL
+              value: {{ printf "postgres://burst:$(BURST_POSTGRES_PASSWORD)@%s:5432/burst" (include "burst.componentName" (dict "root" . "component" "postgresql")) | quote }}
+            {{- end }}
+            - name: BURST_DATABASE_MAX_CONNECTIONS
+              value: {{ int64 .Values.server.database.maxConnections | quote }}
+            - name: BURST_AUTH_TRUSTED_PROXIES
+              value: {{ join "," .Values.server.trustedProxies | quote }}
+            {{- if gt (int .Values.server.replicas) 1 }}
+            - name: BURST_BROKER_BACKEND
+              value: pg_notify
+            {{- end }}
+            {{- if eq .Values.storage.backend "s3" }}
+            - name: BURST_STORAGE_BACKEND
+              value: gateway
+            - name: BURST_STORAGE_GATEWAY_URL
+              value: {{ printf "http://%s:8081" (include "burst.componentName" (dict "root" . "component" "storage")) | quote }}
+            - name: BURST_STORAGE_GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  {{- include "burst.storageApiKeyRef" . | nindent 18 }}
+            {{- else }}
+            - name: BURST_STORAGE_BACKEND
+              value: local
+            - name: BURST_STORAGE_LOCAL_PATH
+              value: /var/lib/burst/uploads
+            {{- end }}
+            {{- with .Values.server.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: admin
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: admin
+            periodSeconds: 5
+          startupProbe:
+            # Migrations run before the server answers.
+            httpGet:
+              path: /health/live
+              port: admin
+            periodSeconds: 2
+            failureThreshold: 90
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if eq .Values.storage.backend "local" }}
+            - name: uploads
+              mountPath: /var/lib/burst/uploads
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if eq .Values.storage.backend "local" }}
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: {{ $name }}-uploads
+        {{- end }}
+      {{- with .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.server.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "burst.componentLabels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "burst.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+    - name: admin
+      port: 3001
+      targetPort: admin
+{{- if eq .Values.storage.backend "local" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-uploads
+  labels:
+    {{- include "burst.componentLabels" $ctx | nindent 4 }}
+  annotations:
+    # Uploaded files outlive an uninstall.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- with .Values.storage.local.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.storage.local.size }}
+{{- end }}

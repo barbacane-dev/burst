@@ -1,0 +1,16 @@
+apiVersion: v2
+name: burst
+description: Burst team messaging, with its Barbacane gateway, on Kubernetes.
+type: application
+version: 0.1.0
+# Image tags default to this. The gateway image exists from the release that
+# ships this chart onwards.
+appVersion: "0.1.0"
+home: https://github.com/barbacane-dev/burst
+sources:
+  - https://github.com/barbacane-dev/burst
+kubeVersion: ">=1.27.0-0"
+keywords:
+  - chat
+  - messaging
+  - barbacane

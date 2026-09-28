@@ -1,0 +1,75 @@
+# S3 for the storage profile: RustFS, its bucket, and the credentials the
+# storage gateway reads.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: burst-bucket
+  namespace: burst
+stringData:
+  accessKeyId: burst
+  secretAccessKey: burst-e2e-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustfs
+  namespace: burst
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: rustfs}
+  template:
+    metadata:
+      labels: {app: rustfs}
+    spec:
+      containers:
+        - name: rustfs
+          image: rustfs/rustfs:latest
+          args: ["server", "/data"]
+          env:
+            - name: RUSTFS_ROOT_USER
+              valueFrom: {secretKeyRef: {name: burst-bucket, key: accessKeyId}}
+            - name: RUSTFS_ROOT_PASSWORD
+              valueFrom: {secretKeyRef: {name: burst-bucket, key: secretAccessKey}}
+          ports:
+            - containerPort: 9000
+          readinessProbe:
+            tcpSocket: {port: 9000}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+  namespace: burst
+spec:
+  selector: {app: rustfs}
+  ports:
+    - port: 9000
+      targetPort: 9000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rustfs-bucket
+  namespace: burst
+spec:
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-bucket
+          image: amazon/aws-cli:2.27.50
+          args: ["s3", "mb", "s3://burst-files", "--endpoint-url", "http://rustfs:9000"]
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom: {secretKeyRef: {name: burst-bucket, key: accessKeyId}}
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom: {secretKeyRef: {name: burst-bucket, key: secretAccessKey}}
+            - name: AWS_DEFAULT_REGION
+              value: us-east-1

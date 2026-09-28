@@ -1,0 +1,116 @@
+{{- if eq .Values.storage.backend "s3" }}
+{{- $name := include "burst.componentName" (dict "root" . "component" "storage") }}
+{{- $ctx := dict "root" . "component" "storage" }}
+{{- $s3 := .Values.storage.s3 }}
+# The storage gateway holds the bucket credentials, so the server never does.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "burst.componentLabels" $ctx | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "burst.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "burst.componentLabels" $ctx | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: storage
+          image: {{ include "burst.image" (dict "root" . "image" .Values.gateway.image) }}
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          args:
+            - serve
+            - --artifact
+            - /config/burst-s3.bca
+            - --listen
+            - 0.0.0.0:8081
+            - --admin-bind
+            - 0.0.0.0:8090
+            - --allow-plaintext-upstream
+            - --max-body-size
+            - {{ int64 .Values.storage.maxBodySize | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8081
+            - name: admin
+              containerPort: 8090
+          env:
+            - name: BURST_S3_ENDPOINT
+              value: {{ $s3.endpoint | quote }}
+            - name: BURST_S3_REGION
+              value: {{ $s3.region | quote }}
+            - name: BURST_S3_BUCKET
+              value: {{ $s3.bucket | quote }}
+            - name: BURST_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $s3.existingSecret }}
+                  key: {{ $s3.accessKeyIdKey }}
+            - name: BURST_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $s3.existingSecret }}
+                  key: {{ $s3.secretAccessKeyKey }}
+            - name: BURST_S3_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  {{- include "burst.storageApiKeyRef" . | nindent 18 }}
+            - name: BARBACANE_ALLOW_INTERNAL_EGRESS
+              value: "true"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: admin
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: admin
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "burst.componentLabels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "burst.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+    - name: admin
+      port: 8090
+      targetPort: admin
+{{- end }}

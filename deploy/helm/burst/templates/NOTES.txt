@@ -1,0 +1,24 @@
+Burst {{ .Chart.AppVersion }} is installed as {{ include "burst.fullname" . }}.
+{{- if .Values.httpRoute.enabled }}
+{{- with .Values.httpRoute.hostnames }}
+
+Open https://{{ first . }} once the route is accepted:
+  kubectl get httproute {{ include "burst.fullname" $ }} -n {{ $.Release.Namespace }}
+{{- end }}
+{{- else }}
+
+No route was created. To try it locally:
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "burst.componentName" (dict "root" . "component" "web") }} 8080:8080
+{{- end }}
+
+Sign-in uses {{ .Values.oidc.issuerUrl }} with client "{{ .Values.oidc.clientId }}".
+{{- with include "burst.redirectUri" . }}
+Register {{ . }} as a redirect URI with the provider.
+{{- end }}
+{{- if .Values.postgresql.enabled }}
+
+The bundled PostgreSQL is for trying Burst out: one pod, no backups.
+{{- end }}
+{{- if eq .Values.storage.backend "local" }}
+Files are kept on one volume, so the server runs as a single replica.
+{{- end }}

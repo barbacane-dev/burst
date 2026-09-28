@@ -19,6 +19,7 @@
 - [Quick Start](guide/deployment.md)
 - [Configuration Reference](reference/configuration.md)
 - [Docker Compose](guide/docker.md)
+- [Kubernetes](guide/kubernetes.md)
 - [Barbacane Gateway](guide/barbacane.md)
 - [S3 Storage](guide/s3-storage.md)
 - [Multi-Node](guide/multi-node.md)

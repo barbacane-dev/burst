@@ -8,10 +8,13 @@ COPY ui/ ./
 RUN npx vite build
 
 # ── Stage 2: Extract Barbacane binary ─────────────────────────────────────────
-FROM ghcr.io/barbacane-dev/barbacane-standalone:0.10.0 AS barbacane
+FROM ghcr.io/barbacane-dev/barbacane-standalone:0.12.1 AS barbacane
 
 # ── Stage 3: Compile .bca gateway artifacts ───────────────────────────────────
 FROM barbacane AS compiler
+
+# The image's HOME does not exist, and the compiler caches plugins under it.
+ENV HOME=/workspace
 
 COPY specs/ /specs/
 COPY barbacane.yaml barbacane-s3.yaml /

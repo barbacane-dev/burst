@@ -159,6 +159,31 @@ jobs:
           push: true
           tags: ${{ steps.nginx-tags.outputs.tags }}
 
+      - name: Compute gateway image tags
+        id: gateway-tags
+        env:
+          CUSTOM_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+          CUSTOM_IMAGE: ${{ secrets.DOCKER_IMAGE_NAME }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAGS="ghcr.io/${{ github.repository }}-gateway:${VERSION}"
+          TAGS="${TAGS},ghcr.io/${{ github.repository }}-gateway:latest"
+          if [ "${{ steps.custom-login.outcome }}" = "success" ] && [ -n "${CUSTOM_REGISTRY}" ] && [ -n "${CUSTOM_IMAGE}" ]; then
+            TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-gateway:${VERSION}"
+            TAGS="${TAGS},${CUSTOM_REGISTRY}/${CUSTOM_IMAGE}-gateway:latest"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      # Barbacane and the compiled gateway artifacts, used by the Helm chart.
+      - name: Build and push (gateway)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile.gateway
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.gateway-tags.outputs.tags }}
+
       - name: Compute all-in-one image tags
         id: aio-tags
         env:

@@ -1,0 +1,177 @@
+# Burst on Kubernetes.
+#
+# Traffic: Gateway API route → gateway (Barbacane: OIDC, ACL, rate limits) →
+# server (Burst). The route sends /api and /ws to the gateway and everything
+# else to web (nginx serving the SPA). The server trusts identity headers only
+# from the gateway, which a NetworkPolicy enforces.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Pulled from ghcr.io; set a pull secret while the images are private.
+imagePullSecrets: []
+#  - name: ghcr
+
+# ── Server (Burst) ────────────────────────────────────────────────────────────
+server:
+  image:
+    repository: ghcr.io/barbacane-dev/burst
+    tag: ""  # defaults to the chart's appVersion
+    pullPolicy: IfNotPresent
+  # More than one replica needs S3 storage (storage.backend: s3). The event
+  # broker switches to PostgreSQL LISTEN/NOTIFY so replicas see each other's
+  # events.
+  replicas: 1
+  logLevel: "info,burst=info,burst_server=info"
+  # Peers whose X-Auth-* headers are believed. The gateway's pod address is not
+  # fixed, so this names the private ranges; the NetworkPolicy is what keeps
+  # every other pod from reaching the server.
+  trustedProxies:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+  database:
+    maxConnections: 20
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Gateway (Barbacane) ───────────────────────────────────────────────────────
+# The image carries Barbacane and the compiled API and storage artifacts.
+gateway:
+  image:
+    repository: ghcr.io/barbacane-dev/burst-gateway
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  # Largest request body, in bytes. Uploads go through the gateway.
+  maxBodySize: 10485760
+  extraEnv: []
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Web (SPA) ─────────────────────────────────────────────────────────────────
+web:
+  image:
+    repository: ghcr.io/barbacane-dev/burst-nginx
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ── Sign-in (OIDC) ────────────────────────────────────────────────────────────
+oidc:
+  # The provider the gateway validates tokens against. Required.
+  issuerUrl: ""
+  # The issuer tokens carry, when it differs from issuerUrl (for instance a
+  # provider reached by an in-cluster address). Defaults to issuerUrl.
+  issuerOverride: ""
+  # The token claim holding the user's roles.
+  groupsClaim: roles
+  # What the SPA signs in with.
+  clientId: burst
+  # Defaults to https://<first hostname>/callback when a hostname is set.
+  redirectUri: ""
+  scope: "openid profile email"
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# An existing PostgreSQL: a Secret holding its URL
+# (postgres://user:password@host:5432/burst).
+database:
+  existingSecret: ""
+  urlKey: url
+
+# A single PostgreSQL pod for trying Burst out. Not for production: no backups,
+# no failover. Ignored when database.existingSecret is set.
+postgresql:
+  enabled: false
+  image:
+    repository: postgres
+    tag: "17"
+  # Generated and kept across upgrades when empty.
+  password: ""
+  persistence:
+    size: 8Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# ── File storage ──────────────────────────────────────────────────────────────
+storage:
+  # local: a volume on the server pod, for a single replica.
+  # s3: an S3-compatible bucket, reached through a storage gateway that holds
+  #     the credentials; required for more than one replica.
+  backend: local
+  local:
+    size: 10Gi
+    storageClass: ""
+  s3:
+    endpoint: ""        # e.g. https://s3.eu-west-1.amazonaws.com
+    region: us-east-1
+    bucket: burst-files
+    # A Secret with accessKeyId and secretAccessKey.
+    existingSecret: ""
+    accessKeyIdKey: accessKeyId
+    secretAccessKeyKey: secretAccessKey
+  # Largest file, in bytes, the storage gateway accepts.
+  maxBodySize: 104857600
+
+# The key the server presents to the storage gateway. Generated and kept across
+# upgrades unless set here or in an existing Secret (key: apiKey).
+storageApiKey:
+  existingSecret: ""
+  value: ""
+
+# ── Routing (Gateway API) ─────────────────────────────────────────────────────
+httpRoute:
+  enabled: true
+  # The Gateway this route attaches to.
+  parentRefs: []
+  #  - name: public
+  #    namespace: gateway-system
+  #    sectionName: https
+  hostnames: []
+  #  - chat.example.com
+  annotations: {}
+
+# ── Security and monitoring ───────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  # Namespaces allowed to scrape the admin ports (metrics, health), by label.
+  metricsNamespaceSelector: {}
+  #  matchLabels:
+  #    kubernetes.io/metadata.name: monitoring
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}

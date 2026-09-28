@@ -1,0 +1,61 @@
+suite: combinations the chart refuses
+templates:
+  - templates/secret.yaml
+set:
+  oidc.issuerUrl: https://id.example
+  postgresql.enabled: true
+  httpRoute.enabled: false
+tests:
+  - it: installs with the minimum an evaluation needs
+    asserts:
+      - notFailedTemplate: {}
+
+  - it: needs an OIDC issuer
+    set:
+      oidc.issuerUrl: ""
+    asserts:
+      - failedTemplate:
+          errorPattern: "oidc.issuerUrl is required"
+
+  - it: needs a database
+    set:
+      postgresql.enabled: false
+    asserts:
+      - failedTemplate:
+          errorPattern: "database.existingSecret"
+
+  - it: refuses local storage with more than one server
+    set:
+      server.replicas: 2
+    asserts:
+      - failedTemplate:
+          errorPattern: "use storage.backend=s3 for more than one server replica"
+
+  - it: refuses an unknown storage backend
+    set:
+      storage.backend: nfs
+    asserts:
+      - failedTemplate:
+          errorPattern: "storage.backend must be local or s3"
+
+  - it: needs an S3 endpoint and credentials
+    set:
+      storage.backend: s3
+    asserts:
+      - failedTemplate:
+          errorPattern: "storage.s3.endpoint is required"
+
+  - it: needs S3 credentials once the endpoint is set
+    set:
+      storage.backend: s3
+      storage.s3.endpoint: https://s3.example
+    asserts:
+      - failedTemplate:
+          errorPattern: "storage.s3.existingSecret is required"
+
+  - it: needs the Gateway a route attaches to
+    set:
+      httpRoute.enabled: true
+    asserts:
+      - failedTemplate:
+          errorPattern: "httpRoute.parentRefs"

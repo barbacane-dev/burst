@@ -1,0 +1,8 @@
+# Trying Burst out: bundled PostgreSQL, files on a volume, no route
+# (reach it with a port-forward).
+oidc:
+  issuerUrl: https://id.example.com/realms/burst
+postgresql:
+  enabled: true
+httpRoute:
+  enabled: false

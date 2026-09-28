@@ -1,0 +1,6 @@
+# One node is enough: the test checks the chart's wiring, not scheduling.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: burst
+nodes:
+  - role: control-plane

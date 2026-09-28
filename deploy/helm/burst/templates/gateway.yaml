@@ -1,0 +1,141 @@
+{{- $name := include "burst.componentName" (dict "root" . "component" "gateway") }}
+{{- $ctx := dict "root" . "component" "gateway" }}
+{{- $server := include "burst.componentName" (dict "root" . "component" "server") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "burst.componentLabels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ .Values.gateway.replicas }}
+  selector:
+    matchLabels:
+      {{- include "burst.selectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "burst.componentLabels" $ctx | nindent 8 }}
+      {{- with .Values.gateway.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: {{ include "burst.image" (dict "root" . "image" .Values.gateway.image) }}
+          imagePullPolicy: {{ .Values.gateway.image.pullPolicy }}
+          args:
+            - serve
+            - --artifact
+            - /config/burst-api.bca
+            - --listen
+            - 0.0.0.0:8080
+            - --admin-bind
+            - 0.0.0.0:8090
+            # Upstreams are in-cluster Services over plain HTTP.
+            - --allow-plaintext-upstream
+            - --max-body-size
+            - {{ int64 .Values.gateway.maxBodySize | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: admin
+              containerPort: 8090
+          env:
+            - name: BURST_UPSTREAM_URL
+              value: {{ printf "http://%s:3000" $server | quote }}
+            - name: BURST_UPSTREAM_WS_URL
+              value: {{ printf "ws://%s:3000" $server | quote }}
+            - name: BURST_OIDC_ISSUER_URL
+              value: {{ .Values.oidc.issuerUrl | quote }}
+            # The issuer tokens must carry. The plugin compares it as given, so it
+            # is never left empty: an empty value would refuse every token.
+            - name: BURST_OIDC_ISSUER_OVERRIDE
+              value: {{ default .Values.oidc.issuerUrl .Values.oidc.issuerOverride | quote }}
+            - name: BURST_OIDC_GROUPS_CLAIM
+              value: {{ .Values.oidc.groupsClaim | quote }}
+            # The plugin guard refuses private addresses unless told otherwise,
+            # and the upstreams are cluster Services.
+            - name: BARBACANE_ALLOW_INTERNAL_EGRESS
+              value: "true"
+            # The API artifact also carries a route serving the SPA from S3,
+            # which this chart does not use: web serves the SPA and the route
+            # sends only /api and /ws here. The gateway resolves every
+            # reference at startup, so these name nothing real.
+            - name: BURST_SPA_BUCKET
+              value: unused
+            - name: BURST_S3_ENDPOINT
+              value: http://unused.invalid
+            - name: BURST_S3_REGION
+              value: unused
+            - name: BURST_S3_ACCESS_KEY_ID
+              value: unused
+            - name: BURST_S3_SECRET_ACCESS_KEY
+              value: unused
+            {{- with .Values.gateway.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: admin
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: admin
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.gateway.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gateway.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- include "burst.componentLabels" $ctx | nindent 4 }}
+spec:
+  selector:
+    {{- include "burst.selectorLabels" $ctx | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: admin
+      port: 8090
+      targetPort: admin

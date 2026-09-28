@@ -1,0 +1,157 @@
+suite: server
+templates:
+  - templates/server.yaml
+  - templates/secret.yaml
+release:
+  name: chat
+set:
+  oidc.issuerUrl: https://id.example
+  database.existingSecret: db
+  httpRoute.enabled: false
+tests:
+  - it: reads the database URL from the Secret named
+    template: templates/server.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: db
+                key: url
+
+  - it: builds the bundled database's URL from the password PostgreSQL is given
+    template: templates/server.yaml
+    documentIndex: 0
+    set:
+      database.existingSecret: ""
+      postgresql.enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: chat-burst
+                key: postgres-password
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_DATABASE_URL
+            value: postgres://burst:$(BURST_POSTGRES_PASSWORD)@chat-burst-postgresql:5432/burst
+
+  - it: trusts identity headers from the listed ranges
+    template: templates/server.yaml
+    documentIndex: 0
+    set:
+      server.trustedProxies: ["10.42.0.0/16", "10.43.0.0/16"]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_AUTH_TRUSTED_PROXIES
+            value: 10.42.0.0/16,10.43.0.0/16
+
+  - it: keeps files on a volume with a single replica, replaced rather than rolled
+    template: templates/server.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_STORAGE_BACKEND
+            value: local
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: uploads
+            persistentVolumeClaim:
+              claimName: chat-burst-server-uploads
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_BROKER_BACKEND
+            value: pg_notify
+
+  - it: creates the upload volume only for local storage
+    template: templates/server.yaml
+    documentIndex: 2
+    asserts:
+      - isKind:
+          of: PersistentVolumeClaim
+      - equal:
+          path: metadata.annotations["helm.sh/resource-policy"]
+          value: keep
+
+  - it: with S3, uses the storage gateway, shares events and rolls replicas
+    template: templates/server.yaml
+    documentIndex: 0
+    set:
+      storage.backend: s3
+      storage.s3.endpoint: https://s3.example
+      storage.s3.existingSecret: bucket
+      server.replicas: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - notExists:
+          path: spec.strategy
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_STORAGE_BACKEND
+            value: gateway
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_STORAGE_GATEWAY_URL
+            value: http://chat-burst-storage:8081
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_BROKER_BACKEND
+            value: pg_notify
+      - notContains:
+          path: spec.template.spec.volumes
+          content:
+            name: uploads
+            persistentVolumeClaim:
+              claimName: chat-burst-server-uploads
+
+  - it: has no upload volume with S3
+    template: templates/server.yaml
+    set:
+      storage.backend: s3
+      storage.s3.endpoint: https://s3.example
+      storage.s3.existingSecret: bucket
+    asserts:
+      - hasDocuments:
+          count: 2
+
+  - it: runs as the distroless non-root user on a read-only root
+    template: templates/server.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 65532
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+
+  - it: probes the admin port
+    template: templates/server.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet
+          value:
+            path: /health/ready
+            port: admin

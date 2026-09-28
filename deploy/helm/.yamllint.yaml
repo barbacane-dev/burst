@@ -1,0 +1,23 @@
+# YAML style for the chart's plain YAML (values, CI profiles, tests) and the
+# end-to-end manifests. Templates are not YAML until rendered, so they are
+# checked by helm lint and kubeconform instead.
+extends: default
+ignore: |
+  templates/
+rules:
+  line-length:
+    max: 120
+  # Kubernetes manifests conventionally leave list items unindented.
+  indentation:
+    spaces: 2
+    indent-sequences: whatever
+  # `---` separates documents but is not required at the top of each file.
+  document-start: disable
+  # Inline maps such as {app: rustfs} are common in manifests.
+  braces:
+    min-spaces-inside: 0
+    max-spaces-inside: 1
+  truthy:
+    check-keys: false
+  comments:
+    min-spaces-from-content: 1

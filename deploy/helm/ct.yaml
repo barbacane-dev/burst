@@ -1,0 +1,8 @@
+# chart-testing: lints every chart under deploy/helm that a change touches,
+# with each of its ci/*-values.yaml, and requires its version to be bumped.
+chart-dirs:
+  - deploy/helm
+target-branch: main
+remote: origin
+check-version-increment: true
+validate-maintainers: false

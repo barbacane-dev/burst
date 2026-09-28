@@ -262,7 +262,7 @@ Per [ADR-008](008-crate-architecture.md), the frontend is built separately:
 cd ui && npm run build    # produces ui/dist/
 ```
 
-In production, nginx serves `ui/dist/` at the root path and proxies `/api/*` and `/ws` to Barbacane (see `docker/Dockerfile.nginx` and `docker/nginx.conf`). The Burst binary is a pure API server — it does not serve static files.
+In production, nginx serves `ui/dist/` at the root path and proxies `/api/*` and `/ws` to Barbacane (see `docker/Dockerfile.nginx` and `docker/nginx.conf.template`). The Burst binary is a pure API server — it does not serve static files.
 
 In development, the Vite dev server proxies `/api/` and `/ws` to Barbacane for hot reload.
 

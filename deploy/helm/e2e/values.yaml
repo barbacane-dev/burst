@@ -1,0 +1,19 @@
+# The chart as the end-to-end test installs it: images built from this
+# checkout and loaded into kind, the bundled PostgreSQL, the mock provider.
+server:
+  image: {repository: localhost/burst, tag: e2e, pullPolicy: Never}
+gateway:
+  image: {repository: localhost/burst-gateway, tag: e2e, pullPolicy: Never}
+web:
+  image: {repository: localhost/burst-nginx, tag: e2e, pullPolicy: Never}
+oidc:
+  # Where the gateway fetches the provider's keys, in the cluster...
+  issuerUrl: http://mock-oauth.burst.svc.cluster.local:8080/burst
+  # ...and the issuer the tokens carry: the mock stamps the address it was
+  # asked on, which is the test's port-forward.
+  issuerOverride: http://localhost:9099/burst
+postgresql:
+  enabled: true
+httpRoute:
+  parentRefs:
+    - name: public

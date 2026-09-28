@@ -1,0 +1,34 @@
+# Several replicas: an existing PostgreSQL, S3 storage, a route on a shared
+# Gateway, metrics scraped from the monitoring namespace.
+oidc:
+  issuerUrl: https://id.example.com/realms/burst
+database:
+  existingSecret: burst-database
+storage:
+  backend: s3
+  s3:
+    endpoint: https://s3.eu-west-1.amazonaws.com
+    region: eu-west-1
+    bucket: burst-files
+    existingSecret: burst-bucket
+server:
+  replicas: 3
+gateway:
+  replicas: 2
+web:
+  replicas: 2
+httpRoute:
+  parentRefs:
+    - name: public
+      namespace: gateway-system
+      sectionName: https
+  hostnames:
+    - chat.example.com
+networkPolicy:
+  metricsNamespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: monitoring
+serviceMonitor:
+  enabled: true
+imagePullSecrets:
+  - name: ghcr

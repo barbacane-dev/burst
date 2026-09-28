@@ -1,0 +1,109 @@
+suite: routing and isolation
+templates:
+  - templates/httproute.yaml
+  - templates/networkpolicy.yaml
+  - templates/web.yaml
+release:
+  name: chat
+set:
+  oidc.issuerUrl: https://id.example
+  database.existingSecret: db
+  httpRoute.parentRefs:
+    - name: public
+      namespace: gateway-system
+  httpRoute.hostnames: [chat.example.com]
+tests:
+  - it: sends the API and the socket to the gateway and the rest to the SPA
+    template: templates/httproute.yaml
+    asserts:
+      - equal:
+          path: spec.rules[0].matches
+          value:
+            - path: {type: PathPrefix, value: /api}
+            - path: {type: PathPrefix, value: /ws}
+      - equal:
+          path: spec.rules[0].backendRefs[0]
+          value: {name: chat-burst-gateway, port: 8080}
+      - equal:
+          path: spec.rules[1].backendRefs[0]
+          value: {name: chat-burst-web, port: 8080}
+      - equal:
+          path: spec.parentRefs[0]
+          value: {name: public, namespace: gateway-system}
+      - equal:
+          path: spec.hostnames
+          value: [chat.example.com]
+
+  - it: creates no route when disabled
+    template: templates/httproute.yaml
+    set:
+      httpRoute.enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: lets only the gateway reach the server's API port
+    template: templates/networkpolicy.yaml
+    documentIndex: 0
+    asserts:
+      - equal:
+          path: spec.ingress
+          value:
+            - from:
+                - podSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: burst
+                      app.kubernetes.io/instance: chat
+                      app.kubernetes.io/component: gateway
+              ports:
+                - port: 3000
+
+  - it: opens the admin ports to the monitoring namespace when named
+    template: templates/networkpolicy.yaml
+    documentIndex: 0
+    set:
+      networkPolicy.metricsNamespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+    asserts:
+      - equal:
+          path: spec.ingress[1].ports
+          value: [{port: 3001}]
+
+  - it: tells the SPA where sign-in returns, from the hostname
+    template: templates/web.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_REDIRECT_URI
+            value: https://chat.example.com/callback
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_GATEWAY_UPSTREAM
+            value: chat-burst-gateway:8080
+
+  - it: sends the browser to the public issuer when the gateway uses an in-cluster one
+    template: templates/web.yaml
+    documentIndex: 0
+    set:
+      oidc.issuerUrl: http://keycloak.auth.svc:8080/realms/burst
+      oidc.issuerOverride: https://id.example.com/realms/burst
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORITY
+            value: https://id.example.com/realms/burst
+
+  - it: sends the browser to the issuer when there is no override
+    template: templates/web.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OIDC_AUTHORITY
+            value: https://id.example

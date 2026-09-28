@@ -1,0 +1,11 @@
+# The production shape on top of values.yaml: S3 through the storage gateway,
+# several server replicas sharing events through PostgreSQL.
+storage:
+  backend: s3
+  s3:
+    endpoint: http://rustfs.burst.svc.cluster.local:9000
+    region: us-east-1
+    bucket: burst-files
+    existingSecret: burst-bucket
+server:
+  replicas: 2

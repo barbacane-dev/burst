@@ -27,6 +27,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       smoke: ${{ steps.filter.outputs.smoke }}
+      chart: ${{ steps.filter.outputs.chart }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -51,6 +52,74 @@ jobs:
               - 'docker/**'
               - 'Dockerfile'
               - '.github/workflows/ci.yaml'
+            chart:
+              - 'deploy/helm/**'
+              - 'docker/Dockerfile.gateway'
+              - 'specs/**'
+              - 'barbacane.yaml'
+              - 'barbacane-s3.yaml'
+              - '.github/workflows/ci.yaml'
+
+  # ── Helm chart: lint, unit tests, schema validation, gateway image ────────
+  chart:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.chart == 'true'
+    defaults:
+      run:
+        working-directory: deploy/helm/burst
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # chart-testing compares the chart's version with main.
+          fetch-depth: 0
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.0
+      - uses: helm/chart-testing-action@v2
+        with:
+          version: v3.14.0
+          yamllint_version: 1.38.0
+
+      - name: YAML lint
+        working-directory: .
+        run: yamllint --strict -c deploy/helm/.yamllint.yaml deploy/helm
+
+      - name: Chart checks (schema, lint per profile, version bump)
+        working-directory: .
+        run: ct lint --config deploy/helm/ct.yaml
+
+      - name: Install helm-unittest and kubeconform
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest.git --version v1.1.2 --verify=false
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin kubeconform
+
+      - name: Lint
+        run: |
+          for values in ci/*-values.yaml; do
+            helm lint . --strict -f "$values"
+          done
+
+      - name: Unit tests
+        run: helm unittest .
+
+      - name: Validate rendered manifests against the Kubernetes and CRD schemas
+        run: |
+          for values in ci/*-values.yaml; do
+            echo "::group::$values"
+            helm template chat . -f "$values" | kubeconform -strict -summary \
+              -kubernetes-version 1.30.0 \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+            echo "::endgroup::"
+          done
+
+      # Compiling happens at image build time, so a spec or manifest the
+      # gateway refuses fails here rather than on the next release.
+      - name: Build the gateway image
+        working-directory: .
+        run: docker build -f docker/Dockerfile.gateway -t burst-gateway:ci .
 
   # ── Lint + Release build (single compilation) ─────────────────────────────
   build:

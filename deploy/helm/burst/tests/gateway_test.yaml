@@ -1,0 +1,136 @@
+suite: gateways
+templates:
+  - templates/gateway.yaml
+  - templates/storage.yaml
+  - templates/secret.yaml
+release:
+  name: chat
+set:
+  oidc.issuerUrl: https://id.example
+  database.existingSecret: db
+  httpRoute.enabled: false
+tests:
+  - it: forwards to the server Service over HTTP and WebSocket
+    template: templates/gateway.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_UPSTREAM_URL
+            value: http://chat-burst-server:3000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_UPSTREAM_WS_URL
+            value: ws://chat-burst-server:3000
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_OIDC_ISSUER_URL
+            value: https://id.example
+
+  - it: expects tokens from the issuer itself unless told otherwise
+    template: templates/gateway.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_OIDC_ISSUER_OVERRIDE
+            value: https://id.example
+
+  - it: expects the overriding issuer when one is set
+    template: templates/gateway.yaml
+    documentIndex: 0
+    set:
+      oidc.issuerOverride: https://public.example
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_OIDC_ISSUER_OVERRIDE
+            value: https://public.example
+
+  - it: serves the API artifact and answers health on its admin port
+    template: templates/gateway.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: /config/burst-api.bca
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: 0.0.0.0:8090
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: admin
+
+  - it: passes the body size limits as whole numbers
+    template: templates/gateway.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "10485760"
+
+  - it: passes the storage body size limit as a whole number
+    template: templates/storage.yaml
+    documentIndex: 0
+    set:
+      storage.backend: s3
+      storage.s3.endpoint: https://s3.example
+      storage.s3.existingSecret: bucket
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: "104857600"
+
+  - it: sets every reference the API artifact resolves at startup
+    template: templates/gateway.yaml
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_SPA_BUCKET
+            value: unused
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_S3_ENDPOINT
+            value: http://unused.invalid
+
+  - it: runs no storage gateway with local storage
+    template: templates/storage.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: gives the storage gateway the bucket and the key the server presents
+    template: templates/storage.yaml
+    documentIndex: 0
+    set:
+      storage.backend: s3
+      storage.s3.endpoint: https://s3.example
+      storage.s3.existingSecret: bucket
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: /config/burst-s3.bca
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_S3_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: bucket
+                key: accessKeyId
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: BURST_S3_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: chat-burst
+                key: storage-api-key
