@@ -27,7 +27,7 @@ The server believes the identity headers the gateway sets, so a NetworkPolicy le
 - PostgreSQL, unless you use the bundled one to try Burst out.
 - For more than one server replica: an S3-compatible bucket.
 
-The images are on `ghcr.io/barbacane-dev`. While they are private, create a pull secret and list it in `imagePullSecrets`.
+The images are on `ghcr.io/barbacane-dev`. To pull them through a registry that needs credentials, create a pull secret and list it in `imagePullSecrets`.
 
 ## Trying It Out
 

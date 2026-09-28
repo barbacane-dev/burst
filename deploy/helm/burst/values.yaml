@@ -8,7 +8,7 @@
 nameOverride: ""
 fullnameOverride: ""
 
-# Pulled from ghcr.io; set a pull secret while the images are private.
+# Pulled from ghcr.io. A pull secret, if your registry or mirror needs one.
 imagePullSecrets: []
 #  - name: ghcr
 
