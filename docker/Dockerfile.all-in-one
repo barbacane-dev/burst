@@ -3,7 +3,9 @@
 ARG BARBACANE_VERSION=0.12.2
 
 # ── Stage 1: Build frontend ───────────────────────────────────────────────────
-FROM node:24-slim AS frontend
+# The built UI and the compiled artifacts are the same on every platform: build
+# them once, natively, and take only the barbacane binary per platform.
+FROM --platform=$BUILDPLATFORM node:24-slim AS frontend
 
 WORKDIR /ui
 COPY ui/package.json ui/package-lock.json ./
@@ -15,7 +17,7 @@ RUN npx vite build
 FROM ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION} AS barbacane
 
 # ── Stage 3: Compile .bca gateway artifacts ───────────────────────────────────
-FROM barbacane AS compiler
+FROM --platform=$BUILDPLATFORM ghcr.io/barbacane-dev/barbacane-standalone:${BARBACANE_VERSION} AS compiler
 
 COPY specs/ /specs/
 COPY barbacane.yaml barbacane-s3.yaml /manifests/

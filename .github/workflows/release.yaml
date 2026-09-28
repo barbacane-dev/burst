@@ -14,21 +14,18 @@ permissions:
 
 jobs:
   # ── Build release binaries ─────────────────────────────────────────────────
-  build:
+  # Linux and macOS are separate jobs so the images, which need only the Linux
+  # binaries, do not wait for the macOS build.
+  build-linux:
     strategy:
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
             artifact: burst-linux-amd64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
             artifact: burst-linux-arm64
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            artifact: burst-macos-arm64
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v7
@@ -36,9 +33,15 @@ jobs:
       - name: Install Rust toolchain
         run: rustup target add ${{ matrix.target }}
 
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
       - name: Install cross (Linux cross-compilation)
         if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
 
       - name: Build (native)
         if: matrix.target != 'aarch64-unknown-linux-gnu'
@@ -63,10 +66,39 @@ jobs:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}
 
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        run: rustup target add aarch64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: aarch64-apple-darwin
+
+      - name: Build
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Package binary
+        run: |
+          cp target/aarch64-apple-darwin/release/burst burst-macos-arm64
+          chmod +x burst-macos-arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: burst-macos-arm64
+          path: burst-macos-arm64
+
   # ── Docker image (multi-arch) ──────────────────────────────────────────────
   docker:
     runs-on: ubuntu-latest
-    needs: build
+    needs: build-linux
 
     steps:
       - uses: actions/checkout@v7
@@ -240,7 +272,7 @@ jobs:
   # ── GitHub Release ─────────────────────────────────────────────────────────
   release:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build-linux, build-macos]
 
     steps:
       - uses: actions/checkout@v7
