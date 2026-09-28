@@ -75,7 +75,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # The node major the web and all-in-one images build the UI with.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
