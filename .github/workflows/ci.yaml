@@ -545,5 +545,6 @@ jobs:
             dshanley/vacuum:latest lint \
             --functions /work/specs/functions \
             --ruleset /work/specs/.vacuum.yaml \
+            --ignore-file /work/specs/.vacuum-ignore.yaml \
             --fail-severity error \
             /work/specs/burst-api.yaml

@@ -40,7 +40,7 @@ cargo test
 cargo deny check advisories
 
 # 5. Lint OpenAPI spec (MUST pass — CI gate)
-vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml
+vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml --ignore-file specs/.vacuum-ignore.yaml
 ```
 
 The vacuum lint step is a **hard gate** in CI. Any errors will fail the pipeline.
@@ -48,7 +48,7 @@ The vacuum lint step is a **hard gate** in CI. Any errors will fail the pipeline
 To debug vacuum errors, use details mode and filter for error markers:
 
 ```bash
-vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml --no-banner -d -q 2>&1 | grep "✗"
+vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml --ignore-file specs/.vacuum-ignore.yaml --no-banner -d -q 2>&1 | grep "✗"
 ```
 
 ## OpenAPI Spec

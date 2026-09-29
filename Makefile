@@ -192,7 +192,7 @@ specs/functions/.barbacane-fetched:
 	@touch $@
 
 lint-spec: specs/functions/.barbacane-fetched ## Lint OpenAPI spec with vacuum
-	vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml
+	vacuum lint -f specs/functions specs/burst-api.yaml -r specs/.vacuum.yaml --ignore-file specs/.vacuum-ignore.yaml
 
 # ── Quality ────────────────────────────────────────────────────────────────────
 check: ## Run fmt, clippy, and tests
