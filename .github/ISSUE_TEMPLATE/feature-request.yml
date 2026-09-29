@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a feature or an improvement.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Burst is deliberately focused on messaging ([ADR-001](https://github.com/barbacane-dev/burst/blob/main/adr/001-project-vision-and-scope.md)). Requests that keep it simple to run are the most likely to be accepted.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do, and what gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How you would like it to work.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Workarounds, or how other tools handle it.
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to implement this myself.

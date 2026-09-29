@@ -123,3 +123,11 @@ Run `make help` for the full list. Key targets:
 |----------|------|----------|
 | `alice` | admin | anything |
 | `bob` | member | anything |
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, and the [`good first issue`](https://github.com/barbacane-dev/burst/labels/good%20first%20issue) label for a place to start. Questions and ideas go in [Discussions](https://github.com/barbacane-dev/burst/discussions).
+
+## License
+
+Burst is licensed under the [Apache License 2.0](LICENSE).

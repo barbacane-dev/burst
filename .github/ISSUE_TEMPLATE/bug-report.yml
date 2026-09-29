@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in Burst does not work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open channel '...'
+        2. Send a message containing '...'
+        3. See the error
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Burst version
+      description: A release tag or commit hash.
+      placeholder: 0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Local development (make all)
+        - Docker, all-in-one
+        - Docker, multi-service
+        - Helm chart
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and OS
+      description: For UI bugs.
+      placeholder: Firefox 131 on Ubuntu 24.04
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant server, gateway or browser console output. Redact tokens and personal data.
+      render: text
