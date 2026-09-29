@@ -218,7 +218,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "burst"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "burst-server",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "burst-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "chrono-tz",
@@ -249,7 +249,7 @@ dependencies = [
 
 [[package]]
 name = "burst-server"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "axum",
  "axum-extra",
