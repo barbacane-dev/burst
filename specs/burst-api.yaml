@@ -9,7 +9,8 @@ info:
     name: Barbacane
     url: https://github.com/barbacane-dev/burst
   license:
-    name: AGPL-3.0-only
+    name: Apache-2.0
+    identifier: Apache-2.0
 
 servers:
   - url: https://localhost:8080

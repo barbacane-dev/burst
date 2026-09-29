@@ -11,7 +11,7 @@ The team messaging space has a gap. Rocket.Chat and Mattermost started as focuse
 Burst takes a different path:
 
 - **Messaging only** — channels, DMs, threads, search, file sharing. Nothing else.
-- **Fully open-source** — AGPL-3.0, no enterprise edition, no feature gating.
+- **Fully open-source** — Apache-2.0, no enterprise edition, no feature gating.
 - **Simple ops** — single binary, PostgreSQL, optional S3. Runs on a $5 VPS.
 - **Barbacane-native** — uses the [Barbacane API gateway](https://barbacane.dev) for auth, rate limiting, and S3 proxying.
 
