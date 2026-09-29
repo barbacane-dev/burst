@@ -305,17 +305,17 @@ Finishes the ADR-002 feature set, then ships.
 
 Named in the feature set and carried by no earlier milestone. Promoted into v1.0 on 2026-09-24 rather than deferred, because shipping a declared scope short of itself is the thing the positioning cannot afford.
 
-- [ ] `@channel` and `@here`: parse and persist channel-wide mentions, route notifications honouring per-channel preferences (ADR-002, ADR-007)
-- [ ] Mention autocomplete offers `@channel` and `@here`, both highlighted in rendered messages (ADR-013)
-- [ ] Search filters: `from`, `before`, `after` and `hasFile` on `GET /api/search/messages` (ADR-002)
-- [ ] Search over file names: attachment names indexed and returned beside message hits (ADR-002, ADR-011)
-- [ ] Search UI: filter controls, file results distinguished from message results (ADR-013)
-- [ ] Do-not-disturb: user-level mute with a daily schedule, suppressing notification delivery (ADR-002)
-- [ ] Do-not-disturb UI: toggle and schedule in settings, indicator beside the avatar (ADR-013)
-- [ ] Custom status: status text and emoji on the user, broadcast as a presence event (ADR-002, ADR-004)
-- [ ] Custom status UI: set and clear, shown in the member list and on profiles (ADR-013)
-- [ ] Data export: admin-triggered export of messages and files, run as an async job with a download, scoped to the instance or one channel (ADR-002, ADR-011)
-- [ ] Data export UI: admin panel tab to request, follow and download an export (ADR-013)
+- [x] `@channel` and `@here`: parse and persist channel-wide mentions, route notifications honouring per-channel preferences (ADR-002, ADR-007)
+- [x] Mention autocomplete offers `@channel` and `@here`, both highlighted in rendered messages (ADR-013)
+- [x] Search filters: `from`, `before`, `after` and `hasFile` on `GET /api/search/messages` (ADR-002)
+- [x] Search over file names: attachment names indexed and returned beside message hits (ADR-002, ADR-011)
+- [x] Search UI: filter controls, file results distinguished from message results (ADR-013)
+- [x] Do-not-disturb: user-level mute with a daily schedule, suppressing notification delivery (ADR-002)
+- [x] Do-not-disturb UI: toggle and schedule in settings, indicator beside the avatar (ADR-013)
+- [x] Custom status: status text and emoji on the user, broadcast as a presence event (ADR-002, ADR-004)
+- [x] Custom status UI: set and clear, shown in the member list and on profiles (ADR-013)
+- [x] Data export: admin-triggered export of messages and files, run as an async job with a download, scoped to the instance or one channel (ADR-002, ADR-011)
+- [x] Data export UI: admin panel tab to request, follow and download an export (ADR-013)
 
 ### Release
 
