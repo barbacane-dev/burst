@@ -195,7 +195,7 @@ Observability, S3 storage, multi-node hardening. **Completing this milestone = v
 - [x] Docker image — multi-arch, minimal base (ADR-009)
 - [x] GitHub Actions release workflow — build binaries, publish Docker image on tag
 - [x] Barbacane spec for production — S3 dispatcher routes, OIDC auth, ACL rules (ADR-006, ADR-011)
-- [x] Licensing — AGPL-3.0 dual-license (follows Barbacane pattern, LICENSE + LICENSING.md)
+- [x] Licensing — Apache-2.0 (LICENSE)
 
 ---
 
