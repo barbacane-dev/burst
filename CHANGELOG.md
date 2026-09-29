@@ -4,6 +4,17 @@ All notable changes to Burst are documented in this file. From 0.2.0 on, each
 release's section is written by release-please from the conventional commits
 it contains; earlier sections follow [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0](https://github.com/barbacane-dev/burst/compare/v0.2.0...v0.3.0) (2026-09-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **license:** Burst is distributed under the Apache License 2.0 instead of the GNU AGPLv3. The commercial license no longer applies.
+
+### Miscellaneous Chores
+
+* **license:** relicense Burst under Apache-2.0 ([2e250f9](https://github.com/barbacane-dev/burst/commit/2e250f9717cd7336ceabf951376bbbe10c5977b1))
+
 ## [0.2.0](https://github.com/barbacane-dev/burst/compare/v0.1.1...v0.2.0) (2026-09-29)
 
 
