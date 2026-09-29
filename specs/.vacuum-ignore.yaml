@@ -1,0 +1,78 @@
+# Findings that do not apply to this spec, each with the reason.
+# Passed to vacuum with --ignore-file by `make lint-spec` and CI.
+
+# The WebSocket upgrade succeeds with 101, not a 2xx or 3xx.
+# The /api catch-all answers 404 by design: no API operation matches it.
+operation-success-response:
+  - $.paths['/ws'].get.responses
+  - $.paths['/api/{path+}'].get.responses
+
+# These operations take no parameters and no body, so they cannot fail validation.
+owasp-define-error-validation:
+  - $.paths['/api/users/me'].get.responses
+  - $.paths['/api/users/me/status'].delete.responses
+  - $.paths['/api/users/me/do-not-disturb'].get.responses
+  - $.paths['/api/emojis'].get.responses
+  - $.paths['/api/admin/exports'].get.responses
+  - $.paths['/api/admin/emojis'].get.responses
+  - $.paths['/api/admin/bots'].get.responses
+  - $.paths['/'].get.responses
+  - $.paths['/api/{path+}'].get.responses
+  - $.paths['/{path+}'].get.responses
+
+# The SPA routes run no middleware (x-barbacane-middlewares: []): they are public,
+# not rate limited, and answered by the gateway's mock and s3 dispatchers.
+owasp-protection-global-safe:
+  - $.paths['/'].get
+  - $.paths['/api/{path+}'].get
+  - $.paths['/{path+}'].get
+owasp-define-error-responses-429:
+  - $.paths['/'].get.responses
+  - $.paths['/api/{path+}'].get.responses
+  - $.paths['/{path+}'].get.responses
+owasp-define-error-responses-500:
+  - $.paths['/'].get.responses
+  - $.paths['/api/{path+}'].get.responses
+  - $.paths['/{path+}'].get.responses
+owasp-rate-limit:
+  - $.paths['/api/{path+}'].get.responses['404']
+  - $.paths['/{path+}'].get.responses['200']
+  - $.paths['/{path+}'].get.responses['404']
+
+# Free text, arbitrary paths, and cursors the server never sets: no format,
+# pattern or enum describes them.
+owasp-string-restricted:
+  - $.paths['/api/search/messages'].get.parameters[0].schema
+  - $.paths['/api/admin/audit-log'].get.parameters[2].schema
+  - $.paths['/api/{path+}'].get.parameters[0].schema
+  - $.paths['/{path+}'].get.parameters[0].schema
+  - $.paths['/api/emojis'].get.responses['200'].content['application/json'].schema.properties['cursor']
+  - $.paths['/api/admin/emojis'].get.responses['200'].content['application/json'].schema.properties['cursor']
+  - $.components.schemas['ChannelMemberList'].properties['cursor']
+  - $.components.schemas['ExportList'].properties['cursor']
+  - $.components.schemas['User'].properties['statusEmoji']
+  - $.components.schemas['UpdateProfileRequest'].properties['statusText']
+  - $.components.schemas['SetStatusRequest'].properties['text']
+  - $.components.schemas['SetStatusRequest'].properties['emoji']
+  - $.components.schemas['Export'].properties['error']
+  - $.components.schemas['ReactionCount'].properties['emoji']
+  - $.components.schemas['SearchResult'].properties['matchedFile']
+  - $.components.schemas['SearchResult'].properties['headline']
+  - $.components.schemas['Attachment'].properties['fileName']
+  - $.components.schemas['Attachment'].properties['contentType']
+  - $.components.schemas['AdminUser'].properties['username']
+  - $.components.schemas['AdminUser'].properties['displayName']
+  - $.components.schemas['Webhook'].properties['name']
+  - $.components.schemas['CreateWebhookRequest'].properties['name']
+  - $.components.schemas['UpdateWebhookRequest'].properties['name']
+  - $.components.schemas['IncomingWebhookPayload'].properties['content']
+  - $.components.schemas['CreateBotRequest'].properties['displayName']
+  - $.components.schemas['UpdateBotRequest'].properties['displayName']
+
+# Attachment and audit metadata are free-form JSON objects by design.
+owasp-no-additionalProperties:
+  - $.components.schemas['Attachment'].properties['metadata']
+  - $.components.schemas['AuditLogEntry'].properties['metadata']
+owasp-constrained-additionalProperties:
+  - $.components.schemas['Attachment'].properties['metadata']
+  - $.components.schemas['AuditLogEntry'].properties['metadata']

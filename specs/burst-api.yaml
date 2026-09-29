@@ -104,11 +104,15 @@ paths:
       responses:
         "101":
           description: Switching Protocols — WebSocket upgrade successful
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
 
         "429":
           $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /api/users:
     get:
       operationId: listUsers
@@ -238,6 +242,7 @@ paths:
         config:
           url: "env://BURST_UPSTREAM_URL"
       requestBody:
+        description: Profile fields to change.
         required: true
         content:
           application/json:
@@ -246,10 +251,21 @@ paths:
       responses:
         "200":
           description: Updated user profile
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "429":
@@ -275,6 +291,7 @@ paths:
         config:
           url: "env://BURST_UPSTREAM_URL"
       requestBody:
+        description: The custom status to set, with an optional expiry.
         required: true
         content:
           application/json:
@@ -410,6 +427,7 @@ paths:
         config:
           url: "env://BURST_UPSTREAM_URL"
       requestBody:
+        description: Do-not-disturb snooze and weekly quiet hours.
         required: true
         content:
           application/json:
@@ -578,8 +596,11 @@ paths:
                       $ref: "#/components/schemas/Channel"
                   cursor:
                     type: string
+                    pattern: "^ch_[0-9a-f-]{36}$"
                     maxLength: 40
                     description: Cursor for next page, absent if no more results.
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "429":
@@ -849,6 +870,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ChannelMemberList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -877,6 +900,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
+        description: Who to add; omit `userId` to join a public channel yourself.
         required: false
         content:
           application/json:
@@ -949,6 +973,8 @@ paths:
               $ref: "#/components/headers/X-RateLimit-Reset"
             X-RateLimit-Policy:
               $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "429":
@@ -1020,6 +1046,7 @@ paths:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/UserId"
       requestBody:
+        description: The member's new role.
         required: true
         content:
           application/json:
@@ -1081,6 +1108,8 @@ paths:
               $ref: "#/components/headers/X-RateLimit-Reset"
             X-RateLimit-Policy:
               $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1138,6 +1167,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1233,6 +1264,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1320,6 +1353,8 @@ paths:
               $ref: "#/components/headers/X-RateLimit-Reset"
             X-RateLimit-Policy:
               $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1378,6 +1413,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1427,6 +1464,8 @@ paths:
               $ref: "#/components/headers/X-RateLimit-Reset"
             X-RateLimit-Policy:
               $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1474,6 +1513,8 @@ paths:
               $ref: "#/components/headers/X-RateLimit-Reset"
             X-RateLimit-Policy:
               $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1640,6 +1681,15 @@ paths:
       responses:
         "200":
           description: Paginated list of custom emojis
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -1658,6 +1708,8 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/emojis/{emojiId}/image:
     get:
@@ -1701,22 +1753,44 @@ paths:
       responses:
         "200":
           description: The emoji image
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             image/*:
               schema:
                 type: string
                 format: binary
                 maxLength: 262144
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: No custom emoji has this ID
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/ProblemDetails"
         "429":
           $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
 
   /api/attachments/{attachmentId}:
     get:
@@ -1760,16 +1834,36 @@ paths:
       responses:
         "200":
           description: File content
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/octet-stream:
               schema:
                 type: string
                 format: binary
                 maxLength: 10485760
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
           description: Attachment not found or caller is not a channel member
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -1800,12 +1894,32 @@ paths:
       responses:
         "204":
           description: Message pinned
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           description: Channel or message not found
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -1832,12 +1946,32 @@ paths:
       responses:
         "204":
           description: Message unpinned
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           description: Pin not found
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -1865,10 +1999,21 @@ paths:
       responses:
         "200":
           description: List of pinned messages
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -1899,14 +2044,34 @@ paths:
       responses:
         "200":
           description: Channel archived
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Channel"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: Forbidden — not admin or channel owner
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -1934,10 +2099,21 @@ paths:
       responses:
         "200":
           description: Channel unarchived
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Channel"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1966,6 +2142,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
+        description: When to notify the current user about this channel.
         required: true
         content:
           application/json:
@@ -1981,6 +2158,17 @@ paths:
       responses:
         "204":
           description: Preference updated
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "500":
@@ -2023,19 +2211,40 @@ paths:
           description: Maximum number of items to return per page.
           schema:
             type: string
+            pattern: "^[1-9][0-9]{0,2}$"
             maxLength: 3
             default: "50"
       responses:
         "200":
           description: Paginated admin user list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminUserList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
           description: Forbidden — admin role required
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -2071,8 +2280,10 @@ paths:
           description: The user's unique identifier.
           schema:
             type: string
+            pattern: "^(usr_)?[0-9a-f-]{36}$"
             maxLength: 40
       requestBody:
+        description: User fields to change.
         required: true
         content:
           application/json:
@@ -2088,10 +2299,21 @@ paths:
       responses:
         "200":
           description: Updated user
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminUser"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2135,15 +2357,27 @@ paths:
           description: Maximum number of items to return per page.
           schema:
             type: string
+            pattern: "^[1-9][0-9]{0,2}$"
             maxLength: 3
             default: "50"
       responses:
         "200":
           description: Paginated channel list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminChannelList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2174,6 +2408,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
+        description: Channel fields to change.
         required: true
         content:
           application/json:
@@ -2185,10 +2420,21 @@ paths:
       responses:
         "200":
           description: Updated channel
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Channel"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2223,6 +2469,17 @@ paths:
       responses:
         "204":
           description: Channel deleted
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2267,6 +2524,7 @@ paths:
           description: Maximum number of items to return per page.
           schema:
             type: string
+            pattern: "^[1-9][0-9]{0,2}$"
             maxLength: 3
             default: "50"
         - name: targetType
@@ -2278,10 +2536,21 @@ paths:
       responses:
         "200":
           description: Paginated audit log
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuditLogList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2315,6 +2584,15 @@ paths:
       responses:
         "200":
           description: Exports
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2351,6 +2629,7 @@ paths:
             allow:
               - admin
       requestBody:
+        description: What to export.
         required: false
         content:
           application/json:
@@ -2361,6 +2640,15 @@ paths:
       responses:
         "202":
           description: The export, pending
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2371,6 +2659,15 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: Another export is in progress
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -2417,6 +2714,15 @@ paths:
       responses:
         "200":
           description: The export
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2463,12 +2769,30 @@ paths:
       responses:
         "204":
           description: Deleted
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "400":
           $ref: "#/components/responses/MalformedRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "409":
           description: The export is still in progress
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -2516,6 +2840,15 @@ paths:
       responses:
         "200":
           description: The zip archive
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/zip:
               schema:
@@ -2528,6 +2861,15 @@ paths:
           $ref: "#/components/responses/NotFound"
         "409":
           description: The export is not complete
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -2565,6 +2907,15 @@ paths:
       responses:
         "200":
           description: Paginated list of custom emojis
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2608,6 +2959,7 @@ paths:
             allow:
               - admin
       requestBody:
+        description: The emoji's shortcode and image.
         required: true
         content:
           multipart/form-data:
@@ -2629,12 +2981,30 @@ paths:
       responses:
         "201":
           description: Custom emoji created
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/CustomEmoji"
         "400":
           description: Invalid shortcode or missing image
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2645,6 +3015,15 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "413":
           description: Image exceeds 256 KB size limit
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2680,10 +3059,22 @@ paths:
           description: Custom emoji ID
           schema:
             type: string
+            pattern: "^[0-9a-f-]{36}$"
             maxLength: 40
       responses:
         "204":
           description: Emoji deleted
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2730,15 +3121,27 @@ paths:
           description: Maximum items per page.
           schema:
             type: string
+            pattern: "^[1-9][0-9]{0,2}$"
             maxLength: 3
             default: "50"
       responses:
         "200":
           description: Paginated webhook list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebhookList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2771,6 +3174,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/ChannelId"
       requestBody:
+        description: The new webhook's settings.
         required: true
         content:
           application/json:
@@ -2779,6 +3183,15 @@ paths:
       responses:
         "201":
           description: Webhook created (includes token shown only once)
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2819,10 +3232,21 @@ paths:
       responses:
         "200":
           description: Webhook details
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Webhook"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2855,6 +3279,7 @@ paths:
         - $ref: "#/components/parameters/ChannelId"
         - $ref: "#/components/parameters/WebhookId"
       requestBody:
+        description: Webhook settings to change.
         required: true
         content:
           application/json:
@@ -2863,6 +3288,15 @@ paths:
       responses:
         "200":
           description: Webhook updated
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2903,6 +3337,17 @@ paths:
       responses:
         "204":
           description: Webhook deleted
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2939,6 +3384,15 @@ paths:
       responses:
         "200":
           description: New token (shown only once)
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -2948,8 +3402,11 @@ paths:
                 properties:
                   token:
                     type: string
+                    pattern: "^[0-9a-f]{64}$"
                     maxLength: 64
                     description: New plaintext token.
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -2980,6 +3437,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/WebhookId"
       requestBody:
+        description: The message to post in the webhook's channel.
         required: true
         content:
           application/json:
@@ -3033,15 +3491,27 @@ paths:
           description: Maximum items per page.
           schema:
             type: string
+            pattern: "^[1-9][0-9]{0,2}$"
             maxLength: 3
             default: "50"
       responses:
         "200":
           description: Paginated webhook list
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/WebhookList"
+        "400":
+          $ref: "#/components/responses/MalformedRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -3075,6 +3545,15 @@ paths:
       responses:
         "200":
           description: List of bot users
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -3108,6 +3587,7 @@ paths:
               - admin
               - integrator
       requestBody:
+        description: The new bot user's profile.
         required: true
         content:
           application/json:
@@ -3116,6 +3596,15 @@ paths:
       responses:
         "201":
           description: Bot created
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -3128,6 +3617,15 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "409":
           description: Username already taken
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/problem+json:
               schema:
@@ -3166,6 +3664,7 @@ paths:
             pattern: "^usr_[0-9a-f-]{36}$"
             maxLength: 40
       requestBody:
+        description: Bot profile fields to change.
         required: true
         content:
           application/json:
@@ -3174,6 +3673,15 @@ paths:
       responses:
         "200":
           description: Bot updated
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
           content:
             application/json:
               schema:
@@ -3220,6 +3728,15 @@ paths:
       responses:
         "204":
           description: Bot deactivated
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
+            X-RateLimit-Policy:
+              $ref: "#/components/headers/X-RateLimit-Policy"
         "400":
           $ref: "#/components/responses/MalformedRequest"
         "401":
@@ -3241,6 +3758,7 @@ paths:
       summary: Redirect root to SPA index
       tags:
         - Frontend
+      security: []
       x-barbacane-dispatch:
         name: mock
         config:
@@ -3262,6 +3780,7 @@ paths:
       summary: No API operation at this path
       tags:
         - Frontend
+      security: []
       x-barbacane-dispatch:
         name: mock
         config:
@@ -3273,6 +3792,7 @@ paths:
         - name: path
           in: path
           required: true
+          description: The unmatched path below `/api/`.
           allowReserved: true
           schema:
             type: string
@@ -3291,6 +3811,7 @@ paths:
       summary: Serve SPA static files from S3 with index.html fallback
       tags:
         - Frontend
+      security: []
       x-barbacane-dispatch:
         name: s3
         config:
@@ -3307,6 +3828,7 @@ paths:
         - name: path
           in: path
           required: true
+          description: Object key of the static file in the SPA bucket.
           allowReserved: true
           schema:
             type: string
@@ -3316,6 +3838,12 @@ paths:
           description: Static file or SPA fallback
         "404":
           description: File not found (fallback also missing)
+        "502":
+          description: The SPA bucket could not be reached
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
 
 # ── Components ──
 
@@ -3544,31 +4072,40 @@ components:
       description: Maximum requests allowed in the current window.
       schema:
         type: integer
-        format: int32
-        example: 100
+        format: int64
+        minimum: 0
+        maximum: 4294967295
+        example: 300
     X-RateLimit-Remaining:
       description: Remaining requests in the current window.
       schema:
         type: integer
-        format: int32
-        example: 87
+        format: int64
+        minimum: 0
+        maximum: 4294967295
+        example: 287
     X-RateLimit-Reset:
       description: Unix timestamp when the current window resets.
       schema:
         type: integer
         format: int64
+        minimum: 0
+        maximum: 253402300799
         example: 1741200000
     X-RateLimit-Policy:
-      description: Policy name and settings (IETF draft-ietf-httpapi-ratelimit-headers).
+      description: "Policy name, quota and window in seconds, as `<name>;q=<quota>;w=<window>`."
       schema:
         type: string
         maxLength: 100
-        example: "100;w=60"
+        pattern: "^[^;]+;q=[0-9]+;w=[0-9]+$"
+        example: "default;q=300;w=60"
     Retry-After:
       description: Seconds until the next request will be accepted.
       schema:
         type: integer
-        format: int32
+        format: int64
+        minimum: 0
+        maximum: 4294967295
         example: 12
 
   schemas:
@@ -3821,6 +4358,7 @@ components:
           type: integer
           format: int64
           minimum: 0
+          maximum: 9223372036854775807
           description: Number of unread messages for the current user in this channel.
           example: 3
 
@@ -3953,6 +4491,7 @@ components:
           type: integer
           format: int64
           minimum: 0
+          maximum: 9223372036854775807
           description: Number of replies in this message's thread.
           example: 0
         reactions:
@@ -4007,15 +4546,18 @@ components:
           description: Cursor for next page, absent if no more results.
 
     CustomEmoji:
+      description: A custom emoji uploaded by an administrator, usable in messages and reactions by its shortcode.
       type: object
       required: [id, shortcode, imageUrl, createdBy, createdAt]
       properties:
         id:
           type: string
+          pattern: "^[0-9a-f-]{36}$"
           maxLength: 40
           description: Emoji unique identifier.
         shortcode:
           type: string
+          pattern: "^[a-z0-9_]+$"
           maxLength: 64
           description: Shortcode used to insert the emoji (e.g. "party_parrot").
         imageUrl:
@@ -4027,6 +4569,7 @@ components:
             (`/api/emojis/{emojiId}/image`), fetched with the caller's token.
         createdBy:
           type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
           maxLength: 40
           description: User ID of the emoji creator.
         createdAt:
@@ -4035,6 +4578,7 @@ components:
           format: date-time
 
     UpdateProfileRequest:
+      description: Fields of the current user's profile to change; at least one is required.
       type: object
       minProperties: 1
       properties:
@@ -4166,6 +4710,7 @@ components:
           enum: [instance, channel]
         channelId:
           type: string
+          pattern: "^ch_[0-9a-f-]{36}$"
           maxLength: 40
           description: The exported channel, for a channel export.
         status:
@@ -4173,6 +4718,7 @@ components:
           enum: [pending, running, completed, failed]
         requestedBy:
           type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
           maxLength: 40
         sizeBytes:
           type: integer
@@ -4194,6 +4740,7 @@ components:
           maxLength: 40
 
     ExportList:
+      description: A page of data exports, newest first.
       type: object
       required:
         - items
@@ -4208,6 +4755,7 @@ components:
           maxLength: 64
 
     CreateExportRequest:
+      description: "Scope of a new data export: the whole instance, or one channel when `channelId` is set."
       type: object
       additionalProperties: false
       properties:
@@ -4249,6 +4797,7 @@ components:
           description: Message text content.
         threadId:
           type: string
+          pattern: "^(msg_)?[0-9a-f-]{36}$"
           maxLength: 40
           description: ID of the thread root message.
         files:
@@ -4290,6 +4839,7 @@ components:
           type: integer
           format: int64
           minimum: 0
+          maximum: 9223372036854775807
           description: Total number of users who reacted with this emoji.
           example: 3
         userIds:
@@ -4443,6 +4993,7 @@ components:
           type: integer
           format: int64
           minimum: 0
+          maximum: 9223372036854775807
           description: File size in bytes.
           example: 204800
         contentType:
@@ -4460,26 +5011,7 @@ components:
           maxLength: 30
           example: "2026-03-06T10:05:00Z"
 
-    # ── Pin & Admin schemas ──
-
-    PinnedMessage:
-      description: A message pinned to a channel.
-      type: object
-      required: [channelId, messageId, pinnedBy, pinnedAt]
-      properties:
-        channelId:
-          type: string
-          maxLength: 40
-        messageId:
-          type: string
-          maxLength: 40
-        pinnedBy:
-          type: string
-          maxLength: 40
-        pinnedAt:
-          type: string
-          format: date-time
-          maxLength: 30
+    # ── Admin schemas ──
 
     AdminUser:
       description: User record as seen by administrators, includes role and deactivation status.
@@ -4488,6 +5020,7 @@ components:
       properties:
         id:
           type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
           maxLength: 40
         username:
           type: string
@@ -4497,6 +5030,7 @@ components:
           maxLength: 200
         email:
           type: string
+          format: email
           maxLength: 255
         role:
           type: string
@@ -4524,6 +5058,7 @@ components:
             $ref: "#/components/schemas/AdminUser"
         cursor:
           type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
           maxLength: 40
 
     AdminChannelList:
@@ -4538,6 +5073,7 @@ components:
             $ref: "#/components/schemas/Channel"
         cursor:
           type: string
+          pattern: "^ch_[0-9a-f-]{36}$"
           maxLength: 40
 
     AuditLogEntry:
@@ -4547,18 +5083,23 @@ components:
       properties:
         id:
           type: string
+          pattern: "^[0-9a-f-]{36}$"
           maxLength: 40
         userId:
           type: string
+          pattern: "^usr_[0-9a-f-]{36}$"
           maxLength: 40
         action:
           type: string
+          pattern: "^[a-z]+\\.[a-z_]+$"
           maxLength: 100
         targetType:
           type: string
+          pattern: "^[a-z]+$"
           maxLength: 50
         targetId:
           type: string
+          pattern: "^[0-9a-f-]{36}$"
           maxLength: 40
         metadata:
           type: object
@@ -4580,6 +5121,7 @@ components:
             $ref: "#/components/schemas/AuditLogEntry"
         cursor:
           type: string
+          pattern: "^[0-9a-f-]{36}$"
           maxLength: 40
 
     # ── Webhook schemas ──
@@ -4688,6 +5230,7 @@ components:
           properties:
             token:
               type: string
+              pattern: "^[0-9a-f]{64}$"
               maxLength: 64
               description: Plaintext token for authentication (shown once).
 
