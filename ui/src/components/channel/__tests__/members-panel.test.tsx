@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MembersPanel } from "../members-panel";
@@ -28,15 +28,21 @@ function user(id: string, name: string, role: User["role"] = "member"): User {
 
 const alice = user("usr_alice", "Alice");
 const bob = user("usr_bob", "Bob");
+
+const quietBob = {
+  ...user("usr_quiet", "Quiet Bob"),
+  doNotDisturbUntil: new Date(Date.now() + 60_000).toISOString(),
+};
 const mo = user("usr_mo", "Mo");
 const gus = user("usr_gus", "Gus", "guest");
 const dana = user("usr_dana", "Dana");
-const everyone = [alice, bob, mo, gus, dana];
+const everyone = [alice, bob, quietBob, mo, gus, dana];
 
 const members: ChannelMember[] = [
   { userId: "usr_alice", role: "owner", joinedAt: "" },
   { userId: "usr_mo", role: "moderator", joinedAt: "" },
   { userId: "usr_bob", role: "member", joinedAt: "" },
+  { userId: "usr_quiet", role: "member", joinedAt: "" },
   { userId: "usr_gus", role: "member", joinedAt: "" },
 ];
 
@@ -53,7 +59,7 @@ async function open(as: User, kind: Channel["kind"] = "private") {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await screen.findByText(/Members \(4\)/);
+  await screen.findByText(/Members \(5\)/);
 }
 
 const q = (name: string) => screen.queryByRole("button", { name });
@@ -146,3 +152,24 @@ describe("the members panel acts through the API", () => {
     expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Insufficient permissions");
   });
 });
+
+describe("do-not-disturb indicators", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(api.listMembers).mockResolvedValue(members);
+  });
+
+  it("shows the do-not-disturb indicator for quiet members", async () => {
+    await open(alice);
+
+    const quietMember = screen.getByText("Quiet Bob", { exact: true }).closest("li");
+    const normalMember = screen.getByText("Bob", { exact: true }).closest("li");
+
+    expect(quietMember).not.toBeNull();
+    expect(normalMember).not.toBeNull();
+
+    expect(within(quietMember!).getByRole("img", { name: /do not disturb until/i })).toBeTruthy();
+    expect(within(normalMember!).queryByRole("img", { name: /do not disturb until/i })).toBeNull();
+  });
+});
+
