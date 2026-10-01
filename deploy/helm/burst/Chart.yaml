@@ -2,10 +2,10 @@ apiVersion: v2
 name: burst
 description: Burst team messaging, with its Barbacane gateway, on Kubernetes.
 type: application
-version: 0.2.0  # x-release-please-version
+version: 0.3.0  # x-release-please-version
 # Image tags default to this. The gateway image exists from the release that
 # ships this chart onwards.
-appVersion: "0.2.0"  # x-release-please-version
+appVersion: "0.3.0"  # x-release-please-version
 home: https://github.com/barbacane-dev/burst
 sources:
   - https://github.com/barbacane-dev/burst
