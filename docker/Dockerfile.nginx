@@ -1,6 +1,6 @@
 # ── Frontend build stage ──────────────────────────────────────────────────────
 # The built UI is static files, the same on every platform: build it once, natively.
-FROM --platform=$BUILDPLATFORM node:24-slim AS frontend
+FROM --platform=$BUILDPLATFORM node:26-slim AS frontend
 
 WORKDIR /ui
 COPY ui/package.json ui/package-lock.json ./
